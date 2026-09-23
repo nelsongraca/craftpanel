@@ -38,12 +38,13 @@ class NodeResourcesTest : BaseSystemTest() {
                 node.allocatedRamMb shouldBe baseline
             }
 
-            should("subtract SYSTEM_RESERVED_RAM_MB from total_ram_mb as reported by the agent") {
-                // The agent subtracts SYSTEM_RESERVED_RAM_MB from raw hardware RAM before
-                // reporting totalRamMb to master. The stored total must be positive and
-                // represents the capacity available for server allocation.
+            should("report total_ram_mb and reserved_ram_mb as positive values") {
+                // The agent reports the node's raw physical RAM as totalRamMb and its
+                // SYSTEM_RESERVED_RAM_MB separately; master withholds the reserve when checking
+                // allocatable capacity (total − reserved).
                 val node = api.getNode(nodeId)
                 node.totalRamMb shouldBeGreaterThan 0
+                node.reservedRamMb shouldBeGreaterThanOrEqual 0
             }
 
             should("increase allocated_ram_mb when a server is created") {

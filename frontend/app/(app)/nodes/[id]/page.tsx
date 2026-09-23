@@ -3,14 +3,14 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {Ban, Check, ChevronRight, KeyRound, Power, Trash2, X,} from "lucide-react";
-import {CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,} from "recharts";
+import {Ban, Check, ChevronRight, KeyRound, Power, Trash2, X} from "lucide-react";
+import {CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis} from "recharts";
 import {getNode, getNodeMetrics, listServers} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {useWs} from "@/lib/ws-context";
 import type {Node} from "@/lib/types";
-import {timeAgo, fmtBytes, fmtMb, fillColorBg, fmtPct, fmtCpuCores} from "@/lib/utils/format";
+import {timeAgo, fmtBytes, fmtMb, fillColorBg, fmtPct, fmtCpuCores, allocatable} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/token-modal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
@@ -27,26 +27,26 @@ import {Tabs, TabsList, TabsTrigger, TabsContent} from "@/components/ui/tabs";
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function StatCard({label, children}: { label: string; children: React.ReactNode }) {
+function StatCard({label, children}: {label: string; children: React.ReactNode}) {
     return (
-        <div className="bg-surface border border-border rounded p-4 flex flex-col gap-2">
-            <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
-                {label}
-            </p>
+        <div className="flex flex-col gap-2 rounded border border-border bg-surface p-4">
+            <p className="font-heading text-xs font-bold tracking-widest text-text-muted uppercase">{label}</p>
             {children}
         </div>
     );
 }
 
-function ResourceBar({used, total, fmt}: { used: number; total: number; fmt: (v: number) => string }) {
+function ResourceBar({used, total, fmt}: {used: number; total: number; fmt: (v: number) => string}) {
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
     const cls = fillColorBg(pct);
     return (
         <div className="flex flex-col gap-1.5">
-            <p className="font-mono text-[20px] text-text-primary leading-none">{fmt(used)}</p>
-            <p className="font-mono text-xs text-text-muted">{fmt(used)} / {fmt(total)}</p>
-            <div className="h-1.5 rounded-full bg-surface-higher w-full overflow-hidden">
-                <div className={`h-full rounded-full ${cls}`} style={{width: `${pct}%`}}/>
+            <p className="font-mono text-[20px] leading-none text-text-primary">{fmt(used)}</p>
+            <p className="font-mono text-xs text-text-muted">
+                {fmt(used)} / {fmt(total)}
+            </p>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-higher">
+                <div className={`h-full rounded-full ${cls}`} style={{width: `${pct}%`}} />
             </div>
         </div>
     );
@@ -58,37 +58,50 @@ const TABS = ["Overview", "Servers", "Metrics"] as const;
 type Tab = (typeof TABS)[number];
 
 const NODE_HEADER_ACTION_BUTTONS = {
-    trust: {icon: <Check size={12} strokeWidth={2.5}/>, label: "Trust", variant: "green"},
-    reject: {icon: <Ban size={12} strokeWidth={2.5}/>, label: "Reject", variant: "red"},
-    rotate: {icon: <KeyRound size={12} strokeWidth={2.5}/>, label: "Rotate Key", variant: "default"},
-    shutdown: {icon: <Power size={12} strokeWidth={2.5}/>, label: "Shutdown", variant: "amber"},
-    decommission: {icon: <Trash2 size={12} strokeWidth={2.5}/>, label: "Decommission", variant: "red"},
+    trust: {icon: <Check size={12} strokeWidth={2.5} />, label: "Trust", variant: "green"},
+    reject: {icon: <Ban size={12} strokeWidth={2.5} />, label: "Reject", variant: "red"},
+    rotate: {icon: <KeyRound size={12} strokeWidth={2.5} />, label: "Rotate Key", variant: "default"},
+    shutdown: {icon: <Power size={12} strokeWidth={2.5} />, label: "Shutdown", variant: "amber"},
+    decommission: {icon: <Trash2 size={12} strokeWidth={2.5} />, label: "Decommission", variant: "red"},
 } as const;
 
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({node, servers, onSaved, canEdit}: { node: Node; servers: Server[]; onSaved: () => void; canEdit: boolean }) {
-    const cpuPct = node.total_cpu_millicores > 0 ? Math.min(100, (node.allocated_cpu_millicores / node.total_cpu_millicores) * 100) : 0;
+function OverviewTab({
+    node,
+    servers,
+    onSaved,
+    canEdit,
+}: {
+    node: Node;
+    servers: Server[];
+    onSaved: () => void;
+    canEdit: boolean;
+}) {
+    const allocatableRamMb = allocatable(node.total_ram_mb, node.reserved_ram_mb);
+    const allocatableCpuMillicores = allocatable(node.total_cpu_millicores, node.reserved_cpu_millicores);
+    const cpuPct =
+        allocatableCpuMillicores > 0
+            ? Math.min(100, (node.allocated_cpu_millicores / allocatableCpuMillicores) * 100)
+            : 0;
     const ramUsedMb = Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0);
     const ramUsagePct = node.total_ram_mb > 0 ? Math.min(100, (ramUsedMb / node.total_ram_mb) * 100) : 0;
     const cpuUsagePct = node.system_cpu_percent != null ? Math.min(100, node.system_cpu_percent) : 0;
 
     return (
-        <div className="px-6 py-6 space-y-6">
+        <div className="space-y-6 px-6 py-6">
             {/* Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <StatCard label="RAM Allocated">
-                    <ResourceBar used={node.allocated_ram_mb} total={node.total_ram_mb} fmt={fmtMb}/>
+                    <ResourceBar used={node.allocated_ram_mb} total={allocatableRamMb} fmt={fmtMb} />
                 </StatCard>
                 <StatCard label="CPU Allocated">
                     <div className="flex flex-col gap-1.5">
-                        <p className="font-mono text-[20px] text-text-primary leading-none">
-                            {cpuPct.toFixed(0)}%
-                        </p>
+                        <p className="font-mono text-[20px] leading-none text-text-primary">{cpuPct.toFixed(0)}%</p>
                         <p className="font-mono text-xs text-text-muted">
-                            {fmtCpuCores(node.allocated_cpu_millicores)} / {fmtCpuCores(node.total_cpu_millicores)}
+                            {fmtCpuCores(node.allocated_cpu_millicores)} / {fmtCpuCores(allocatableCpuMillicores)}
                         </p>
-                        <div className="h-1.5 rounded-full bg-surface-higher w-full overflow-hidden">
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-higher">
                             <div
                                 className={`h-full rounded-full ${fillColorBg(cpuPct)}`}
                                 style={{width: `${cpuPct}%`}}
@@ -97,15 +110,15 @@ function OverviewTab({node, servers, onSaved, canEdit}: { node: Node; servers: S
                     </div>
                 </StatCard>
                 <StatCard label="Servers">
-                    <p className="font-mono text-[20px] text-text-primary leading-none">
-                        {servers.length}
-                    </p>
+                    <p className="font-mono text-[20px] leading-none text-text-primary">{servers.length}</p>
                     <p className="font-mono text-xs text-text-muted">
                         {servers.filter((s) => s.status === "HEALTHY").length} healthy
                     </p>
                 </StatCard>
                 <StatCard label="Status">
-                    <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
+                    <Badge variant={nodeStatusVariant(node.status, node.health)}>
+                        {nodeStatusLabel(node.status, node.health)}
+                    </Badge>
                     {node.last_seen_at && (
                         <p className="text-xs text-text-muted">last seen {timeAgo(node.last_seen_at)}</p>
                     )}
@@ -113,40 +126,40 @@ function OverviewTab({node, servers, onSaved, canEdit}: { node: Node; servers: S
             </div>
 
             {/* Info panel — inline editable */}
-            <EditNode node={node} onSaved={onSaved} canEdit={canEdit}/>
+            <EditNode node={node} onSaved={onSaved} canEdit={canEdit} />
 
             {/* Resource usage bars */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-surface border border-border rounded p-4">
-                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded border border-border bg-surface p-4">
+                    <p className="mb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                         RAM Usage
                     </p>
                     <div className="flex items-center gap-3">
-                        <div className="flex-1 h-3 rounded-full bg-surface-higher overflow-hidden">
+                        <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-higher">
                             <div
                                 className={`h-full rounded-full transition-all ${fillColorBg(ramUsagePct)}`}
                                 style={{width: `${ramUsagePct}%`}}
                             />
                         </div>
-                        <span className="font-mono text-xs text-text-dim shrink-0 w-36 text-right">
-              {fmtMb(ramUsedMb)} / {fmtMb(node.total_ram_mb)}
-            </span>
+                        <span className="w-36 shrink-0 text-right font-mono text-xs text-text-dim">
+                            {fmtMb(ramUsedMb)} / {fmtMb(node.total_ram_mb)}
+                        </span>
                     </div>
                 </div>
-                <div className="bg-surface border border-border rounded p-4">
-                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
+                <div className="rounded border border-border bg-surface p-4">
+                    <p className="mb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                         CPU Usage
                     </p>
                     <div className="flex items-center gap-3">
-                        <div className="flex-1 h-3 rounded-full bg-surface-higher overflow-hidden">
+                        <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-higher">
                             <div
                                 className={`h-full rounded-full transition-all ${fillColorBg(cpuUsagePct)}`}
                                 style={{width: `${cpuUsagePct}%`}}
                             />
                         </div>
-                        <span className="font-mono text-xs text-text-dim shrink-0 w-36 text-right">
-              {node.system_cpu_percent != null ? fmtPct(node.system_cpu_percent) : "-"}
-            </span>
+                        <span className="w-36 shrink-0 text-right font-mono text-xs text-text-dim">
+                            {node.system_cpu_percent != null ? fmtPct(node.system_cpu_percent) : "-"}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -160,14 +173,20 @@ type TimeRange = "1h" | "6h" | "24h";
 const TIME_RANGE_HOURS: Record<TimeRange, number> = {"1h": 1, "6h": 6, "24h": 24};
 
 type MetricsPoint = {
-    t: string; ts: number;
-    cpu: number; ramUsed: number; ramTotal: number;
-    diskUsed: number; diskTotal: number; netIn: number; netOut: number;
+    t: string;
+    ts: number;
+    cpu: number;
+    ramUsed: number;
+    ramTotal: number;
+    diskUsed: number;
+    diskTotal: number;
+    netIn: number;
+    netOut: number;
 };
 
 const BUFFER_MAX = 360;
 
-function MetricsTab({nodeId}: { nodeId: string }) {
+function MetricsTab({nodeId}: {nodeId: string}) {
     const [range, setRange] = useState<TimeRange>("1h");
     const [loading, setLoading] = useState(true);
     const [buffer, setBuffer] = useState<MetricsPoint[]>([]);
@@ -227,14 +246,22 @@ function MetricsTab({nodeId}: { nodeId: string }) {
         cartesianGrid: {strokeDasharray: "3 3", stroke: "var(--border)"},
         xAxis: {tick: {fill: "var(--text-muted)", fontSize: 10}, tickLine: false, axisLine: false},
         yAxis: {tick: {fill: "var(--text-muted)", fontSize: 10}, tickLine: false, axisLine: false, width: 44},
-        tooltip: {contentStyle: {background: "var(--surface-higher)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, color: "var(--text-primary)"}},
+        tooltip: {
+            contentStyle: {
+                background: "var(--surface-higher)",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                fontSize: 11,
+                color: "var(--text-primary)",
+            },
+        },
     };
 
     if (loading) {
         return (
-            <div className="px-6 py-6 space-y-4">
+            <div className="space-y-4 px-6 py-6">
                 {Array.from({length: 3}).map((_, i) => (
-                    <Skeleton key={i} className="h-40 bg-surface"/>
+                    <Skeleton key={i} className="h-40 bg-surface" />
                 ))}
             </div>
         );
@@ -243,7 +270,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
     if (points.length === 0) {
         return (
             <div className="px-6 py-10">
-                <Empty className="border-2 border-border rounded-md py-10">
+                <Empty className="rounded-md border-2 border-border py-10">
                     <EmptyDescription>No metrics available for the selected time range</EmptyDescription>
                 </Empty>
             </div>
@@ -254,7 +281,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
     const lastDiskTotal = points.at(-1)?.diskTotal ?? 0;
 
     return (
-        <div className="px-6 py-6 space-y-6">
+        <div className="space-y-6 px-6 py-6">
             {/* Time range selector */}
             <div className="flex items-center gap-1">
                 {(["1h", "6h", "24h"] as TimeRange[]).map((r) => (
@@ -262,10 +289,10 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                         key={r}
                         onClick={() => setRange(r)}
                         className={[
-                            "px-3 py-1 text-xs font-heading font-bold uppercase tracking-widest rounded border transition-colors",
+                            "rounded border px-3 py-1 font-heading text-xs font-bold tracking-widest uppercase transition-colors",
                             range === r
-                                ? "bg-accent text-bg border-accent"
-                                : "text-text-muted border-border hover:bg-surface-high hover:text-text-primary",
+                                ? "border-accent bg-accent text-bg"
+                                : "border-border text-text-muted hover:bg-surface-high hover:text-text-primary",
                         ].join(" ")}
                     >
                         {r}
@@ -274,8 +301,8 @@ function MetricsTab({nodeId}: { nodeId: string }) {
             </div>
 
             {/* CPU % */}
-            <div className="bg-surface border border-border rounded p-4">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
+            <div className="rounded border border-border bg-surface p-4">
+                <p className="mb-4 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                     CPU Utilization
                 </p>
                 <ResponsiveContainer width="100%" height={140}>
@@ -290,14 +317,14 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             labelFormatter={(t: any) => fmtAxisTime(String(t))}
                         />
-                        <Line type="monotone" dataKey="cpu" stroke="var(--accent)" strokeWidth={1.5} dot={false}/>
+                        <Line type="monotone" dataKey="cpu" stroke="var(--accent)" strokeWidth={1.5} dot={false} />
                     </LineChart>
                 </ResponsiveContainer>
             </div>
 
             {/* RAM */}
-            <div className="bg-surface border border-border rounded p-4">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
+            <div className="rounded border border-border bg-surface p-4">
+                <p className="mb-4 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                     RAM Usage
                 </p>
                 <ResponsiveContainer width="100%" height={140}>
@@ -313,17 +340,26 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                             labelFormatter={(t: any) => fmtAxisTime(String(t))}
                         />
                         {lastRamTotal > 0 && (
-                            <ReferenceLine y={lastRamTotal} stroke="var(--border)" strokeDasharray="4 2"
-                                           label={{value: `Total ${fmtMb(lastRamTotal)}`, fill: "var(--text-muted)", fontSize: 10, position: "insideTopRight"}}/>
+                            <ReferenceLine
+                                y={lastRamTotal}
+                                stroke="var(--border)"
+                                strokeDasharray="4 2"
+                                label={{
+                                    value: `Total ${fmtMb(lastRamTotal)}`,
+                                    fill: "var(--text-muted)",
+                                    fontSize: 10,
+                                    position: "insideTopRight",
+                                }}
+                            />
                         )}
-                        <Line type="monotone" dataKey="ramUsed" stroke="var(--healthy)" strokeWidth={1.5} dot={false}/>
+                        <Line type="monotone" dataKey="ramUsed" stroke="var(--healthy)" strokeWidth={1.5} dot={false} />
                     </LineChart>
                 </ResponsiveContainer>
             </div>
 
             {/* Disk */}
-            <div className="bg-surface border border-border rounded p-4">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
+            <div className="rounded border border-border bg-surface p-4">
+                <p className="mb-4 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                     Disk Usage
                 </p>
                 <ResponsiveContainer width="100%" height={140}>
@@ -339,27 +375,42 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                             labelFormatter={(t: any) => fmtAxisTime(String(t))}
                         />
                         {lastDiskTotal > 0 && (
-                            <ReferenceLine y={lastDiskTotal} stroke="var(--border)" strokeDasharray="4 2"
-                                           label={{value: `Total ${fmtBytes(lastDiskTotal)}`, fill: "var(--text-muted)", fontSize: 10, position: "insideTopRight"}}/>
+                            <ReferenceLine
+                                y={lastDiskTotal}
+                                stroke="var(--border)"
+                                strokeDasharray="4 2"
+                                label={{
+                                    value: `Total ${fmtBytes(lastDiskTotal)}`,
+                                    fill: "var(--text-muted)",
+                                    fontSize: 10,
+                                    position: "insideTopRight",
+                                }}
+                            />
                         )}
-                        <Line type="monotone" dataKey="diskUsed" stroke="var(--warning)" strokeWidth={1.5} dot={false}/>
+                        <Line
+                            type="monotone"
+                            dataKey="diskUsed"
+                            stroke="var(--warning)"
+                            strokeWidth={1.5}
+                            dot={false}
+                        />
                     </LineChart>
                 </ResponsiveContainer>
             </div>
 
             {/* Network */}
-            <div className="bg-surface border border-border rounded p-4">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
+            <div className="rounded border border-border bg-surface p-4">
+                <p className="mb-4 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                     Network I/O
                 </p>
-                <div className="flex items-center gap-4 mb-3">
+                <div className="mb-3 flex items-center gap-4">
                     <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-0.5 rounded" style={{background: "var(--healthy)"}}/>
-                        <span className="text-xs font-mono text-text-muted">Net ↓</span>
+                        <div className="h-0.5 w-3 rounded" style={{background: "var(--healthy)"}} />
+                        <span className="font-mono text-xs text-text-muted">Net ↓</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <div className="w-3 h-0.5 rounded" style={{background: "var(--accent)"}}/>
-                        <span className="text-xs font-mono text-text-muted">Net ↑</span>
+                        <div className="h-0.5 w-3 rounded" style={{background: "var(--accent)"}} />
+                        <span className="font-mono text-xs text-text-muted">Net ↑</span>
                     </div>
                 </div>
                 <ResponsiveContainer width="100%" height={140}>
@@ -370,12 +421,15 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                         <Tooltip
                             {...chartStyle.tooltip}
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            formatter={(v: any, name: any) => [fmtBytes(v as number), name === "netIn" ? "Net ↓" : "Net ↑"]}
+                            formatter={(v: any, name: any) => [
+                                fmtBytes(v as number),
+                                name === "netIn" ? "Net ↓" : "Net ↑",
+                            ]}
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             labelFormatter={(t: any) => fmtAxisTime(String(t))}
                         />
-                        <Line type="monotone" dataKey="netIn" stroke="var(--healthy)" strokeWidth={1.5} dot={false}/>
-                        <Line type="monotone" dataKey="netOut" stroke="var(--accent)" strokeWidth={1.5} dot={false}/>
+                        <Line type="monotone" dataKey="netIn" stroke="var(--healthy)" strokeWidth={1.5} dot={false} />
+                        <Line type="monotone" dataKey="netOut" stroke="var(--accent)" strokeWidth={1.5} dot={false} />
                     </LineChart>
                 </ResponsiveContainer>
             </div>
@@ -443,7 +497,18 @@ export default function NodeDetailPage() {
         });
     }, [subscribe, id, fetchNode]);
 
-    const {allowedActions: allowedNodeActions, trust, reject, rotate, shutdown, decommission, pendingFor: nodePendingFor, actionError, setActionError, dialog: nodeActionsDialog} = useNodeActions({
+    const {
+        allowedActions: allowedNodeActions,
+        trust,
+        reject,
+        rotate,
+        shutdown,
+        decommission,
+        pendingFor: nodePendingFor,
+        actionError,
+        setActionError,
+        dialog: nodeActionsDialog,
+    } = useNodeActions({
         onChanged: () => void fetchNode(),
         onTokenRotated: setTokenKey,
         onDecommissioned: () => router.push("/nodes"),
@@ -453,10 +518,10 @@ export default function NodeDetailPage() {
 
     if (loading) {
         return (
-            <div className="px-6 pt-6 space-y-4">
-                <Skeleton className="h-4 w-40 bg-surface"/>
-                <Skeleton className="h-8 w-64 bg-surface"/>
-                <Skeleton className="h-4 w-48 bg-surface"/>
+            <div className="space-y-4 px-6 pt-6">
+                <Skeleton className="h-4 w-40 bg-surface" />
+                <Skeleton className="h-8 w-64 bg-surface" />
+                <Skeleton className="h-4 w-48 bg-surface" />
             </div>
         );
     }
@@ -464,11 +529,13 @@ export default function NodeDetailPage() {
     if (notFound || !node) {
         return (
             <Empty className="min-h-[200px]">
-                    <EmptyDescription>
-                        Node not found.{" "}
-                        <Link href="/nodes" className="text-accent hover:underline">Back to nodes</Link>
-                    </EmptyDescription>
-                </Empty>
+                <EmptyDescription>
+                    Node not found.{" "}
+                    <Link href="/nodes" className="text-accent hover:underline">
+                        Back to nodes
+                    </Link>
+                </EmptyDescription>
+            </Empty>
         );
     }
 
@@ -477,27 +544,31 @@ export default function NodeDetailPage() {
     // ── Render ─────────────────────────────────────────────────────────────────
 
     return (
-        <div className="flex flex-col h-full min-h-0">
+        <div className="flex h-full min-h-0 flex-col">
             {/* ── Page header ── */}
-            <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
+            <div className="shrink-0 border-b border-border px-6 pt-6 pb-5">
                 {/* Breadcrumb */}
-                <div className="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
-                    <Link href="/nodes" className="hover:text-text-primary transition-colors">Nodes</Link>
-                    <ChevronRight size={11} strokeWidth={2.5}/>
+                <div className="mb-4 flex items-center gap-1.5 font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
+                    <Link href="/nodes" className="transition-colors hover:text-text-primary">
+                        Nodes
+                    </Link>
+                    <ChevronRight size={11} strokeWidth={2.5} />
                     <span className="text-text-dim">{node.display_name}</span>
                 </div>
 
                 {/* Name row + actions */}
                 <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <h1 className="font-heading text-[22px] leading-none font-bold tracking-wide text-text-primary uppercase">
                             {node.display_name}
                         </h1>
-                        <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
+                        <Badge variant={nodeStatusVariant(node.status, node.health)}>
+                            {nodeStatusLabel(node.status, node.health)}
+                        </Badge>
                     </div>
 
                     {canManage && (
-                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
                             {allowedNodeActions(node, servers.length).map((action) => {
                                 const {icon, label, variant} = NODE_HEADER_ACTION_BUTTONS[action];
                                 return (
@@ -508,11 +579,21 @@ export default function NodeDetailPage() {
                                         loading={nodePendingFor(node.id) === action}
                                         onClick={() => {
                                             switch (action) {
-                                                case "trust": void trust(node.id); break;
-                                                case "reject": reject(node.id); break;
-                                                case "rotate": rotate(node.id); break;
-                                                case "shutdown": shutdown(node); break;
-                                                case "decommission": decommission(node); break;
+                                                case "trust":
+                                                    void trust(node.id);
+                                                    break;
+                                                case "reject":
+                                                    reject(node.id);
+                                                    break;
+                                                case "rotate":
+                                                    rotate(node.id);
+                                                    break;
+                                                case "shutdown":
+                                                    shutdown(node);
+                                                    break;
+                                                case "decommission":
+                                                    decommission(node);
+                                                    break;
                                             }
                                         }}
                                         variant={variant}
@@ -531,23 +612,36 @@ export default function NodeDetailPage() {
 
             {/* Error banner */}
             {(actionError || serverActionError) && (
-                <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
+                <div className="mx-6 mt-4 flex items-center justify-between rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
                     <span>{actionError ?? serverActionError}</span>
-                    <button onClick={() => { setActionError(null); setServerActionError(null); }} className="ml-4 hover:opacity-70">
-                        <X size={13}/>
+                    <button
+                        onClick={() => {
+                            setActionError(null);
+                            setServerActionError(null);
+                        }}
+                        className="ml-4 hover:opacity-70"
+                    >
+                        <X size={13} />
                     </button>
                 </div>
             )}
 
             {/* Tab bar */}
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)} className="flex-1 min-h-0 overflow-hidden">
-                <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px] shrink-0">
-                    <TabsList variant="line" className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0">
+            <Tabs
+                value={activeTab}
+                onValueChange={(value) => setActiveTab(value as Tab)}
+                className="min-h-0 flex-1 overflow-hidden"
+            >
+                <div className="shrink-0 scrollbar-none overflow-x-auto border-b border-border bg-surface pb-[7px]">
+                    <TabsList
+                        variant="line"
+                        className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0"
+                    >
                         {TABS.map((tab) => (
                             <TabsTrigger
                                 key={tab}
                                 value={tab}
-                                className="shrink-0 rounded-none border-none px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-dim data-active:bg-transparent data-active:text-accent data-active:shadow-none after:bg-accent hover:text-text-primary"
+                                className="shrink-0 rounded-none border-none px-4 py-3 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bg-accent hover:text-text-primary data-active:bg-transparent data-active:text-accent data-active:shadow-none"
                             >
                                 {tab}
                                 {tab === "Servers" && servers.length > 0 && (
@@ -559,7 +653,7 @@ export default function NodeDetailPage() {
                 </div>
 
                 <TabsContent value="Overview" className="overflow-auto">
-                    <OverviewTab node={node} servers={servers} onSaved={fetchNode} canEdit={canManage}/>
+                    <OverviewTab node={node} servers={servers} onSaved={fetchNode} canEdit={canManage} />
                 </TabsContent>
                 <TabsContent value="Servers" className="overflow-auto">
                     <div className="px-6 py-4">
@@ -582,13 +676,13 @@ export default function NodeDetailPage() {
                         />
                     </div>
                 </TabsContent>
-                <TabsContent value="Metrics" className="overflow-auto"><MetricsTab nodeId={id}/></TabsContent>
+                <TabsContent value="Metrics" className="overflow-auto">
+                    <MetricsTab nodeId={id} />
+                </TabsContent>
             </Tabs>
 
             {/* Modals */}
-            {tokenKey && (
-                <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)}/>
-            )}
+            {tokenKey && <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)} />}
             {nodeActionsDialog}
             {serverActionsDialog}
         </div>

@@ -20,6 +20,11 @@ export function fmtMb(mb: number): string {
     return `${mb} MB`;
 }
 
+/** Effective capacity = physical total minus the host reserve. Never negative. */
+export function allocatable(total: number, reserved?: number | null): number {
+    return Math.max(0, total - (reserved ?? 0));
+}
+
 export function fillColor(pct: number): string {
     if (pct >= 86) return "var(--error)";
     if (pct >= 66) return "var(--warning)";

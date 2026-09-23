@@ -52,25 +52,18 @@ vi.mock("@/components/nodes/token-modal", () => ({
 
 vi.mock("@/components/servers/header-action-button", () => ({
     HeaderActionButton: vi.fn(({label, loading, onClick, variant}) => (
-        <button
-            title={label}
-            disabled={loading}
-            onClick={onClick}
-            data-variant={variant}
-        >
+        <button title={label} disabled={loading} onClick={onClick} data-variant={variant}>
             {loading ? "Loading..." : label}
         </button>
     )),
 }));
 
-import {
-    getNode, getNodeMetrics, listServers, trustNode, rotateNodeToken,
-} from "@/lib/generated/sdk.gen";
+import {getNode, getNodeMetrics, listServers, trustNode, rotateNodeToken} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {HealthProvider} from "@/lib/hooks/useHealth";
 import NodeDetailPage from "../page";
 
-function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+function deferred<T>(): {promise: Promise<T>; resolve: (v: T) => void} {
     let resolve!: (v: T) => void;
     const promise = new Promise<T>((r) => {
         resolve = r;
@@ -147,13 +140,17 @@ async function renderDetail(
                 disk_used_bytes: [],
                 disk_total_bytes: [],
                 net_in_bytes: [],
-                net_out_bytes: []
-            }
+                net_out_bytes: [],
+            },
         } as never);
     }
     (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions}});
 
-    const result = render(<HealthProvider><NodeDetailPage/></HealthProvider>);
+    const result = render(
+        <HealthProvider>
+            <NodeDetailPage />
+        </HealthProvider>,
+    );
 
     await waitFor(() => {
         expect(screen.queryByText(/Loading/i) || document.querySelector(".animate-pulse") || true).toBeTruthy();
@@ -164,7 +161,7 @@ async function renderDetail(
     });
     // Wait for the node name to appear
     await waitFor(() => {
-        expect(screen.getAllByText(nodeOverrides.display_name as string ?? "Node 1").length).toBeGreaterThan(0);
+        expect(screen.getAllByText((nodeOverrides.display_name as string) ?? "Node 1").length).toBeGreaterThan(0);
     });
 
     return result;
@@ -178,13 +175,15 @@ describe("NodeDetailPage", () => {
             json: async () => ({frontendVersion: "1.0.0", masterVersion: "1.0.0", versionMismatch: false}),
         });
         vi.stubGlobal("fetch", fetchMock);
-        vi.stubGlobal("ResizeObserver", class {
-            observe = vi.fn();
-            disconnect = vi.fn();
+        vi.stubGlobal(
+            "ResizeObserver",
+            class {
+                observe = vi.fn();
+                disconnect = vi.fn();
 
-            constructor() {
-            }
-        });
+                constructor() {}
+            },
+        );
     });
 
     afterEach(() => {
@@ -205,11 +204,15 @@ describe("NodeDetailPage", () => {
                     disk_used_bytes: [],
                     disk_total_bytes: [],
                     net_in_bytes: [],
-                    net_out_bytes: []
-                }
+                    net_out_bytes: [],
+                },
             } as never);
 
-            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
+            render(
+                <HealthProvider>
+                    <NodeDetailPage />
+                </HealthProvider>,
+            );
 
             expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
 
@@ -233,11 +236,15 @@ describe("NodeDetailPage", () => {
                     disk_used_bytes: [],
                     disk_total_bytes: [],
                     net_in_bytes: [],
-                    net_out_bytes: []
-                }
+                    net_out_bytes: [],
+                },
             } as never);
 
-            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
+            render(
+                <HealthProvider>
+                    <NodeDetailPage />
+                </HealthProvider>,
+            );
 
             await waitFor(() => {
                 expect(screen.getByText(/Node not found/i)).toBeInTheDocument();
@@ -256,11 +263,15 @@ describe("NodeDetailPage", () => {
                     disk_used_bytes: [],
                     disk_total_bytes: [],
                     net_in_bytes: [],
-                    net_out_bytes: []
-                }
+                    net_out_bytes: [],
+                },
             } as never);
 
-            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
+            render(
+                <HealthProvider>
+                    <NodeDetailPage />
+                </HealthProvider>,
+            );
 
             await waitFor(() => {
                 expect(screen.getByText(/Node not found/i)).toBeInTheDocument();
@@ -279,11 +290,15 @@ describe("NodeDetailPage", () => {
                     disk_used_bytes: [],
                     disk_total_bytes: [],
                     net_in_bytes: [],
-                    net_out_bytes: []
-                }
+                    net_out_bytes: [],
+                },
             } as never);
 
-            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
+            render(
+                <HealthProvider>
+                    <NodeDetailPage />
+                </HealthProvider>,
+            );
 
             await waitFor(() => {
                 expect(screen.getByText(/Node not found/i)).toBeInTheDocument();
@@ -339,8 +354,9 @@ describe("NodeDetailPage", () => {
             expect(screen.getByText("CPU Allocated")).toBeInTheDocument();
             expect(screen.getAllByText("Servers").length).toBeGreaterThan(0);
             expect(screen.getByText("Status")).toBeInTheDocument();
-            expect(screen.getAllByText(/8\.0 GB \/ 32\.0 GB/).length).toBeGreaterThan(0);
-            expect(screen.getByText("25%")).toBeInTheDocument(); // 1024/4096 = 25%
+            expect(screen.getAllByText(/8\.0 GB \/ 31\.0 GB/).length).toBeGreaterThan(0); // 32768-1024 = 31744
+            expect(screen.getAllByText(/8\.0 GB \/ 32\.0 GB/).length).toBeGreaterThan(0); // RAM Usage bar keeps raw total
+            expect(screen.getByText("33%")).toBeInTheDocument(); // 1024/(4096-1024) = 33%
             expect(screen.getAllByText("1").length).toBeGreaterThan(0); // 1 server
             expect(screen.getByText("1 healthy")).toBeInTheDocument();
         });
@@ -408,7 +424,14 @@ describe("NodeDetailPage", () => {
 
     describe("Servers tab", () => {
         it("renders the shared server row with name, type, status and RAM", async () => {
-            const srv = server({display_name: "Survival", name: "survival", server_type: "PAPER", status: "HEALTHY", memory_mb: 2048, host_port: 25565});
+            const srv = server({
+                display_name: "Survival",
+                name: "survival",
+                server_type: "PAPER",
+                status: "HEALTHY",
+                memory_mb: 2048,
+                host_port: 25565,
+            });
             await renderDetail({}, [srv]);
 
             await clickTab("Servers");
@@ -487,7 +510,11 @@ describe("NodeDetailPage", () => {
             vi.mocked(getNodeMetrics).mockReturnValue(def.promise);
             (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions: []}});
 
-            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
+            render(
+                <HealthProvider>
+                    <NodeDetailPage />
+                </HealthProvider>,
+            );
 
             await waitFor(() => {
                 expect(screen.getAllByText("Node 1").length).toBeGreaterThan(0);
@@ -497,7 +524,18 @@ describe("NodeDetailPage", () => {
 
             expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
 
-            def.resolve({data: {timestamps: [], cpu_percent: [], ram_used_mb: [], ram_total_mb: [], disk_used_bytes: [], disk_total_bytes: [], net_in_bytes: [], net_out_bytes: []}});
+            def.resolve({
+                data: {
+                    timestamps: [],
+                    cpu_percent: [],
+                    ram_used_mb: [],
+                    ram_total_mb: [],
+                    disk_used_bytes: [],
+                    disk_total_bytes: [],
+                    net_in_bytes: [],
+                    net_out_bytes: [],
+                },
+            });
             await waitFor(() => {
                 expect(screen.getByText(/No metrics available/i)).toBeInTheDocument();
             });
@@ -505,7 +543,16 @@ describe("NodeDetailPage", () => {
 
         it("shows empty state when no metrics data", async () => {
             vi.mocked(getNodeMetrics).mockResolvedValue({
-                data: {timestamps: [], cpu_percent: [], ram_used_mb: [], ram_total_mb: [], disk_used_bytes: [], disk_total_bytes: [], net_in_bytes: [], net_out_bytes: []},
+                data: {
+                    timestamps: [],
+                    cpu_percent: [],
+                    ram_used_mb: [],
+                    ram_total_mb: [],
+                    disk_used_bytes: [],
+                    disk_total_bytes: [],
+                    net_in_bytes: [],
+                    net_out_bytes: [],
+                },
             } as never);
             await renderDetail();
 
@@ -707,10 +754,23 @@ describe("NodeDetailPage", () => {
             vi.mocked(getNode).mockResolvedValue({data: node()} as never);
             vi.mocked(listServers).mockResolvedValue({data: []} as never);
             vi.mocked(getNodeMetrics).mockResolvedValue({
-                data: {timestamps: [], cpu_percent: [], ram_used_mb: [], ram_total_mb: [], disk_used_bytes: [], disk_total_bytes: [], net_in_bytes: [], net_out_bytes: []},
+                data: {
+                    timestamps: [],
+                    cpu_percent: [],
+                    ram_used_mb: [],
+                    ram_total_mb: [],
+                    disk_used_bytes: [],
+                    disk_total_bytes: [],
+                    net_in_bytes: [],
+                    net_out_bytes: [],
+                },
             } as never);
 
-            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
+            render(
+                <HealthProvider>
+                    <NodeDetailPage />
+                </HealthProvider>,
+            );
 
             await waitFor(() => {
                 expect(getNode).toHaveBeenCalledTimes(1);

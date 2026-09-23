@@ -41,8 +41,8 @@ Master stores metric snapshots at **1-minute intervals** in PostgreSQL. Historic
 
 ## Capacity Tracking
 
-Each node has a configured resource envelope (total allocatable RAM, CPU millicores). Before reporting capacity to master, the agent subtracts `SYSTEM_RESERVED_RAM_MB` and `SYSTEM_RESERVED_CPU_MILLICORES` so that OS and infrastructure
-daemons always retain guaranteed headroom. Master tracks allocated vs. available capacity and prevents over-provisioning when creating or resizing servers.
+Each node has a configured resource envelope (total RAM, CPU millicores). The agent reports the node's raw physical total together with its `SYSTEM_RESERVED_RAM_MB` / `SYSTEM_RESERVED_CPU_MILLICORES` reserve; master withholds that
+reserve when checking capacity (`total − reserved`) so that OS and infrastructure daemons always retain guaranteed headroom. Master tracks allocated vs. available capacity and prevents over-provisioning when creating or resizing servers.
 
 ## Agent Configuration
 
@@ -70,8 +70,8 @@ The agent is configured entirely through environment variables.
 | `CRAFTPANEL_CONTAINER_PREFIX`   | `craftpanel`                  | Prefix applied to all container names created by this agent (e.g. `craftpanel-<server-id>`). Change only when running multiple isolated CraftPanel stacks on the same Docker daemon.                                                      |
 | `MCROUTER_IMAGE`                | `itzg/mc-router:latest`       | Docker image used when provisioning the mc-router container on startup.                                                                                                                                                                   |
 | `MCROUTER_UPDATE_ON_START`      | `true`                        | Pull the mc-router image on every agent startup. Set to `false` to skip the pull and use the locally cached image.                                                                                                                        |
-| `SYSTEM_RESERVED_RAM_MB`        | `0`                           | Megabytes of RAM the agent will not offer to servers. Subtracted from the node's physical total before reporting to master. On a co-located node running master + PostgreSQL, `1024`–`2048` is typical.                                   |
-| `SYSTEM_RESERVED_CPU_MILLICORES` | `0`                          | CPU millicores the agent will not offer to servers (1000 millicores per core). Subtracted from the node's total before reporting to master.                                                                                                 |
+| `SYSTEM_RESERVED_RAM_MB`        | `0`                           | Megabytes of RAM the agent will not offer to servers. Reported to master alongside the node's physical total and withheld from allocatable capacity (`total − reserved`). On a co-located node running master + PostgreSQL, `1024`–`2048` is typical. |
+| `SYSTEM_RESERVED_CPU_MILLICORES` | `0`                          | CPU millicores the agent will not offer to servers (1000 millicores per core). Reported to master alongside the node's total and withheld from allocatable capacity (`total − reserved`).                                                     |
 | `METRICS_POLL_INTERVAL_SECONDS` | `5`                           | How often the agent polls `/proc` and Docker Stats for node and container metrics. Minimum 1 second.                                                                                                                                      |
 | `METRICS_COLLECTION_CONCURRENCY` | `8`                          | Maximum number of server containers whose stats/player counts are collected in parallel per metrics tick. Bounds Docker daemon load.                                                                                                       |
 

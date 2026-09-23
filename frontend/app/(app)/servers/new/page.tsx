@@ -12,40 +12,53 @@ import {McVersionSelect} from "@/components/ui/mc-version";
 import {Skeleton} from "@/components/ui/skeleton";
 import type {Network, Node} from "@/lib/types";
 import {isCustomType, isPicolimboType, PROXY_TYPES} from "@/lib/server-types";
+import {allocatable} from "@/lib/utils/format";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const GAME_SERVER_TYPES = [
-    "CUSTOM", "VANILLA", "PAPER", "FABRIC", "FOLIA", "FORGE",
-    "NEOFORGE", "QUILT", "SPIGOT", "LIMBO", "PICOLIMBO",
+    "CUSTOM",
+    "VANILLA",
+    "PAPER",
+    "FABRIC",
+    "FOLIA",
+    "FORGE",
+    "NEOFORGE",
+    "QUILT",
+    "SPIGOT",
+    "LIMBO",
+    "PICOLIMBO",
 ] as const;
 
 // ── Field component helpers ───────────────────────────────────────────────────
 
-function Label({children, required, htmlFor}: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
+function Label({children, required, htmlFor}: {children: React.ReactNode; required?: boolean; htmlFor?: string}) {
     return (
-        <label htmlFor={htmlFor} className="block text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-1.5">
+        <label
+            htmlFor={htmlFor}
+            className="mb-1.5 block font-heading text-xs font-bold tracking-wider text-text-muted uppercase"
+        >
             {children}
-            {required && <span className="text-error ml-1">*</span>}
+            {required && <span className="ml-1 text-error">*</span>}
         </label>
     );
 }
 
 function FieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-    return <TextField {...props} surface="surface" fieldSize="md"/>;
+    return <TextField {...props} surface="surface" fieldSize="md" />;
 }
 
 function FieldSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-    return <SelectField {...props} surface="surface" fieldSize="md" className="w-full"/>;
+    return <SelectField {...props} surface="surface" fieldSize="md" className="w-full" />;
 }
 
 function FieldTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-    return <TextAreaField {...props} surface="surface" fieldSize="md"/>;
+    return <TextAreaField {...props} surface="surface" fieldSize="md" />;
 }
 
-function SectionHeading({children}: { children: React.ReactNode }) {
+function SectionHeading({children}: {children: React.ReactNode}) {
     return (
-        <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3 mt-6 first:mt-0">
+        <p className="mt-6 mb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase first:mt-0">
             {children}
         </p>
     );
@@ -109,26 +122,29 @@ export default function NewServerPage() {
         ];
 
         const loadClone = cloneId
-            ? getServer({path: {id: cloneId}}).then(({data}) => {
-                if (!data) return;
-                setDisplayName(data.display_name);
-                setDescription(data.description ?? "");
-                setServerType(data.server_type);
-                if (data.server_type !== "CUSTOM" && data.server_type !== "PICOLIMBO") {
-                    setMcVersion(data.mc_version === "LATEST" ? latestVersionsRef.current[0] ?? "" : data.mc_version);
-                }
-                setItzgImageTag(data.itzg_image_tag || "latest");
-                setCustomServerJar(data.custom_server_jar ?? "");
-                setContainerListenPort(data.container_listen_port ? String(data.container_listen_port) : "");
-                setContainerProtocol(data.container_protocol ?? "TCP");
-                setDisableHealthcheck(data.disable_healthcheck ?? false);
-                setForceRedownload(data.force_redownload ?? false);
-                setNodeId(data.node_id);
-                setNetworkId(data.network_id ?? "");
-                setRamMb(data.memory_mb);
-                setCpuCores(data.cpu_limit_millicores / 1000);
-            }).catch(() => {
-            })
+            ? getServer({path: {id: cloneId}})
+                  .then(({data}) => {
+                      if (!data) return;
+                      setDisplayName(data.display_name);
+                      setDescription(data.description ?? "");
+                      setServerType(data.server_type);
+                      if (data.server_type !== "CUSTOM" && data.server_type !== "PICOLIMBO") {
+                          setMcVersion(
+                              data.mc_version === "LATEST" ? (latestVersionsRef.current[0] ?? "") : data.mc_version,
+                          );
+                      }
+                      setItzgImageTag(data.itzg_image_tag || "latest");
+                      setCustomServerJar(data.custom_server_jar ?? "");
+                      setContainerListenPort(data.container_listen_port ? String(data.container_listen_port) : "");
+                      setContainerProtocol(data.container_protocol ?? "TCP");
+                      setDisableHealthcheck(data.disable_healthcheck ?? false);
+                      setForceRedownload(data.force_redownload ?? false);
+                      setNodeId(data.node_id);
+                      setNetworkId(data.network_id ?? "");
+                      setRamMb(data.memory_mb);
+                      setCpuCores(data.cpu_limit_millicores / 1000);
+                  })
+                  .catch(() => {})
             : Promise.resolve();
 
         Promise.all([...loadBase, loadClone]).finally(() => setLoadingData(false));
@@ -136,9 +152,11 @@ export default function NewServerPage() {
 
     if (!hasPermission(permissions, "server.create")) {
         return (
-            <div className="px-6 py-10 text-center text-text-muted text-sm">
+            <div className="px-6 py-10 text-center text-sm text-text-muted">
                 You do not have permission to create servers.{" "}
-                <Link href="/servers" className="text-accent hover:underline">Back to servers</Link>
+                <Link href="/servers" className="text-accent hover:underline">
+                    Back to servers
+                </Link>
             </div>
         );
     }
@@ -172,7 +190,10 @@ export default function NewServerPage() {
             });
 
             const {data, error: apiError} = cloneId
-                ? await cloneServer({path: {id: cloneId}, body: {name, display_name: displayName || undefined, description: description || undefined}})
+                ? await cloneServer({
+                      path: {id: cloneId},
+                      body: {name, display_name: displayName || undefined, description: description || undefined},
+                  })
                 : await createServer({body: buildBody()});
             if (apiError) {
                 setError(apiError.message ?? "Failed to create server");
@@ -187,40 +208,42 @@ export default function NewServerPage() {
     }
 
     return (
-        <div className="max-w-2xl mx-auto px-6 py-8">
+        <div className="mx-auto max-w-2xl px-6 py-8">
             {/* Header */}
             <div className="mb-8">
                 <Link
                     href="/servers"
-                    className="inline-flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors mb-4"
+                    className="mb-4 inline-flex items-center gap-1.5 font-heading text-xs font-bold tracking-wider text-text-muted uppercase transition-colors hover:text-text-primary"
                 >
-                    <ChevronLeft size={11} strokeWidth={2.5}/>
+                    <ChevronLeft size={11} strokeWidth={2.5} />
                     Servers
                 </Link>
-                <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
+                <h1 className="font-heading text-[22px] leading-none font-bold tracking-wide text-text-primary uppercase">
                     {cloneId ? "Clone Server" : "New Server"}
                 </h1>
                 {cloneId && (
                     <p className="mt-1.5 text-xs text-text-muted">
-                        Cloning configuration from an existing server. Enter a new unique name; the source&apos;s software, resources, environment variables and mods will be copied.
+                        Cloning configuration from an existing server. Enter a new unique name; the source&apos;s
+                        software, resources, environment variables and mods will be copied.
                     </p>
                 )}
             </div>
 
             {error && (
-                <div className="mb-6 bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
+                <div className="mb-6 rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
                     {error}
                 </div>
             )}
 
             <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-
                 {/* Identity */}
                 <SectionHeading>Identity</SectionHeading>
 
-                <div className="bg-surface border border-border rounded p-4 space-y-4">
+                <div className="space-y-4 rounded border border-border bg-surface p-4">
                     <div>
-                        <Label required htmlFor="server-name">Name</Label>
+                        <Label required htmlFor="server-name">
+                            Name
+                        </Label>
                         <FieldInput
                             id="server-name"
                             value={name}
@@ -231,7 +254,9 @@ export default function NewServerPage() {
                             pattern="[a-z0-9][a-z0-9\-]*"
                             title="Lowercase letters, numbers and hyphens, up to 63 characters"
                         />
-                        <p className="mt-1 text-xs text-text-muted">Unique slug used internally, for container naming and as the server hostname.</p>
+                        <p className="mt-1 text-xs text-text-muted">
+                            Unique slug used internally, for container naming and as the server hostname.
+                        </p>
                     </div>
                     <div>
                         <Label htmlFor="display-name">Display Name</Label>
@@ -256,22 +281,38 @@ export default function NewServerPage() {
                 {/* Server software */}
                 <SectionHeading>Software</SectionHeading>
 
-                <div className="bg-surface border border-border rounded p-4 space-y-4">
+                <div className="space-y-4 rounded border border-border bg-surface p-4">
                     <div>
-                        <Label required htmlFor="server-type">Server Type</Label>
-                        <FieldSelect id="server-type" value={serverType} onChange={(e) => setServerType(e.target.value)}>
+                        <Label required htmlFor="server-type">
+                            Server Type
+                        </Label>
+                        <FieldSelect
+                            id="server-type"
+                            value={serverType}
+                            onChange={(e) => setServerType(e.target.value)}
+                        >
                             <optgroup label="Game Servers">
-                                {GAME_SERVER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                                {GAME_SERVER_TYPES.map((t) => (
+                                    <option key={t} value={t}>
+                                        {t}
+                                    </option>
+                                ))}
                             </optgroup>
                             <optgroup label="Proxies">
-                                {PROXY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                                {PROXY_TYPES.map((t) => (
+                                    <option key={t} value={t}>
+                                        {t}
+                                    </option>
+                                ))}
                             </optgroup>
                         </FieldSelect>
                     </div>
 
                     {!isCustom && !isPicolimbo && (
                         <div>
-                            <Label required htmlFor="mc-version">Minecraft Version</Label>
+                            <Label required htmlFor="mc-version">
+                                Minecraft Version
+                            </Label>
                             <McVersionSelect
                                 id="mc-version"
                                 value={mcVersion}
@@ -283,14 +324,18 @@ export default function NewServerPage() {
                                     setMcVersion((prev) => prev || vs[0] || prev);
                                 }}
                             />
-                            <p className="mt-1 text-xs text-text-muted">Release versions from Mojang. Passed to itzg as VERSION env var.</p>
+                            <p className="mt-1 text-xs text-text-muted">
+                                Release versions from Mojang. Passed to itzg as VERSION env var.
+                            </p>
                         </div>
                     )}
 
                     {isCustom && (
                         <>
                             <div>
-                                <Label required htmlFor="custom-server-jar">Custom Server Jar</Label>
+                                <Label required htmlFor="custom-server-jar">
+                                    Custom Server Jar
+                                </Label>
                                 <FieldInput
                                     id="custom-server-jar"
                                     value={customServerJar}
@@ -299,7 +344,8 @@ export default function NewServerPage() {
                                     required
                                 />
                                 <p className="mt-1 text-xs text-text-muted">
-                                    Absolute path in the data volume (e.g. /data/MyServer.jar) or download URL. Passed to itzg as CUSTOM_SERVER.
+                                    Absolute path in the data volume (e.g. /data/MyServer.jar) or download URL. Passed
+                                    to itzg as CUSTOM_SERVER.
                                 </p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -314,15 +360,23 @@ export default function NewServerPage() {
                                         min={1}
                                         max={65535}
                                     />
-                                    <p className="mt-1 text-xs text-text-muted">Internal port your server listens on. Empty = 25565.</p>
+                                    <p className="mt-1 text-xs text-text-muted">
+                                        Internal port your server listens on. Empty = 25565.
+                                    </p>
                                 </div>
                                 <div>
                                     <Label htmlFor="container-protocol">Protocol</Label>
-                                    <FieldSelect id="container-protocol" value={containerProtocol} onChange={(e) => setContainerProtocol(e.target.value)}>
+                                    <FieldSelect
+                                        id="container-protocol"
+                                        value={containerProtocol}
+                                        onChange={(e) => setContainerProtocol(e.target.value)}
+                                    >
                                         <option value="TCP">TCP</option>
                                         <option value="UDP">UDP</option>
                                     </FieldSelect>
-                                    <p className="mt-1 text-xs text-text-muted">UDP servers cannot be routed by mc-router.</p>
+                                    <p className="mt-1 text-xs text-text-muted">
+                                        UDP servers cannot be routed by mc-router.
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-4">
@@ -349,7 +403,9 @@ export default function NewServerPage() {
                     )}
 
                     <div>
-                        <Label required htmlFor="itzg-image-tag">itzg Image Tag</Label>
+                        <Label required htmlFor="itzg-image-tag">
+                            itzg Image Tag
+                        </Label>
                         <FieldInput
                             id="itzg-image-tag"
                             value={itzgImageTag}
@@ -359,34 +415,44 @@ export default function NewServerPage() {
                             list="itzg-tags"
                         />
                         <datalist id="itzg-tags">
-                            <option value="latest"/>
-                            <option value="java21"/>
-                            <option value="java21-jdk"/>
-                            <option value="java17"/>
-                            <option value="java17-jdk"/>
-                            <option value="java11"/>
-                            <option value="java8"/>
+                            <option value="latest" />
+                            <option value="java21" />
+                            <option value="java21-jdk" />
+                            <option value="java17" />
+                            <option value="java17-jdk" />
+                            <option value="java11" />
+                            <option value="java8" />
                         </datalist>
-                        <p className="mt-1 text-xs text-text-muted">Docker image tag for itzg/minecraft-server or itzg/mc-proxy.</p>
+                        <p className="mt-1 text-xs text-text-muted">
+                            Docker image tag for itzg/minecraft-server or itzg/mc-proxy.
+                        </p>
                     </div>
                 </div>
 
                 {/* Infrastructure */}
                 <SectionHeading>Infrastructure</SectionHeading>
 
-                <div className="bg-surface border border-border rounded p-4 space-y-4">
+                <div className="space-y-4 rounded border border-border bg-surface p-4">
                     <div>
-                        <Label required htmlFor="node">Node</Label>
+                        <Label required htmlFor="node">
+                            Node
+                        </Label>
                         {loadingData ? (
-                            <Skeleton className="h-9 bg-surface-high"/>
+                            <Skeleton className="h-9 bg-surface-high" />
                         ) : (
                             <FieldSelect id="node" value={nodeId} onChange={(e) => setNodeId(e.target.value)} required>
                                 <option value="">Select a node…</option>
-                                {nodes.filter((n) => n.status === "ACTIVE").map((n) => (
-                                    <option key={n.id} value={n.id}>
-                                        {n.display_name} - {n.total_ram_mb ? `${Math.round(n.total_ram_mb / 1024)} GB` : "unknown"} RAM
-                                    </option>
-                                ))}
+                                {nodes
+                                    .filter((n) => n.status === "ACTIVE")
+                                    .map((n) => {
+                                        const ram = allocatable(n.total_ram_mb, n.reserved_ram_mb);
+                                        return (
+                                            <option key={n.id} value={n.id}>
+                                                {n.display_name} - {ram ? `${Math.round(ram / 1024)} GB` : "unknown"}{" "}
+                                                RAM
+                                            </option>
+                                        );
+                                    })}
                             </FieldSelect>
                         )}
                     </div>
@@ -396,7 +462,9 @@ export default function NewServerPage() {
                         <FieldSelect id="network" value={networkId} onChange={(e) => setNetworkId(e.target.value)}>
                             <option value="">None</option>
                             {networks.map((n) => (
-                                <option key={n.id} value={n.id}>{n.name}</option>
+                                <option key={n.id} value={n.id}>
+                                    {n.name}
+                                </option>
                             ))}
                         </FieldSelect>
                     </div>
@@ -405,9 +473,11 @@ export default function NewServerPage() {
                 {/* Resources */}
                 <SectionHeading>Resources</SectionHeading>
 
-                <div className="bg-surface border border-border rounded p-4 space-y-4">
+                <div className="space-y-4 rounded border border-border bg-surface p-4">
                     <div>
-                        <Label required htmlFor="ram-mb">RAM (MB)</Label>
+                        <Label required htmlFor="ram-mb">
+                            RAM (MB)
+                        </Label>
                         <FieldInput
                             id="ram-mb"
                             type="number"
@@ -435,7 +505,7 @@ export default function NewServerPage() {
                 {canSetExpiry && (
                     <>
                         <SectionHeading>Expiration</SectionHeading>
-                        <div className="bg-surface border border-border rounded p-4 space-y-4">
+                        <div className="space-y-4 rounded border border-border bg-surface p-4">
                             <div>
                                 <Label htmlFor="expires-at">Expires At</Label>
                                 <FieldInput
@@ -445,7 +515,8 @@ export default function NewServerPage() {
                                     onChange={(e) => setExpiresAt(e.target.value)}
                                 />
                                 <p className="mt-1 text-xs text-text-muted">
-                                    After this date, the server can no longer be started and running instances will be stopped.
+                                    After this date, the server can no longer be started and running instances will be
+                                    stopped.
                                 </p>
                             </div>
                         </div>
@@ -456,14 +527,14 @@ export default function NewServerPage() {
                 <div className="flex items-center justify-end gap-3 pt-2">
                     <Link
                         href="/servers"
-                        className="px-4 py-2 text-xs font-heading font-bold uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors"
+                        className="px-4 py-2 font-heading text-xs font-bold tracking-widest text-text-muted uppercase transition-colors hover:text-text-primary"
                     >
                         Cancel
                     </Link>
                     <button
                         type="submit"
                         disabled={submitting || loadingData}
-                        className="px-5 py-2 rounded bg-accent text-bg text-xs font-heading font-bold uppercase tracking-widest hover:bg-accent-bright transition-colors disabled:opacity-50"
+                        className="rounded bg-accent px-5 py-2 font-heading text-xs font-bold tracking-widest text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
                     >
                         {submitting ? "Creating…" : cloneId ? "Clone Server" : "Create Server"}
                     </button>

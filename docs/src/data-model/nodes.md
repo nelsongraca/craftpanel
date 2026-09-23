@@ -45,8 +45,8 @@ Runtime health — master/agent-observed, independent of lifecycle status.
 | `token_hash`           | TEXT               | SHA-256 of the 256-bit pre-shared registration token                       |
 | `status`               | VARCHAR(20)          | Admin-driven lifecycle state: `PENDING`, `ACTIVE`, `REJECTED`, or `DECOMMISSIONED`                |
 | `health`               | VARCHAR(20)        | Runtime health: `HEALTHY`, `DEGRADED`, or `UNREACHABLE`. Default `HEALTHY` |
-| `total_ram_mb`         | INT                | Total RAM reported by agent at registration                                |
-| `total_cpu_millicores`     | INT                | Total allocatable CPU in millicores (cores × 1000), reported by agent at registration |
+| `total_ram_mb`         | INT                | Raw physical RAM reported by agent at registration (before the `reserved_ram_mb` reserve) |
+| `total_cpu_millicores`     | INT                | Raw physical CPU in millicores (cores × 1000), reported by agent at registration (before the `reserved_cpu_millicores` reserve) |
 | `system_ram_used_mb`   | INT                | RAM used by the agent host itself; reported by agent each snapshot; `NULL` if not yet collected |
 | `system_cpu_percent`   | NUMERIC(5,2)       | CPU utilisation of the agent host; reported by agent each snapshot; `NULL` if not yet collected |
 | `reserved_ram_mb`      | INT                | RAM reserved for the OS/host, excluded from server allocation capacity     |
