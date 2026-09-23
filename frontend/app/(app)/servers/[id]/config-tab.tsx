@@ -17,13 +17,13 @@ const GAME_FIELDS: readonly EnvField[] = SECTIONS.flatMap((section) => section.f
 const NO_FIELDS: readonly EnvField[] = [];
 
 export function ConfigTab({
-                              serverId,
-                              serverType,
-                              networkId,
-                              configMode,
-                              stopCommand,
-                              onOpenGeneralSettings,
-                          }: {
+    serverId,
+    serverType,
+    networkId,
+    configMode,
+    stopCommand,
+    onOpenGeneralSettings,
+}: {
     serverId: string;
     serverType: string;
     networkId: string | null;
@@ -44,32 +44,28 @@ export function ConfigTab({
         );
     }
     if (serverType === "CUSTOM" || serverType === "PICOLIMBO") {
-        return <CustomServerConfigSection serverId={serverId} stopCommand={stopCommand}/>;
+        return <CustomServerConfigSection serverId={serverId} stopCommand={stopCommand} />;
     }
-    return <GameServerConfigSection serverId={serverId} configMode={configMode} stopCommand={stopCommand}/>;
+    return <GameServerConfigSection serverId={serverId} configMode={configMode} stopCommand={stopCommand} />;
 }
 
 function ConfigLoading() {
-    return <div className="px-6 py-10 text-center text-text-muted text-sm">Loading{"\u2026"}</div>;
+    return <div className="px-6 py-10 text-center text-sm text-text-muted">Loading{"\u2026"}</div>;
 }
 
 function ConfigError({message}: {message: string | null}) {
     if (!message) return null;
-    return (
-        <div className="text-xs text-error bg-error/10 border border-error/30 rounded px-3 py-2">
-            {message}
-        </div>
-    );
+    return <div className="rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">{message}</div>;
 }
 
 function ProxyServerConfigSection({
-                                      serverId,
-                                      serverType,
-                                      networkId,
-                                      configMode: initialConfigMode,
-                                      stopCommand,
-                                      onOpenGeneralSettings,
-                                  }: {
+    serverId,
+    serverType,
+    networkId,
+    configMode: initialConfigMode,
+    stopCommand,
+    onOpenGeneralSettings,
+}: {
     serverId: string;
     serverType: string;
     networkId: string | null;
@@ -81,11 +77,13 @@ function ProxyServerConfigSection({
     const config = useServerEnvConfig(serverId, NO_FIELDS);
     const isManual = configMode === "MANUAL";
 
-    if (config.loading) return <ConfigLoading/>;
+    if (config.loading) return <ConfigLoading />;
 
     return (
-        <div className="px-6 py-6 space-y-6">
-            <p className="text-xs text-text-muted">Configuration changes take effect on the next server start or restart.</p>
+        <div className="space-y-6 px-6 py-6">
+            <p className="text-xs text-text-muted">
+                Configuration changes take effect on the next server start or restart.
+            </p>
             <ConfigModeToggle
                 serverId={serverId}
                 configMode={configMode}
@@ -94,14 +92,18 @@ function ProxyServerConfigSection({
                 managedDescription="Settings below are applied to the proxy config on next start."
             />
 
-            <ConfigError message={config.error}/>
+            <ConfigError message={config.error} />
 
-            <StopCommandSection serverId={serverId} stopCommand={stopCommand} placeholder="end"/>
+            <StopCommandSection serverId={serverId} stopCommand={stopCommand} placeholder="end" />
 
             {!isManual && (
                 <>
-                    <ProxySettingsSection serverId={serverId} serverType={serverType}/>
-                    <ProxyBackendsSection serverId={serverId} networkId={networkId} onOpenGeneralSettings={onOpenGeneralSettings}/>
+                    <ProxySettingsSection serverId={serverId} serverType={serverType} />
+                    <ProxyBackendsSection
+                        serverId={serverId}
+                        networkId={networkId}
+                        onOpenGeneralSettings={onOpenGeneralSettings}
+                    />
                 </>
             )}
 
@@ -113,17 +115,17 @@ function ProxyServerConfigSection({
             />
 
             {config.isDirty && (
-                <UnsavedBar onDiscard={config.discard} onSave={() => void config.save()} saving={config.saving}/>
+                <UnsavedBar onDiscard={config.discard} onSave={() => void config.save()} saving={config.saving} />
             )}
         </div>
     );
 }
 
 function GameServerConfigSection({
-                                     serverId,
-                                     configMode: initialConfigMode,
-                                     stopCommand,
-                                 }: {
+    serverId,
+    configMode: initialConfigMode,
+    stopCommand,
+}: {
     serverId: string;
     configMode: string;
     stopCommand: string;
@@ -131,12 +133,12 @@ function GameServerConfigSection({
     const [configMode, setConfigMode] = useState(initialConfigMode);
     const config = useServerEnvConfig(serverId, GAME_FIELDS);
 
-    if (config.loading) return <ConfigLoading/>;
+    if (config.loading) return <ConfigLoading />;
 
     const isManual = configMode === "MANUAL";
 
     return (
-        <div className="px-6 py-6 space-y-6">
+        <div className="space-y-6 px-6 py-6">
             <ConfigModeToggle
                 serverId={serverId}
                 configMode={configMode}
@@ -145,21 +147,17 @@ function GameServerConfigSection({
                 managedDescription="Env vars below are applied to the container on next start."
             />
 
-            <ConfigError message={config.error}/>
+            <ConfigError message={config.error} />
 
-            <StopCommandSection serverId={serverId} stopCommand={stopCommand} placeholder="stop"/>
+            <StopCommandSection serverId={serverId} stopCommand={stopCommand} placeholder="stop" />
 
-            {/* Field sections — hidden entirely in Manual mode (mapped to server.properties) */}
+            {/* Field sections — server.properties-mapped sections are hidden in Manual mode.
+                JVM Options stays visible: it has no server.properties equivalent. */}
             {SECTIONS.map((section) => {
                 const isMappedSection = section.fields.some((f) => f.serverPropertiesMapped);
-                if (isManual && (isMappedSection || section.title === "JVM Options")) return null;
+                if (isManual && isMappedSection) return null;
                 return (
-                    <FieldSection
-                        key={section.title}
-                        section={section}
-                        form={config.form}
-                        setField={config.setField}
-                    />
+                    <FieldSection key={section.title} section={section} form={config.form} setField={config.setField} />
                 );
             })}
 
@@ -173,30 +171,27 @@ function GameServerConfigSection({
             )}
 
             {config.isDirty && (
-                <UnsavedBar onDiscard={config.discard} onSave={() => void config.save()} saving={config.saving}/>
+                <UnsavedBar onDiscard={config.discard} onSave={() => void config.save()} saving={config.saving} />
             )}
         </div>
     );
 }
 
-function CustomServerConfigSection({serverId, stopCommand}: {
-    serverId: string;
-    stopCommand: string;
-}) {
+function CustomServerConfigSection({serverId, stopCommand}: {serverId: string; stopCommand: string}) {
     const config = useServerEnvConfig(serverId, NO_FIELDS);
 
-    if (config.loading) return <ConfigLoading/>;
+    if (config.loading) return <ConfigLoading />;
 
     return (
-        <div className="px-6 py-6 space-y-6">
+        <div className="space-y-6 px-6 py-6">
             <p className="text-xs text-text-dim">
-                CUSTOM servers run a user-supplied jar as-is. Configuration is manual — the jar is not
-                auto-configured, and environment variables below are passed straight to the container.
+                CUSTOM servers run a user-supplied jar as-is. Configuration is manual — the jar is not auto-configured,
+                and environment variables below are passed straight to the container.
             </p>
 
-            <ConfigError message={config.error}/>
+            <ConfigError message={config.error} />
 
-            <StopCommandSection serverId={serverId} stopCommand={stopCommand} placeholder="stop"/>
+            <StopCommandSection serverId={serverId} stopCommand={stopCommand} placeholder="stop" />
 
             <ExtraVarsSection
                 extraVars={config.extraVars}
@@ -206,7 +201,7 @@ function CustomServerConfigSection({serverId, stopCommand}: {
             />
 
             {config.isDirty && (
-                <UnsavedBar onDiscard={config.discard} onSave={() => void config.save()} saving={config.saving}/>
+                <UnsavedBar onDiscard={config.discard} onSave={() => void config.save()} saving={config.saving} />
             )}
         </div>
     );

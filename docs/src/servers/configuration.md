@@ -40,8 +40,7 @@ This means:
 - **`server.properties`-mapped vars** (difficulty, max players, MOTD, etc.) — applied to the file when managed, ignored when manual
 - **Non-`server.properties` vars** (JVM flags, etc.) — always applied by itzg regardless of `OVERRIDE_SERVER_PROPERTIES`, since they have no `server.properties` equivalent
 
-The UI shows all configuration fields in both modes. In manual mode, `server.properties`-mapped fields are shown with a notice that they will not be applied to the file until managed mode is
-re-enabled. JVM option fields are always active.
+The Configuration tab hides every `server.properties`-mapped section in manual mode — those fields have no effect while `OVERRIDE_SERVER_PROPERTIES=false`, so they are removed rather than shown. JVM option fields are always visible and active, since they have no `server.properties` equivalent.
 
 ### Empty vs unset
 

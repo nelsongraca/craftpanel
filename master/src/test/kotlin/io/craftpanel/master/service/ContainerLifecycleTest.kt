@@ -149,7 +149,7 @@ class ContainerLifecycleTest :
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository,
-                extraPortRepository = repos.extraPortRepository,
+                extraPortRepository = repos.extraPortRepository
             )
             val ok = lc.sendDesiredState(server, DesiredStatus.RUNNING)
             ok shouldBe false
@@ -269,7 +269,7 @@ class ContainerLifecycleTest :
             cmd.envVarsMap["OVERRIDE_SERVER_PROPERTIES"] shouldBe "false"
         }
 
-        test("buildStartSpec - MANUAL config mode - injects OVERRIDE_SERVER_PROPERTIES=false and strips JVM vars") {
+        test("buildStartSpec - MANUAL config mode - injects OVERRIDE_SERVER_PROPERTIES=false and keeps JVM vars") {
             transaction {
                 Servers.update({ Servers.id eq serverId }) {
                     it[Servers.configMode] = "MANUAL"
@@ -303,10 +303,10 @@ class ContainerLifecycleTest :
             val server = serverRow()
             val cmd = lifecycle().buildStartSpec(server)
             cmd.envVarsMap["OVERRIDE_SERVER_PROPERTIES"] shouldBe "false"
-            cmd.envVarsMap.containsKey("USE_AIKAR_FLAGS") shouldBe false
-            cmd.envVarsMap.containsKey("USE_MEOWICE_FLAGS") shouldBe false
-            cmd.envVarsMap.containsKey("JVM_OPTS") shouldBe false
-            cmd.envVarsMap.containsKey("JVM_XX_OPTS") shouldBe false
+            cmd.envVarsMap["USE_AIKAR_FLAGS"] shouldBe "true"
+            cmd.envVarsMap["USE_MEOWICE_FLAGS"] shouldBe "true"
+            cmd.envVarsMap["JVM_OPTS"] shouldBe "-Xmx4G"
+            cmd.envVarsMap["JVM_XX_OPTS"] shouldBe "-XX:+UseG1GC"
             cmd.envVarsMap["DIFFICULTY"] shouldBe "hard"
             cmd.envVarsMap["MEMORY"] shouldNotBe null
         }
@@ -366,7 +366,7 @@ class ContainerLifecycleTest :
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository,
-                extraPortRepository = repos.extraPortRepository,
+                extraPortRepository = repos.extraPortRepository
             )
             shouldThrow<BadGatewayException> {
                 lc.stop(server, nodeId.toString())

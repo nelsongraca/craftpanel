@@ -59,8 +59,7 @@ class ContainerLifecycle(
      * intent. Callers use this when a spec-feeding field changed (data-dir override, routing
      * labels) — for a RUNNING server only, so the new spec applies on the next start/recreate.
      */
-    fun refreshRunningSpec(server: ServerView, publicHostname: String? = null): Boolean =
-        sendDesiredState(server, DesiredStatus.RUNNING, publicHostname = publicHostname)
+    fun refreshRunningSpec(server: ServerView, publicHostname: String? = null): Boolean = sendDesiredState(server, DesiredStatus.RUNNING, publicHostname = publicHostname)
 
     // ── Await-based primitives (used by MigrationService for cross-node relocation) ─
 
@@ -165,13 +164,10 @@ class ContainerLifecycle(
         val id = server.id
         val isPicolimbo = server.serverType.isPicolimbo
         val isManual = server.configMode == "MANUAL"
-        var dbEnvVars = envVarsRepository.getEnvVars(id)
+        val dbEnvVars = envVarsRepository.getEnvVars(id)
             .associate { it.key to it.value }
-        if (isManual) {
-            // Master owns server.properties in manual mode; itzg's JVM-flag env vars would
-            // still apply on top of a hand-edited startup script, so strip them too.
-            dbEnvVars = dbEnvVars - setOf("USE_AIKAR_FLAGS", "USE_MEOWICE_FLAGS", "JVM_OPTS", "JVM_XX_OPTS")
-        }
+        // JVM-flag env vars (USE_AIKAR_FLAGS, JVM_OPTS, ...) survive in MANUAL mode: they have no
+        // server.properties equivalent, so itzg applies them regardless of OVERRIDE_SERVER_PROPERTIES.
         if (isPicolimbo) {
             // PicoLimbo is a native Rust binary — no itzg env vars apply.
             // Only user-defined env vars are passed through.
@@ -243,8 +239,7 @@ class ContainerLifecycle(
                 ?: throw ContainerLifecycleException(
                     "step timed out after $timeout waiting for $expected (server $serverId)"
                 )
-        }
-        finally {
+        } finally {
             job.cancel()
         }
     }
