@@ -9,7 +9,7 @@ import {BTN_PRIMARY, BTN_GHOST, Field, TextField} from "@/components/ui/form-ele
 import {Skeleton} from "@/components/ui/skeleton";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
-import {resetBrandingCache} from "@/lib/config";
+import {refreshBrandingConfig} from "@/lib/config";
 
 type FormState = {
     app_name: string;
@@ -75,7 +75,7 @@ export default function SettingsPage() {
     }, [load]);
 
     function set(key: keyof FormState, value: string) {
-        setForm((f) => f ? {...f, [key]: value} : f);
+        setForm((f) => (f ? {...f, [key]: value} : f));
         setSuccess(false);
         setError("");
     }
@@ -141,36 +141,40 @@ export default function SettingsPage() {
         }
         setSuccess(true);
         setLogoData(undefined);
-        resetBrandingCache();
+        void refreshBrandingConfig();
         void load();
     }
 
     if (!canEdit) {
         return (
             <div>
-                <PageHeader title="Settings" subtitle="Runtime configuration"/>
-                <div className="p-6 text-sm text-text-muted">You do not have permission to view or edit system settings.</div>
+                <PageHeader title="Settings" subtitle="Runtime configuration" />
+                <div className="p-6 text-sm text-text-muted">
+                    You do not have permission to view or edit system settings.
+                </div>
             </div>
         );
     }
 
     return (
         <div>
-            <PageHeader title="Settings" subtitle="Runtime configuration - changes take effect immediately unless noted"/>
+            <PageHeader
+                title="Settings"
+                subtitle="Runtime configuration - changes take effect immediately unless noted"
+            />
 
             <div className="p-6">
                 {loading ? (
                     <div className="space-y-3" data-testid="settings-loading">
                         <Skeleton className="h-4 w-48 bg-surface" />
-                        <Skeleton className="h-32 w-full bg-surface rounded" />
+                        <Skeleton className="h-32 w-full rounded bg-surface" />
                         <Skeleton className="h-4 w-36 bg-surface" />
                     </div>
                 ) : form ? (
                     <form onSubmit={handleSubmit} className="max-w-4xl space-y-8">
-
                         {/* ── Branding ───────────────────────────────────────── */}
-                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                 Branding
                             </h2>
                             <Field label="App Name">
@@ -180,7 +184,9 @@ export default function SettingsPage() {
                                     value={form.app_name}
                                     onChange={(e) => set("app_name", e.target.value)}
                                 />
-                                <p className="text-xs text-text-muted mt-1">Displayed in the top bar, browser tab, and PWA manifest.</p>
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Displayed in the top bar, browser tab, and PWA manifest.
+                                </p>
                             </Field>
                             <Field label="Logo">
                                 <div className="flex items-center gap-4">
@@ -191,10 +197,10 @@ export default function SettingsPage() {
                                             width={40}
                                             height={40}
                                             unoptimized
-                                            className="rounded object-contain bg-surface-high border border-border"
+                                            className="rounded border border-border bg-surface-high object-contain"
                                         />
                                     ) : (
-                                        <div className="w-10 h-10 rounded bg-surface-high border border-border flex items-center justify-center text-xs text-text-muted">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded border border-border bg-surface-high text-xs text-text-muted">
                                             —
                                         </div>
                                     )}
@@ -208,16 +214,16 @@ export default function SettingsPage() {
                                     {logoData !== undefined && (
                                         <button
                                             type="button"
-                                            className="text-xs text-text-muted hover:text-error transition-colors"
+                                            className="text-xs text-text-muted transition-colors hover:text-error"
                                             onClick={handleResetLogo}
                                         >
                                             Cancel
                                         </button>
                                     )}
-                                    {(logoData === undefined && settingsData?.app_logo) && (
+                                    {logoData === undefined && settingsData?.app_logo && (
                                         <button
                                             type="button"
-                                            className="text-xs text-text-muted hover:text-error transition-colors"
+                                            className="text-xs text-text-muted transition-colors hover:text-error"
                                             onClick={handleResetLogo}
                                         >
                                             Reset to Default
@@ -231,13 +237,16 @@ export default function SettingsPage() {
                                     className="hidden"
                                     onChange={handleLogoFile}
                                 />
-                                <p className="text-xs text-text-muted mt-1">Upload a logo image. Displayed in the top bar, login page, and PWA icon. Saved as a data URI.</p>
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Upload a logo image. Displayed in the top bar, login page, and PWA icon. Saved as a
+                                    data URI.
+                                </p>
                             </Field>
                         </section>
 
                         {/* ── Metrics & Backups ────────────────────────────────── */}
-                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                 Metrics &amp; Backups
                             </h2>
                             <Field label="Metric Retention (days)">
@@ -261,8 +270,8 @@ export default function SettingsPage() {
                         </section>
 
                         {/* ── Port Range ──────────────────────────────────────── */}
-                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                 Default Port Range
                             </h2>
                             <div className="grid grid-cols-2 gap-4">
@@ -290,8 +299,8 @@ export default function SettingsPage() {
                         </section>
 
                         {/* ── Crash Restart ───────────────────────────────────── */}
-                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                 Crash Restart
                             </h2>
                             <Field label="Max Restart Attempts">
@@ -302,7 +311,9 @@ export default function SettingsPage() {
                                     onChange={(e) => set("restart_max_attempts", e.target.value)}
                                     required
                                 />
-                                <p className="text-xs text-text-muted mt-1">Set to 0 to disable automatic crash restarts. Takes effect on master restart.</p>
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Set to 0 to disable automatic crash restarts. Takes effect on master restart.
+                                </p>
                             </Field>
                             <Field label="Restart Window (seconds)">
                                 <TextField
@@ -312,16 +323,20 @@ export default function SettingsPage() {
                                     onChange={(e) => set("restart_window_seconds", e.target.value)}
                                     required
                                 />
-                                <p className="text-xs text-text-muted mt-1">Rolling window for counting consecutive crashes. Takes effect on master restart.</p>
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Rolling window for counting consecutive crashes. Takes effect on master restart.
+                                </p>
                             </Field>
                         </section>
 
                         {/* ── Rate Limits ─────────────────────────────────────── */}
-                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                 Auth Rate Limits
                             </h2>
-                            <p className="text-xs text-text-muted -mt-2">Rate limit changes take effect on master restart.</p>
+                            <p className="-mt-2 text-xs text-text-muted">
+                                Rate limit changes take effect on master restart.
+                            </p>
                             <div className="grid grid-cols-2 gap-4">
                                 <Field label="Login requests / minute">
                                     <TextField
@@ -345,11 +360,13 @@ export default function SettingsPage() {
                         </section>
 
                         {/* ── Container Images ────────────────────────────────── */}
-                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                 Container Images
                             </h2>
-                            <p className="text-xs text-text-muted -mt-2">Image overrides take effect on master restart.</p>
+                            <p className="-mt-2 text-xs text-text-muted">
+                                Image overrides take effect on master restart.
+                            </p>
                             <Field label="Minecraft image">
                                 <TextField
                                     type="text"
@@ -371,12 +388,13 @@ export default function SettingsPage() {
                         </section>
 
                         {/* ── DNS (Cloudflare) ────────────────────────────────── */}
-                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                 DNS (Cloudflare)
                             </h2>
-                            <p className="text-xs text-text-muted -mt-2">
-                                Optional. Required to expose servers publicly. Applies to the whole install — see the docs for the one-time Cloudflare setup.
+                            <p className="-mt-2 text-xs text-text-muted">
+                                Optional. Required to expose servers publicly. Applies to the whole install — see the
+                                docs for the one-time Cloudflare setup.
                             </p>
                             <Field label="DNS Zone ID">
                                 <TextField
@@ -397,8 +415,8 @@ export default function SettingsPage() {
                         </section>
 
                         {/* ── Console ──────────────────────────────────────────── */}
-                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                 Console
                             </h2>
                             <Field label="History lines shown on console open">

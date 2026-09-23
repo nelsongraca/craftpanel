@@ -16,22 +16,20 @@ vi.mock("@/lib/auth-context", () => ({
 }));
 
 vi.mock("@/app/components/PageHeader", () => ({
-    default: vi.fn(
-        ({title, subtitle}: { title?: string; subtitle?: string }) => (
-            <div>
-                {title && <h1>{title}</h1>}
-                {subtitle && <p>{subtitle}</p>}
-            </div>
-        ),
-    ),
+    default: vi.fn(({title, subtitle}: {title?: string; subtitle?: string}) => (
+        <div>
+            {title && <h1>{title}</h1>}
+            {subtitle && <p>{subtitle}</p>}
+        </div>
+    )),
 }));
 
 vi.mock("@/lib/config", () => ({
-    resetBrandingCache: vi.fn(),
+    refreshBrandingConfig: vi.fn(),
 }));
 
 import {getSystemSettings, updateSystemSettings} from "@/lib/generated/sdk.gen";
-import {resetBrandingCache} from "@/lib/config";
+import {refreshBrandingConfig} from "@/lib/config";
 import SettingsPage from "../page";
 
 const defaultSettings = {
@@ -57,11 +55,12 @@ const defaultSettings = {
 const settingsWithLogo = {
     settings: {
         ...defaultSettings.settings,
-        app_logo: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        app_logo:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
     },
 };
 
-function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+function deferred<T>(): {promise: Promise<T>; resolve: (v: T) => void} {
     let resolve!: (v: T) => void;
     const promise = new Promise<T>((r) => {
         resolve = r;
@@ -77,11 +76,11 @@ function numberInput(container: HTMLElement, value: number): HTMLInputElement {
     throw new Error(`Number input with value ${value} not found`);
 }
 
-async function renderWith(mocks: { settings?: typeof defaultSettings; permissions?: string[] } = {}) {
+async function renderWith(mocks: {settings?: typeof defaultSettings; permissions?: string[]} = {}) {
     const {settings: s = defaultSettings, permissions: p = ["system.settings"]} = mocks;
     mockAuth.useAuth.mockReturnValue({user: {permissions: p}});
     vi.mocked(getSystemSettings).mockResolvedValue({data: s} as never);
-    const ui = render(<SettingsPage/>);
+    const ui = render(<SettingsPage />);
     await waitFor(() => expect(screen.queryByTestId("settings-loading")).toBeNull());
     return ui;
 }
@@ -93,9 +92,9 @@ describe("SettingsPage", () => {
 
     it("renders loading state initially", () => {
         mockAuth.useAuth.mockReturnValue({user: {permissions: ["system.settings"]}});
-        const d = deferred<{ data: typeof defaultSettings }>();
+        const d = deferred<{data: typeof defaultSettings}>();
         vi.mocked(getSystemSettings).mockReturnValue(d.promise as never);
-        render(<SettingsPage/>);
+        render(<SettingsPage />);
         expect(screen.getByTestId("settings-loading")).toBeTruthy();
         d.resolve({data: defaultSettings});
     });
@@ -103,7 +102,7 @@ describe("SettingsPage", () => {
     it("shows permission denied when user lacks system.settings", async () => {
         mockAuth.useAuth.mockReturnValue({user: {permissions: []}});
         vi.mocked(getSystemSettings).mockResolvedValue({data: defaultSettings} as never);
-        render(<SettingsPage/>);
+        render(<SettingsPage />);
         await waitFor(() => {
             expect(screen.getByText(/do not have permission/i)).toBeTruthy();
         });
@@ -207,14 +206,14 @@ describe("SettingsPage", () => {
     it("shows Failed to load when getSystemSettings returns no data", async () => {
         mockAuth.useAuth.mockReturnValue({user: {permissions: ["system.settings"]}});
         vi.mocked(getSystemSettings).mockResolvedValue({data: undefined} as never);
-        render(<SettingsPage/>);
+        render(<SettingsPage />);
         await waitFor(() => {
             expect(screen.getByText("Failed to load settings.")).toBeTruthy();
         });
     });
 
     it("'Save Settings' button shows disabled during save", async () => {
-        const d = deferred<{ error: undefined }>();
+        const d = deferred<{error: undefined}>();
         vi.mocked(updateSystemSettings).mockReturnValue(d.promise as never);
         await renderWith();
 
@@ -263,14 +262,14 @@ describe("SettingsPage", () => {
         });
     });
 
-    it("calls resetBrandingCache after save", async () => {
+    it("refreshes branding after save", async () => {
         vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
         await renderWith();
 
         await userEvent.setup().click(screen.getByText("Save Settings"));
 
         await waitFor(() => {
-            expect(resetBrandingCache).toHaveBeenCalled();
+            expect(refreshBrandingConfig).toHaveBeenCalled();
         });
     });
 });
