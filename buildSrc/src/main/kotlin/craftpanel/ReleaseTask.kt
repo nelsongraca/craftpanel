@@ -25,8 +25,9 @@ import javax.inject.Inject
  *    tagged `<v>`;
  *  - prepare-next commit (`gradle.properties = <next-minor>-SNAPSHOT`) on master afterwards.
  *
- * The tag therefore never sits on the master tip. Both pushes land in the same CI concurrency
- * group, so master must not use `cancel-in-progress` (see ci.yml / system.yml).
+ * The tag therefore never sits on the master tip. The prepare-next push supersedes the release
+ * commit's master-branch CI runs (master uses `cancel-in-progress`), so tag releases must not rely
+ * on them: publish.yml re-runs CI + System Tests on the tag commit itself before publishing.
  */
 abstract class ReleaseTask @Inject constructor(
     private val execOps: ExecOperations,

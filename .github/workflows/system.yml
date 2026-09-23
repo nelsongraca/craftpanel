@@ -5,15 +5,16 @@ on:
     branches:
       - master
       - develop
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
   group: system-${{ github.ref }}
-  # Don't cancel master runs: a release pushes the release commit then the prepare-next commit, and
-  # publish.yml's verify step needs the tag commit's run to complete successfully.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  # Newest wins: a superseded run's result is irrelevant. Tag releases no longer depend on a
+  # surviving master-branch run — publish.yml calls this workflow directly on the tag commit.
+  cancel-in-progress: true
 
 jobs:
   build-images:
