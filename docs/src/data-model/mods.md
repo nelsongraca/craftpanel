@@ -26,7 +26,7 @@ One row per mod or plugin added to a server. The full list is serialised by mast
 | `modrinth_project_id`  | VARCHAR(64)         | Modrinth project slug or ID                                        |
 | `display_name`         | VARCHAR(128)        | Cached from Modrinth API; updated on mod list refresh              |
 | `pin_strategy`         | VARCHAR(10)          | Pin strategy: `PINNED`, `LATEST`, `BETA`, or `ALPHA`                                   |
-| `pinned_version_id`    | VARCHAR(64)         | Modrinth version ID; `NULL` when strategy is `LATEST`              |
+| `pinned_version_id`    | VARCHAR(64)         | Modrinth version ID or version number; `NULL` when strategy is `LATEST` |
 | `installed_version_id` | VARCHAR(64)         | Last known version downloaded by itzg; used for update badge in UI |
 | `created_at`           | TIMESTAMPTZ         |                                                                    |
 | `updated_at`           | TIMESTAMPTZ         |                                                                    |

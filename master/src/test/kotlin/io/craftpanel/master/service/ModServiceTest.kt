@@ -84,7 +84,7 @@ class ModServiceTest :
 
         test("addMod with LATEST strategy succeeds when a compatible version exists") {
             val client = mockClient {
-                respond("""[{"id":"abc123"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
+                respond("""[{"id":"abc123","version_number":"1.0.0"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
             }
             val service = ModService(repos.serverRepository, repos.modRepository, client)
             val serverId = createServer(createNode())
@@ -95,7 +95,7 @@ class ModServiceTest :
 
         test("addMod with PINNED strategy rejects a version id not present in Modrinth's response") {
             val client = mockClient {
-                respond("""[{"id":"other-version"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
+                respond("""[{"id":"other-version","version_number":"9.9.9"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
             }
             val service = ModService(repos.serverRepository, repos.modRepository, client)
             val serverId = createServer(createNode())
@@ -106,6 +106,20 @@ class ModServiceTest :
                     CreateModRequest(modrinthProjectId = "fabric-api", displayName = "Fabric API", pinStrategy = ModPinStrategy.PINNED, pinnedVersionId = "does-not-exist")
                 )
             }
+        }
+
+        test("addMod with PINNED strategy accepts a version number when it is compatible") {
+            val client = mockClient {
+                respond("""[{"id":"hP2cDwH3","version_number":"0.9.6"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+
+            val mod = service.addMod(
+                serverId,
+                CreateModRequest(modrinthProjectId = "servux", displayName = "Servux", pinStrategy = ModPinStrategy.PINNED, pinnedVersionId = "0.9.6")
+            )
+            mod.pinnedVersionId shouldBe "0.9.6"
         }
 
         test("addMod surfaces a BadGatewayException when Modrinth is unreachable") {
@@ -166,7 +180,8 @@ class ModServiceTest :
                     """[
                         {"id":"beta-v","version_number":"0.100.0-beta","version_type":"beta"},
                         {"id":"release-v","version_number":"0.99.0","version_type":"release"}
-                    ]""".trimIndent(),
+                    ]
+                    """.trimIndent(),
                     HttpStatusCode.OK,
                     headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
                 )

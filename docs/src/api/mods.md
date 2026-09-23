@@ -49,7 +49,7 @@ changed.
 }
 ```
 
-`pinned_version_id` is required when `pin_strategy` is `PINNED` and must be omitted when `pin_strategy` is `LATEST`.
+`pinned_version_id` is required when `pin_strategy` is `PINNED` and must be omitted when `pin_strategy` is `LATEST`. It accepts either a Modrinth version ID (e.g. `bQZpGIz0`) or a version number (e.g. `0.119.2+1.21.4`).
 
 **Response `201`:**
 

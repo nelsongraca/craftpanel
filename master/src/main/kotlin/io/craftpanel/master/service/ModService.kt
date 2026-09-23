@@ -60,7 +60,7 @@ data class PatchModRequest(@SerialName("pin_strategy") val pinStrategy: ModPinSt
 data class ModrinthSearchResult(val statusCode: Int, val body: String)
 
 @Serializable
-private data class ModrinthVersion(val id: String)
+private data class ModrinthVersion(val id: String, @SerialName("version_number") val versionNumber: String)
 
 @Serializable
 private data class ModrinthVersionDetail(val id: String, @SerialName("version_number") val versionNumber: String, @SerialName("version_type") val versionType: String)
@@ -100,8 +100,9 @@ class ModService(
         val server = serverRepository.findById(serverId)
             ?: throw NotFoundException("Server not found")
         if (!hasCompatibleVersion(req.modrinthProjectId, server.serverType, server.mcVersion, req.pinnedVersionId)) {
+            val pinSuffix = req.pinnedVersionId?.let { " matching '$it'" } ?: ""
             throw UnprocessableException(
-                "No Modrinth version of '${req.modrinthProjectId}' is compatible with ${server.serverType} ${server.mcVersion}"
+                "No Modrinth version of '${req.modrinthProjectId}'$pinSuffix is compatible with ${server.serverType} ${server.mcVersion}"
             )
         }
         val mod = transaction {
@@ -228,7 +229,13 @@ class ModService(
                 }
                 if (!response.status.isSuccess()) return@runBlocking false
                 val versions = response.body<List<ModrinthVersion>>()
-                if (pinnedVersionId != null) versions.any { it.id == pinnedVersionId } else versions.isNotEmpty()
+                // itzg's MODRINTH_PROJECTS accepts either the Modrinth version ID or the version number,
+                // so a pin matches on either.
+                if (pinnedVersionId != null) {
+                    versions.any { it.id == pinnedVersionId || it.versionNumber == pinnedVersionId }
+                } else {
+                    versions.isNotEmpty()
+                }
             }
         } catch (e: Exception) {
             log.error("Modrinth version check failed for project='$projectId'", e)

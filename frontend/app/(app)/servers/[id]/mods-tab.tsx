@@ -39,7 +39,11 @@ interface ModrinthVersion {
     date_published: string;
 }
 
-async function fetchModrinthVersions(projectId: string, serverType: string, mcVersion: string): Promise<ModrinthVersion[]> {
+async function fetchModrinthVersions(
+    projectId: string,
+    serverType: string,
+    mcVersion: string,
+): Promise<ModrinthVersion[]> {
     try {
         const params = new URLSearchParams();
         // Mod loaders (Fabric/Forge/NeoForge/Quilt) map directly to a loader filter;
@@ -49,7 +53,7 @@ async function fetchModrinthVersions(projectId: string, serverType: string, mcVe
         const query = params.toString();
         const res = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version${query ? `?${query}` : ""}`);
         if (!res.ok) return [];
-        return await res.json() as ModrinthVersion[];
+        return (await res.json()) as ModrinthVersion[];
     } catch {
         return [];
     }
@@ -64,7 +68,17 @@ interface ModrinthHit {
     downloads: number;
 }
 
-export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serverId: string; serverType: string; mcVersion: string; onModsChanged?: () => void }) {
+export function ModsTab({
+    serverId,
+    serverType,
+    mcVersion,
+    onModsChanged,
+}: {
+    serverId: string;
+    serverType: string;
+    mcVersion: string;
+    onModsChanged?: () => void;
+}) {
     const isMod = isModLoaderType(serverType);
     const itemLabel = isMod ? "mod" : "plugin";
     const [mods, setMods] = useState<Mod[]>([]);
@@ -122,9 +136,9 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
             const {data} = await searchMods({
                 path: {id: serverId},
                 // ponytail: serverType added to backend; cast until codegen regenerates SearchModsData
-                query: {query: searchQuery, limit: 10, serverType, mcVersion} as { query?: string; limit?: number }
+                query: {query: searchQuery, limit: 10, serverType, mcVersion} as {query?: string; limit?: number},
             });
-            const body = data as { hits?: ModrinthHit[] } | undefined;
+            const body = data as {hits?: ModrinthHit[]} | undefined;
             setSearchResults(body?.hits ?? []);
         } catch {
             // ignore network errors silently
@@ -165,7 +179,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
             },
         });
         if (res.error) {
-            setError((res.error as { message?: string })?.message ?? "Failed to add mod");
+            setError((res.error as {message?: string})?.message ?? "Failed to add mod");
         } else {
             setAdding(null);
             setShowSearch(false);
@@ -179,7 +193,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
     async function handleDelete(modId: string) {
         setDeleting(modId);
         const res = await deleteMod({path: {id: serverId, modId}});
-        if (res.error) setError((res.error as { message?: string })?.message ?? "Failed to remove mod");
+        if (res.error) setError((res.error as {message?: string})?.message ?? "Failed to remove mod");
         else {
             setMods((prev) => prev.filter((m) => m.id !== modId));
             onModsChanged?.();
@@ -222,7 +236,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                 pinned_version_id: editStrategy === "PINNED" ? editVersionId : undefined,
             },
         });
-        if (res.error) setError((res.error as { message?: string })?.message ?? "Failed to update mod");
+        if (res.error) setError((res.error as {message?: string})?.message ?? "Failed to update mod");
         else {
             setEditingId(null);
             await load();
@@ -240,7 +254,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
             path: {id: serverId},
             query: {target_version: compatTargetVersion.trim()},
         });
-        if (res.error) setCompatError((res.error as { message?: string })?.message ?? "Failed to check compatibility");
+        if (res.error) setCompatError((res.error as {message?: string})?.message ?? "Failed to check compatibility");
         else if (res.data) setCompatResults(res.data as CompatibilityCheckResponse);
         else setCompatError("Failed to check compatibility");
         setCompatChecking(false);
@@ -253,40 +267,43 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
     }
 
     if (loading) {
-        return <div className="text-text-dim text-sm p-4">Loading {itemLabel}s…</div>;
+        return <div className="p-4 text-sm text-text-dim">Loading {itemLabel}s…</div>;
     }
 
     return (
-        <div className="px-6 py-6 space-y-6">
+        <div className="space-y-6 px-6 py-6">
             {error && (
-                <div className="text-error text-sm bg-error/10 border border-error/30 rounded px-3 py-2">{error}</div>
+                <div className="rounded border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">{error}</div>
             )}
 
             {/* Header */}
             <div className="flex items-center justify-between">
-                <span className="text-sm text-text-dim">{mods.length} {itemLabel}{mods.length !== 1 ? "s" : ""}</span>
+                <span className="text-sm text-text-dim">
+                    {mods.length} {itemLabel}
+                    {mods.length !== 1 ? "s" : ""}
+                </span>
                 <div className="flex gap-2">
                     <button
                         onClick={load}
-                        className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-xs text-text-dim hover:text-text-primary transition-colors"
+                        className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs text-text-dim transition-colors hover:text-text-primary"
                     >
-                        <RefreshCw className="w-3 h-3"/>
+                        <RefreshCw className="h-3 w-3" />
                         Refresh
                     </button>
                     {mods.length > 0 && (
                         <button
                             onClick={() => setShowCompatCheck(!showCompatCheck)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-xs text-text-dim hover:text-text-primary transition-colors"
+                            className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs text-text-dim transition-colors hover:text-text-primary"
                         >
-                            <GitCompare className="w-3 h-3"/>
+                            <GitCompare className="h-3 w-3" />
                             Check Version
                         </button>
                     )}
                     <button
                         onClick={() => setShowSearch(!showSearch)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors"
+                        className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright"
                     >
-                        <Plus className="w-3 h-3"/>
+                        <Plus className="h-3 w-3" />
                         Add {isMod ? "Mod" : "Plugin"}
                     </button>
                 </div>
@@ -294,9 +311,9 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
 
             {/* Compatibility check */}
             {showCompatCheck && (
-                <div className="bg-surface border border-border rounded-lg p-4 space-y-3">
-                    <div className="flex gap-2 items-center">
-                        <div className="flex-1 min-w-0">
+                <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
+                    <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
                             <McVersionSelect
                                 value={compatTargetVersion}
                                 onChange={setCompatTargetVersion}
@@ -308,22 +325,24 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                         <button
                             onClick={handleCompatCheck}
                             disabled={compatChecking || !compatTargetVersion.trim()}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
                         >
-                            <Search className="w-3 h-3"/>
+                            <Search className="h-3 w-3" />
                             {compatChecking ? "Checking…" : "Check"}
                         </button>
                         <button
                             onClick={dismissCompatCheck}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-text-dim text-xs rounded hover:text-text-primary transition-colors"
+                            className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs text-text-dim transition-colors hover:text-text-primary"
                         >
-                            <X className="w-3 h-3"/>
+                            <X className="h-3 w-3" />
                             Cancel
                         </button>
                     </div>
 
                     {compatError && (
-                        <div className="text-error text-sm bg-error/10 border border-error/30 rounded px-3 py-2">{compatError}</div>
+                        <div className="rounded border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">
+                            {compatError}
+                        </div>
                     )}
 
                     {compatResults && (
@@ -331,27 +350,36 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                             {(() => {
                                 const compatCount = compatResults.results.filter((r) => r.compatible).length;
                                 const total = compatResults.results.length;
-                                const summaryClass = compatCount === total
-                                    ? "text-healthy"
-                                    : compatCount === 0
-                                        ? "text-error"
-                                        : "text-warning";
+                                const summaryClass =
+                                    compatCount === total
+                                        ? "text-healthy"
+                                        : compatCount === 0
+                                          ? "text-error"
+                                          : "text-warning";
                                 return (
                                     <div className={`text-sm ${summaryClass}`}>
-                                        {compatCount}/{total} {itemLabel}{total !== 1 ? "s" : ""} compatible with {compatResults.target_version}
+                                        {compatCount}/{total} {itemLabel}
+                                        {total !== 1 ? "s" : ""} compatible with {compatResults.target_version}
                                     </div>
                                 );
                             })()}
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                            <div className="max-h-64 space-y-2 overflow-y-auto">
                                 {compatResults.results.map((r) => (
-                                    <div key={r.modrinth_project_id} className="flex items-center justify-between gap-3 p-2 rounded border border-border bg-bg">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            {r.compatible
-                                                ? <Check className="w-3.5 h-3.5 text-healthy shrink-0"/>
-                                                : <X className="w-3.5 h-3.5 text-error shrink-0"/>}
-                                            <span className="text-sm text-text-primary truncate">{r.display_name}</span>
+                                    <div
+                                        key={r.modrinth_project_id}
+                                        className="flex items-center justify-between gap-3 rounded border border-border bg-bg p-2"
+                                    >
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            {r.compatible ? (
+                                                <Check className="h-3.5 w-3.5 shrink-0 text-healthy" />
+                                            ) : (
+                                                <X className="h-3.5 w-3.5 shrink-0 text-error" />
+                                            )}
+                                            <span className="truncate text-sm text-text-primary">{r.display_name}</span>
                                         </div>
-                                        <span className={`text-xs shrink-0 ${r.compatible ? "text-healthy" : "text-error"}`}>
+                                        <span
+                                            className={`shrink-0 text-xs ${r.compatible ? "text-healthy" : "text-error"}`}
+                                        >
                                             {r.compatible
                                                 ? `Compatible with ${compatResults.target_version}`
                                                 : "Not compatible"}
@@ -366,37 +394,40 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
 
             {/* Modrinth search */}
             {showSearch && (
-                <div className="bg-surface border border-border rounded-lg p-4 space-y-3">
+                <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
                     <div className="flex gap-2">
                         <input
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                             placeholder="Search Modrinth…"
-                            className="flex-1 bg-bg border border-border rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
+                            className="flex-1 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                         />
                         <button
                             onClick={handleSearch}
                             disabled={searching}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
                         >
-                            <Search className="w-3 h-3"/>
+                            <Search className="h-3 w-3" />
                             {searching ? "Searching…" : "Search"}
                         </button>
                     </div>
 
                     {searchResults.length > 0 && (
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                        <div className="max-h-64 space-y-2 overflow-y-auto">
                             {searchResults.map((hit) => {
                                 const alreadyAdded = mods.some((m) => m.modrinth_project_id === hit.project_id);
                                 return (
-                                    <div key={hit.project_id} className="flex items-start justify-between gap-3 p-2 rounded border border-border bg-bg">
+                                    <div
+                                        key={hit.project_id}
+                                        className="flex items-start justify-between gap-3 rounded border border-border bg-bg p-2"
+                                    >
                                         <div className="min-w-0 flex-1">
                                             <a
                                                 href={`https://modrinth.com/${modrinthKind(serverType)}/${hit.slug}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="text-sm font-medium text-text-primary truncate block hover:text-accent hover:underline"
+                                                className="block truncate text-sm font-medium text-text-primary hover:text-accent hover:underline"
                                             >
                                                 {hit.title}
                                             </a>
@@ -404,29 +435,38 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                                 href={`https://modrinth.com/${modrinthKind(serverType)}/${hit.slug}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="text-xs text-text-muted truncate block hover:text-accent"
+                                                className="block truncate text-xs text-text-muted hover:text-accent"
                                             >
                                                 {hit.description}
                                             </a>
-                                            <div className="text-xs text-text-muted mt-0.5">by {hit.author} · {hit.downloads.toLocaleString()} downloads</div>
+                                            <div className="mt-0.5 text-xs text-text-muted">
+                                                by {hit.author} · {hit.downloads.toLocaleString()} downloads
+                                            </div>
                                         </div>
                                         {alreadyAdded ? (
-                                            <span className="text-xs text-text-muted shrink-0 mt-1">Added</span>
+                                            <span className="mt-1 shrink-0 text-xs text-text-muted">Added</span>
                                         ) : adding === hit.project_id ? (
-                                            <div className="shrink-0 space-y-2 min-w-48">
+                                            <div className="min-w-48 shrink-0 space-y-2">
                                                 <SelectField
                                                     surface="surface"
                                                     fieldSize="sm"
                                                     className="w-full"
                                                     value={addPinStrategy}
-                                                    onChange={(e) => void handleAddStrategyChange(e.target.value as PinStrategy, hit.project_id)}
+                                                    onChange={(e) =>
+                                                        void handleAddStrategyChange(
+                                                            e.target.value as PinStrategy,
+                                                            hit.project_id,
+                                                        )
+                                                    }
                                                 >
                                                     {(Object.keys(PIN_LABELS) as PinStrategy[]).map((s) => (
-                                                        <option key={s} value={s}>{PIN_LABELS[s]}</option>
+                                                        <option key={s} value={s}>
+                                                            {PIN_LABELS[s]}
+                                                        </option>
                                                     ))}
                                                 </SelectField>
-                                                {addPinStrategy === "PINNED" && (
-                                                    loadingAddVersions ? (
+                                                {addPinStrategy === "PINNED" &&
+                                                    (loadingAddVersions ? (
                                                         <div className="text-xs text-text-muted">Loading versions…</div>
                                                     ) : addVersions.length > 0 ? (
                                                         <SelectField
@@ -446,22 +486,21 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                                         <input
                                                             value={addVersionId}
                                                             onChange={(e) => setAddVersionId(e.target.value)}
-                                                            placeholder="Version ID"
-                                                            className="w-full bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
+                                                            placeholder="Version ID or number"
+                                                            className="w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary focus:border-accent focus:outline-none"
                                                         />
-                                                    )
-                                                )}
+                                                    ))}
                                                 <div className="flex gap-1">
                                                     <button
                                                         onClick={confirmAdd}
                                                         disabled={addPinStrategy === "PINNED" && !addVersionId}
-                                                        className="flex-1 px-2 py-1 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors disabled:opacity-50"
+                                                        className="flex-1 rounded bg-accent px-2 py-1 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
                                                     >
                                                         Add
                                                     </button>
                                                     <button
                                                         onClick={() => setAdding(null)}
-                                                        className="px-2 py-1 border border-border text-text-dim text-xs rounded hover:text-text-primary"
+                                                        className="rounded border border-border px-2 py-1 text-xs text-text-dim hover:text-text-primary"
                                                     >
                                                         ✕
                                                     </button>
@@ -470,7 +509,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                         ) : (
                                             <button
                                                 onClick={() => startAdd(hit)}
-                                                className="shrink-0 px-2 py-1 border border-accent text-accent text-xs rounded hover:bg-accent/10 transition-colors"
+                                                className="shrink-0 rounded border border-accent px-2 py-1 text-xs text-accent transition-colors hover:bg-accent/10"
                                             >
                                                 Add
                                             </button>
@@ -491,7 +530,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
             ) : (
                 <div className="space-y-2">
                     {mods.map((mod) => (
-                        <div key={mod.id} className="bg-surface border border-border rounded-lg px-4 py-3">
+                        <div key={mod.id} className="rounded-lg border border-border bg-surface px-4 py-3">
                             <div className="flex items-center justify-between">
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
@@ -499,56 +538,62 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                             href={`https://modrinth.com/${modrinthKind(serverType)}/${mod.modrinth_project_id}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-sm font-medium text-text-primary truncate hover:text-accent hover:underline"
+                                            className="truncate text-sm font-medium text-text-primary hover:text-accent hover:underline"
                                         >
                                             {mod.display_name}
                                         </a>
-                                        <span className="text-xs text-text-muted font-mono shrink-0">{mod.modrinth_project_id}</span>
+                                        <span className="shrink-0 font-mono text-xs text-text-muted">
+                                            {mod.modrinth_project_id}
+                                        </span>
                                     </div>
                                     {editingId !== mod.id && (
-                                        <div className="text-xs text-text-dim mt-0.5">
+                                        <div className="mt-0.5 text-xs text-text-dim">
                                             {mod.pin_strategy === "PINNED"
                                                 ? `Pinned: ${mod.pinned_version_id}`
-                                                : PIN_LABELS[mod.pin_strategy as PinStrategy] ?? mod.pin_strategy}
+                                                : (PIN_LABELS[mod.pin_strategy as PinStrategy] ?? mod.pin_strategy)}
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0 ml-3">
+                                <div className="ml-3 flex shrink-0 items-center gap-2">
                                     {editingId !== mod.id && (
                                         <button
                                             onClick={() => startEdit(mod)}
-                                            className="p-1.5 rounded text-text-muted hover:text-text-primary transition-colors"
+                                            className="rounded p-1.5 text-text-muted transition-colors hover:text-text-primary"
                                             title="Change pin strategy"
                                         >
-                                            <Pin className="w-3.5 h-3.5"/>
+                                            <Pin className="h-3.5 w-3.5" />
                                         </button>
                                     )}
                                     <button
                                         onClick={() => handleDelete(mod.id!)}
                                         disabled={deleting === mod.id}
-                                        className="p-1.5 rounded text-text-muted hover:text-error transition-colors disabled:opacity-50"
+                                        className="rounded p-1.5 text-text-muted transition-colors hover:text-error disabled:opacity-50"
                                         title="Remove mod"
                                     >
-                                        <Trash2 className="w-3.5 h-3.5"/>
+                                        <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                 </div>
                             </div>
 
                             {/* Inline edit */}
                             {editingId === mod.id && (
-                                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
                                     <SelectField
                                         surface="bg"
                                         fieldSize="sm"
                                         value={editStrategy}
-                                        onChange={(e) => void handleEditStrategyChange(e.target.value as PinStrategy, mod)}
+                                        onChange={(e) =>
+                                            void handleEditStrategyChange(e.target.value as PinStrategy, mod)
+                                        }
                                     >
                                         {(Object.keys(PIN_LABELS) as PinStrategy[]).map((s) => (
-                                            <option key={s} value={s}>{PIN_LABELS[s]}</option>
+                                            <option key={s} value={s}>
+                                                {PIN_LABELS[s]}
+                                            </option>
                                         ))}
                                     </SelectField>
-                                    {editStrategy === "PINNED" && (
-                                        loadingEditVersions ? (
+                                    {editStrategy === "PINNED" &&
+                                        (loadingEditVersions ? (
                                             <span className="text-xs text-text-muted">Loading versions…</span>
                                         ) : editVersions.length > 0 ? (
                                             <SelectField
@@ -567,21 +612,20 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                             <input
                                                 value={editVersionId}
                                                 onChange={(e) => setEditVersionId(e.target.value)}
-                                                placeholder="Version ID"
-                                                className="bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent w-36"
+                                                placeholder="Version ID or number"
+                                                className="w-36 rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary focus:border-accent focus:outline-none"
                                             />
-                                        )
-                                    )}
+                                        ))}
                                     <button
                                         onClick={() => saveEdit(mod.id!)}
                                         disabled={savingEdit || (editStrategy === "PINNED" && !editVersionId)}
-                                        className="px-2 py-1 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors disabled:opacity-50"
+                                        className="rounded bg-accent px-2 py-1 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
                                     >
                                         {savingEdit ? "Saving…" : "Save"}
                                     </button>
                                     <button
                                         onClick={() => setEditingId(null)}
-                                        className="px-2 py-1 border border-border text-text-dim text-xs rounded hover:text-text-primary"
+                                        className="rounded border border-border px-2 py-1 text-xs text-text-dim hover:text-text-primary"
                                     >
                                         Cancel
                                     </button>

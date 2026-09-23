@@ -1,23 +1,23 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest'
-import {render, screen, waitFor} from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import {ModsTab} from '../mods-tab'
-import type {ModResponse} from '@/lib/generated/types.gen'
-import {selectComboboxOption} from '@/lib/test-utils'
+import {describe, it, expect, vi, beforeEach} from "vitest";
+import {render, screen, waitFor} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import {ModsTab} from "../mods-tab";
+import type {ModResponse} from "@/lib/generated/types.gen";
+import {selectComboboxOption} from "@/lib/test-utils";
 
 // fetchModrinthVersions calls global fetch — stub it to return [] by default
-vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: true, json: async () => []}))
+vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok: true, json: async () => []}));
 
-vi.mock('@/lib/generated/sdk.gen', () => ({
+vi.mock("@/lib/generated/sdk.gen", () => ({
     listMods: vi.fn(),
     addMod: vi.fn(),
     deleteMod: vi.fn(),
     updateMod: vi.fn(),
     searchMods: vi.fn(),
     checkModCompatibility: vi.fn(),
-}))
+}));
 
-import {listMods, addMod, deleteMod, updateMod, checkModCompatibility} from '@/lib/generated/sdk.gen'
+import {listMods, addMod, deleteMod, updateMod, checkModCompatibility} from "@/lib/generated/sdk.gen";
 
 interface ModCompatibilityResult {
     modrinth_project_id: string;
@@ -33,22 +33,28 @@ interface ModCompatibilityResult {
 
 function makeMod(overrides: Partial<ModResponse> = {}): ModResponse {
     return {
-        id: 'mod-1',
-        server_id: 's1',
-        modrinth_project_id: 'abc123',
-        display_name: 'WorldEdit',
-        pin_strategy: 'LATEST',
+        id: "mod-1",
+        server_id: "s1",
+        modrinth_project_id: "abc123",
+        display_name: "WorldEdit",
+        pin_strategy: "LATEST",
         pinned_version_id: null,
         ...overrides,
-    } as ModResponse
+    } as ModResponse;
 }
 
 function defaultMods(): ModResponse[] {
     return [
-        makeMod({id: 'mod-1', display_name: 'WorldEdit', modrinth_project_id: 'abc123', pin_strategy: 'LATEST'}),
-        makeMod({id: 'mod-2', display_name: 'JEI', modrinth_project_id: 'def456', pin_strategy: 'PINNED', pinned_version_id: 'v1.20'}),
-        makeMod({id: 'mod-3', display_name: 'OptiFine', modrinth_project_id: 'ghi789', pin_strategy: 'BETA'}),
-    ]
+        makeMod({id: "mod-1", display_name: "WorldEdit", modrinth_project_id: "abc123", pin_strategy: "LATEST"}),
+        makeMod({
+            id: "mod-2",
+            display_name: "JEI",
+            modrinth_project_id: "def456",
+            pin_strategy: "PINNED",
+            pinned_version_id: "v1.20",
+        }),
+        makeMod({id: "mod-3", display_name: "OptiFine", modrinth_project_id: "ghi789", pin_strategy: "BETA"}),
+    ];
 }
 
 // ---------------------------------------------------------------------------
@@ -56,870 +62,998 @@ function defaultMods(): ModResponse[] {
 // ---------------------------------------------------------------------------
 
 async function renderModsTab(props: Partial<React.ComponentProps<typeof ModsTab>> = {}) {
-    vi.mocked(listMods).mockResolvedValue({data: {mods: defaultMods()}} as never)
-    return render(
-        <ModsTab
-            serverId="s1"
-            serverType="FABRIC"
-            mcVersion="1.21"
-            onModsChanged={vi.fn()}
-            {...props}
-        />
-    )
+    vi.mocked(listMods).mockResolvedValue({data: {mods: defaultMods()}} as never);
+    return render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} {...props} />);
 }
 
 async function renderEmpty(props: Partial<React.ComponentProps<typeof ModsTab>> = {}) {
-    vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never)
-    return render(
-        <ModsTab
-            serverId="s1"
-            serverType="FABRIC"
-            mcVersion="1.21"
-            onModsChanged={vi.fn()}
-            {...props}
-        />
-    )
+    vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never);
+    return render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} {...props} />);
 }
 
 // ---------------------------------------------------------------------------
 // Loading State
 // ---------------------------------------------------------------------------
 
-describe('Loading State', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Loading State", () => {
+    beforeEach(() => vi.clearAllMocks());
 
-    it('shows loading text while fetching mods', async () => {
-        vi.mocked(listMods).mockReturnValue(new Promise(() => {
-        })) as never
-        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()}/>)
-        expect(screen.getByText('Loading mods…')).toBeInTheDocument()
-    })
+    it("shows loading text while fetching mods", async () => {
+        vi.mocked(listMods).mockReturnValue(new Promise(() => {})) as never;
+        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        expect(screen.getByText("Loading mods…")).toBeInTheDocument();
+    });
 
-    it('shows loading plugins… for non-mod server type', async () => {
-        vi.mocked(listMods).mockReturnValue(new Promise(() => {
-        })) as never
-        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()}/>)
-        expect(screen.getByText('Loading plugins…')).toBeInTheDocument()
-    })
+    it("shows loading plugins… for non-mod server type", async () => {
+        vi.mocked(listMods).mockReturnValue(new Promise(() => {})) as never;
+        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        expect(screen.getByText("Loading plugins…")).toBeInTheDocument();
+    });
 
-    it('hides loading after data loads', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-    })
-})
+    it("hides loading after data loads", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Empty State
 // ---------------------------------------------------------------------------
 
-describe('Empty State', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Empty State", () => {
+    beforeEach(() => vi.clearAllMocks());
 
     it('shows "No mods installed" when list is empty', async () => {
-        await renderEmpty()
-        await waitFor(() => expect(screen.getByText('No mods installed')).toBeInTheDocument())
-    })
+        await renderEmpty();
+        await waitFor(() => expect(screen.getByText("No mods installed")).toBeInTheDocument());
+    });
 
     it('shows "No plugins installed" for non-mod server', async () => {
-        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never)
-        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()}/>)
-        await waitFor(() => expect(screen.getByText('No plugins installed')).toBeInTheDocument())
-    })
+        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never);
+        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.getByText("No plugins installed")).toBeInTheDocument());
+    });
 
-    it('count is 0 in empty state', async () => {
-        await renderEmpty()
-        await waitFor(() => expect(screen.getByText('0 mods')).toBeInTheDocument())
-    })
-})
+    it("count is 0 in empty state", async () => {
+        await renderEmpty();
+        await waitFor(() => expect(screen.getByText("0 mods")).toBeInTheDocument());
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Mod List
 // ---------------------------------------------------------------------------
 
-describe('Mod List', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Mod List", () => {
+    beforeEach(() => vi.clearAllMocks());
 
-    it('renders each mod display name', async () => {
-        await renderModsTab()
+    it("renders each mod display name", async () => {
+        await renderModsTab();
         await waitFor(() => {
-            expect(screen.getByText('WorldEdit')).toBeInTheDocument()
-            expect(screen.getByText('JEI')).toBeInTheDocument()
-            expect(screen.getByText('OptiFine')).toBeInTheDocument()
-        })
-    })
+            expect(screen.getByText("WorldEdit")).toBeInTheDocument();
+            expect(screen.getByText("JEI")).toBeInTheDocument();
+            expect(screen.getByText("OptiFine")).toBeInTheDocument();
+        });
+    });
 
-    it('renders modrinth project id for each mod', async () => {
-        await renderModsTab()
+    it("renders modrinth project id for each mod", async () => {
+        await renderModsTab();
         await waitFor(() => {
-            expect(screen.getByText('abc123')).toBeInTheDocument()
-            expect(screen.getByText('def456')).toBeInTheDocument()
-            expect(screen.getByText('ghi789')).toBeInTheDocument()
-        })
-    })
+            expect(screen.getByText("abc123")).toBeInTheDocument();
+            expect(screen.getByText("def456")).toBeInTheDocument();
+            expect(screen.getByText("ghi789")).toBeInTheDocument();
+        });
+    });
 
-    it('displays pin strategy label for each mod', async () => {
-        await renderModsTab()
+    it("displays pin strategy label for each mod", async () => {
+        await renderModsTab();
         await waitFor(() => {
-            expect(screen.getByText('Latest stable')).toBeInTheDocument()
-            expect(screen.getByText('Pinned: v1.20')).toBeInTheDocument()
-        })
-    })
+            expect(screen.getByText("Latest stable")).toBeInTheDocument();
+            expect(screen.getByText("Pinned: v1.20")).toBeInTheDocument();
+        });
+    });
 
-    it('shows correct mod count', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.getByText('3 mods')).toBeInTheDocument())
-    })
+    it("shows correct mod count", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.getByText("3 mods")).toBeInTheDocument());
+    });
 
-    it('shows plugins count for non-mod server', async () => {
-        vi.mocked(listMods).mockResolvedValue({data: {mods: defaultMods()}} as never)
-        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()}/>)
-        await waitFor(() => expect(screen.getByText('3 plugins')).toBeInTheDocument())
-    })
+    it("shows plugins count for non-mod server", async () => {
+        vi.mocked(listMods).mockResolvedValue({data: {mods: defaultMods()}} as never);
+        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.getByText("3 plugins")).toBeInTheDocument());
+    });
 
-    it('calls listMods with server id on mount', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(listMods).toHaveBeenCalledWith({path: {id: 's1'}}))
-    })
-})
+    it("calls listMods with server id on mount", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(listMods).toHaveBeenCalledWith({path: {id: "s1"}}));
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Error Handling
 // ---------------------------------------------------------------------------
 
-describe('Error Handling', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Error Handling", () => {
+    beforeEach(() => vi.clearAllMocks());
 
-    it('shows error when listMods fails', async () => {
-        vi.mocked(listMods).mockResolvedValue({error: {message: 'Server error'}} as never)
-        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()}/>)
-        await waitFor(() => expect(screen.getByText('Failed to load mods')).toBeInTheDocument())
-    })
+    it("shows error when listMods fails", async () => {
+        vi.mocked(listMods).mockResolvedValue({error: {message: "Server error"}} as never);
+        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.getByText("Failed to load mods")).toBeInTheDocument());
+    });
 
-    it('shows addMod error message', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-        vi.mocked(addMod).mockResolvedValue({error: {message: 'Project not found'}} as never)
+    it("shows addMod error message", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+        vi.mocked(addMod).mockResolvedValue({error: {message: "Project not found"}} as never);
 
-        const {searchMods} = await import('@/lib/generated/sdk.gen')
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
         vi.mocked(searchMods).mockResolvedValue({
-            data: {hits: [{project_id: 'err-proj', title: 'Err Mod', description: 'desc', author: 'dev', downloads: 1}]},
-        } as never)
+            data: {
+                hits: [{project_id: "err-proj", title: "Err Mod", description: "desc", author: "dev", downloads: 1}],
+            },
+        } as never);
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /add mod/i}))
-        const searchInput = screen.getByPlaceholderText('Search Modrinth…')
-        await user.type(searchInput, 'worldedit')
-        await user.click(screen.getByRole('button', {name: /search/i}))
-        await waitFor(() => expect(screen.getByText('Err Mod')).toBeInTheDocument())
-        await user.click(screen.getByText('Add'))
-        const confirmBtn = screen.getByRole('button', {name: /^add$/i})
-        await user.click(confirmBtn)
-        await waitFor(() => expect(screen.getByText('Project not found')).toBeInTheDocument())
-    })
-})
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        const searchInput = screen.getByPlaceholderText("Search Modrinth…");
+        await user.type(searchInput, "worldedit");
+        await user.click(screen.getByRole("button", {name: /search/i}));
+        await waitFor(() => expect(screen.getByText("Err Mod")).toBeInTheDocument());
+        await user.click(screen.getByText("Add"));
+        const confirmBtn = screen.getByRole("button", {name: /^add$/i});
+        await user.click(confirmBtn);
+        await waitFor(() => expect(screen.getByText("Project not found")).toBeInTheDocument());
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Refresh
 // ---------------------------------------------------------------------------
 
-describe('Refresh', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Refresh", () => {
+    beforeEach(() => vi.clearAllMocks());
 
-    it('refresh button calls listMods again', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-        vi.mocked(listMods).mockClear()
+    it("refresh button calls listMods again", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+        vi.mocked(listMods).mockClear();
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /refresh/i}))
-        await waitFor(() => expect(listMods).toHaveBeenCalledWith({path: {id: 's1'}}))
-    })
-})
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /refresh/i}));
+        await waitFor(() => expect(listMods).toHaveBeenCalledWith({path: {id: "s1"}}));
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Add Mod
 // ---------------------------------------------------------------------------
 
-describe('Add Mod', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Add Mod", () => {
+    beforeEach(() => vi.clearAllMocks());
 
-    it('clicking Add Mod opens search panel', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("clicking Add Mod opens search panel", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /add mod/i}))
-        expect(screen.getByPlaceholderText('Search Modrinth…')).toBeInTheDocument()
-    })
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        expect(screen.getByPlaceholderText("Search Modrinth…")).toBeInTheDocument();
+    });
 
-    it('search calls searchMods with query', async () => {
-        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never)
-        const {searchMods} = await import('@/lib/generated/sdk.gen')
-        vi.mocked(searchMods).mockResolvedValue({data: {hits: []}} as never)
+    it("search calls searchMods with query", async () => {
+        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never);
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
+        vi.mocked(searchMods).mockResolvedValue({data: {hits: []}} as never);
 
-        const user = userEvent.setup()
-        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()}/>)
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        const user = userEvent.setup();
+        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        await user.click(screen.getByRole('button', {name: /add mod/i}))
-        const searchInput = screen.getByPlaceholderText('Search Modrinth…')
-        await user.type(searchInput, 'worldedit')
-        await user.click(screen.getByRole('button', {name: /search/i}))
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        const searchInput = screen.getByPlaceholderText("Search Modrinth…");
+        await user.type(searchInput, "worldedit");
+        await user.click(screen.getByRole("button", {name: /search/i}));
 
         await waitFor(() =>
             expect(searchMods).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    path: {id: 's1'},
-                    query: expect.objectContaining({query: 'worldedit', limit: 10}),
-                })
-            )
-        )
-    })
+                    path: {id: "s1"},
+                    query: expect.objectContaining({query: "worldedit", limit: 10}),
+                }),
+            ),
+        );
+    });
 
-    it('search results show Add button for unadded mods', async () => {
-        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never)
-        const {searchMods} = await import('@/lib/generated/sdk.gen')
+    it("search results show Add button for unadded mods", async () => {
+        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never);
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
         vi.mocked(searchMods).mockResolvedValue({
             data: {
                 hits: [
-                    {project_id: 'proj1', title: 'Cool Mod', description: 'A cool mod', author: 'dev1', downloads: 5000},
+                    {
+                        project_id: "proj1",
+                        title: "Cool Mod",
+                        description: "A cool mod",
+                        author: "dev1",
+                        downloads: 5000,
+                    },
                 ],
             },
-        } as never)
+        } as never);
 
-        const user = userEvent.setup()
-        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()}/>)
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        const user = userEvent.setup();
+        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        await user.click(screen.getByRole('button', {name: /add mod/i}))
-        await user.type(screen.getByPlaceholderText('Search Modrinth…'), 'cool')
-        await user.click(screen.getByRole('button', {name: /search/i}))
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        await user.type(screen.getByPlaceholderText("Search Modrinth…"), "cool");
+        await user.click(screen.getByRole("button", {name: /search/i}));
 
-        await waitFor(() => expect(screen.getByText('Cool Mod')).toBeInTheDocument())
-        const addButtons = screen.getAllByText('Add')
-        expect(addButtons.length).toBeGreaterThanOrEqual(1)
-    })
+        await waitFor(() => expect(screen.getByText("Cool Mod")).toBeInTheDocument());
+        const addButtons = screen.getAllByText("Add");
+        expect(addButtons.length).toBeGreaterThanOrEqual(1);
+    });
 
     it('already-added mods show "Added" label', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const {searchMods} = await import('@/lib/generated/sdk.gen')
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
         vi.mocked(searchMods).mockResolvedValue({
             data: {
                 hits: [
-                    {project_id: 'abc123', title: 'WorldEdit', description: 'World editing tool', author: 'sk89q', downloads: 100000},
+                    {
+                        project_id: "abc123",
+                        title: "WorldEdit",
+                        description: "World editing tool",
+                        author: "sk89q",
+                        downloads: 100000,
+                    },
                 ],
             },
-        } as never)
+        } as never);
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /add mod/i}))
-        await user.type(screen.getByPlaceholderText('Search Modrinth…'), 'worldedit')
-        await user.click(screen.getByRole('button', {name: /search/i}))
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        await user.type(screen.getByPlaceholderText("Search Modrinth…"), "worldedit");
+        await user.click(screen.getByRole("button", {name: /search/i}));
 
-        await waitFor(() => expect(screen.getByText('Added')).toBeInTheDocument())
-    })
+        await waitFor(() => expect(screen.getByText("Added")).toBeInTheDocument());
+    });
 
-    it('confirming add calls addMod and refreshes list', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("confirming add calls addMod and refreshes list", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const {searchMods} = await import('@/lib/generated/sdk.gen')
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
         vi.mocked(searchMods).mockResolvedValue({
             data: {
-                hits: [
-                    {project_id: 'newproj', title: 'New Mod', description: 'desc', author: 'dev', downloads: 100},
-                ],
+                hits: [{project_id: "newproj", title: "New Mod", description: "desc", author: "dev", downloads: 100}],
             },
-        } as never)
-        vi.mocked(addMod).mockResolvedValue({data: {} as never} as never)
-        vi.mocked(listMods).mockClear()
+        } as never);
+        vi.mocked(addMod).mockResolvedValue({data: {} as never} as never);
+        vi.mocked(listMods).mockClear();
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /add mod/i}))
-        await user.type(screen.getByPlaceholderText('Search Modrinth…'), 'new')
-        await user.click(screen.getByRole('button', {name: /search/i}))
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
+        await user.click(screen.getByRole("button", {name: /search/i}));
 
-        await waitFor(() => expect(screen.getByText('New Mod')).toBeInTheDocument())
-        await user.click(screen.getByText('Add'))
+        await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
+        await user.click(screen.getByText("Add"));
 
-        const confirmAddBtn = screen.getByRole('button', {name: /^add$/i})
-        await user.click(confirmAddBtn)
+        const confirmAddBtn = screen.getByRole("button", {name: /^add$/i});
+        await user.click(confirmAddBtn);
 
         await waitFor(() => {
             expect(addMod).toHaveBeenCalledWith({
-                path: {id: 's1'},
+                path: {id: "s1"},
                 body: {
-                    modrinth_project_id: 'newproj',
-                    display_name: 'New Mod',
-                    pin_strategy: 'LATEST',
+                    modrinth_project_id: "newproj",
+                    display_name: "New Mod",
+                    pin_strategy: "LATEST",
                     pinned_version_id: undefined,
                 },
-            })
-        })
+            });
+        });
 
-        await waitFor(() => expect(listMods).toHaveBeenCalled())
-    })
+        await waitFor(() => expect(listMods).toHaveBeenCalled());
+    });
 
-    it('calls onModsChanged after successful add', async () => {
-        const onModsChanged = vi.fn()
-        await renderModsTab({onModsChanged})
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("calls onModsChanged after successful add", async () => {
+        const onModsChanged = vi.fn();
+        await renderModsTab({onModsChanged});
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const {searchMods} = await import('@/lib/generated/sdk.gen')
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
         vi.mocked(searchMods).mockResolvedValue({
             data: {
-                hits: [
-                    {project_id: 'newproj', title: 'New Mod', description: 'desc', author: 'dev', downloads: 100},
-                ],
+                hits: [{project_id: "newproj", title: "New Mod", description: "desc", author: "dev", downloads: 100}],
             },
-        } as never)
-        vi.mocked(addMod).mockResolvedValue({data: {}} as never)
+        } as never);
+        vi.mocked(addMod).mockResolvedValue({data: {}} as never);
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /add mod/i}))
-        await user.type(screen.getByPlaceholderText('Search Modrinth…'), 'new')
-        await user.click(screen.getByRole('button', {name: /search/i}))
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
+        await user.click(screen.getByRole("button", {name: /search/i}));
 
-        await waitFor(() => expect(screen.getByText('New Mod')).toBeInTheDocument())
-        await user.click(screen.getByText('Add'))
+        await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
+        await user.click(screen.getByText("Add"));
 
-        const confirmAddBtn = screen.getByRole('button', {name: /^add$/i})
-        await user.click(confirmAddBtn)
+        const confirmAddBtn = screen.getByRole("button", {name: /^add$/i});
+        await user.click(confirmAddBtn);
 
-        await waitFor(() => expect(onModsChanged).toHaveBeenCalled())
-    })
+        await waitFor(() => expect(onModsChanged).toHaveBeenCalled());
+    });
 
-    it('pinned strategy shows version selector', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("pinned strategy shows version selector", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const {searchMods} = await import('@/lib/generated/sdk.gen')
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
         vi.mocked(searchMods).mockResolvedValue({
             data: {
-                hits: [
-                    {project_id: 'newproj', title: 'New Mod', description: 'desc', author: 'dev', downloads: 100},
-                ],
+                hits: [{project_id: "newproj", title: "New Mod", description: "desc", author: "dev", downloads: 100}],
             },
-        } as never)
+        } as never);
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /add mod/i}))
-        await user.type(screen.getByPlaceholderText('Search Modrinth…'), 'new')
-        await user.click(screen.getByRole('button', {name: /search/i}))
-        await waitFor(() => expect(screen.getByText('New Mod')).toBeInTheDocument())
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
+        await user.click(screen.getByRole("button", {name: /search/i}));
+        await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
 
-        await user.click(screen.getByText('Add'))
+        await user.click(screen.getByText("Add"));
 
-        const strategySelect = screen.getByRole('combobox')
-        await selectComboboxOption(user, strategySelect, 'Pinned version')
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Pinned version");
 
         await waitFor(() => {
-            const versionInput = screen.getByPlaceholderText('Version ID')
-            expect(versionInput).toBeInTheDocument()
-        })
-    })
-})
+            const versionInput = screen.getByPlaceholderText("Version ID or number");
+            expect(versionInput).toBeInTheDocument();
+        });
+    });
+
+    it("adding a pinned mod with a version id sends it as pinned_version_id", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
+        vi.mocked(searchMods).mockResolvedValue({
+            data: {
+                hits: [{project_id: "newproj", title: "New Mod", description: "desc", author: "dev", downloads: 100}],
+            },
+        } as never);
+        vi.mocked(addMod).mockResolvedValue({data: {}} as never);
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
+        await user.click(screen.getByRole("button", {name: /search/i}));
+        await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
+        await user.click(screen.getByText("Add"));
+
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Pinned version");
+
+        const versionInput = await screen.findByPlaceholderText("Version ID or number");
+        await user.type(versionInput, "Oa9ZDzZq");
+        await user.click(screen.getByRole("button", {name: /^add$/i}));
+
+        await waitFor(() => {
+            expect(addMod).toHaveBeenCalledWith({
+                path: {id: "s1"},
+                body: {
+                    modrinth_project_id: "newproj",
+                    display_name: "New Mod",
+                    pin_strategy: "PINNED",
+                    pinned_version_id: "Oa9ZDzZq",
+                },
+            });
+        });
+    });
+
+    it("adding a pinned mod with a version number sends it as pinned_version_id", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
+        vi.mocked(searchMods).mockResolvedValue({
+            data: {
+                hits: [{project_id: "newproj", title: "New Mod", description: "desc", author: "dev", downloads: 100}],
+            },
+        } as never);
+        vi.mocked(addMod).mockResolvedValue({data: {}} as never);
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
+        await user.click(screen.getByRole("button", {name: /search/i}));
+        await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
+        await user.click(screen.getByText("Add"));
+
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Pinned version");
+
+        const versionInput = await screen.findByPlaceholderText("Version ID or number");
+        await user.type(versionInput, "0.9.6");
+        await user.click(screen.getByRole("button", {name: /^add$/i}));
+
+        await waitFor(() => {
+            expect(addMod).toHaveBeenCalledWith({
+                path: {id: "s1"},
+                body: {
+                    modrinth_project_id: "newproj",
+                    display_name: "New Mod",
+                    pin_strategy: "PINNED",
+                    pinned_version_id: "0.9.6",
+                },
+            });
+        });
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Remove Mod
 // ---------------------------------------------------------------------------
 
-describe('Remove Mod', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Remove Mod", () => {
+    beforeEach(() => vi.clearAllMocks());
 
-    it('clicking delete button calls deleteMod with mod id', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("clicking delete button calls deleteMod with mod id", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        vi.mocked(deleteMod).mockResolvedValue({data: {}} as never)
+        vi.mocked(deleteMod).mockResolvedValue({data: {}} as never);
 
-        const user = userEvent.setup()
-        const deleteButtons = screen.getAllByTitle('Remove mod')
-        await user.click(deleteButtons[0])
+        const user = userEvent.setup();
+        const deleteButtons = screen.getAllByTitle("Remove mod");
+        await user.click(deleteButtons[0]);
 
         await waitFor(() =>
             expect(deleteMod).toHaveBeenCalledWith({
-                path: {id: 's1', modId: 'mod-1'},
-            })
-        )
-    })
+                path: {id: "s1", modId: "mod-1"},
+            }),
+        );
+    });
 
-    it('remove mod hides it from the list without refetch', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("remove mod hides it from the list without refetch", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        vi.mocked(deleteMod).mockResolvedValue({data: {}} as never)
+        vi.mocked(deleteMod).mockResolvedValue({data: {}} as never);
 
-        const user = userEvent.setup()
-        const deleteButtons = screen.getAllByTitle('Remove mod')
-        await user.click(deleteButtons[0])
+        const user = userEvent.setup();
+        const deleteButtons = screen.getAllByTitle("Remove mod");
+        await user.click(deleteButtons[0]);
 
         await waitFor(() => {
-            expect(screen.queryByText('WorldEdit')).not.toBeInTheDocument()
-            expect(screen.getByText('JEI')).toBeInTheDocument()
-            expect(screen.getByText('OptiFine')).toBeInTheDocument()
-        })
-    })
+            expect(screen.queryByText("WorldEdit")).not.toBeInTheDocument();
+            expect(screen.getByText("JEI")).toBeInTheDocument();
+            expect(screen.getByText("OptiFine")).toBeInTheDocument();
+        });
+    });
 
-    it('delete button is disabled during deletion', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("delete button is disabled during deletion", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        vi.mocked(deleteMod).mockReturnValue(new Promise(() => {
-        })) as never
+        vi.mocked(deleteMod).mockReturnValue(new Promise(() => {})) as never;
 
-        const user = userEvent.setup()
-        const deleteButtons = screen.getAllByTitle('Remove mod')
-        await user.click(deleteButtons[0])
+        const user = userEvent.setup();
+        const deleteButtons = screen.getAllByTitle("Remove mod");
+        await user.click(deleteButtons[0]);
 
-        await waitFor(() => expect(deleteButtons[0]).toBeDisabled())
-    })
+        await waitFor(() => expect(deleteButtons[0]).toBeDisabled());
+    });
 
-    it('calls onModsChanged after successful delete', async () => {
-        const onModsChanged = vi.fn()
-        await renderModsTab({onModsChanged})
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("calls onModsChanged after successful delete", async () => {
+        const onModsChanged = vi.fn();
+        await renderModsTab({onModsChanged});
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        vi.mocked(deleteMod).mockResolvedValue({data: {}} as never)
+        vi.mocked(deleteMod).mockResolvedValue({data: {}} as never);
 
-        const user = userEvent.setup()
-        await user.click(screen.getAllByTitle('Remove mod')[0])
+        const user = userEvent.setup();
+        await user.click(screen.getAllByTitle("Remove mod")[0]);
 
-        await waitFor(() => expect(onModsChanged).toHaveBeenCalled())
-    })
-})
+        await waitFor(() => expect(onModsChanged).toHaveBeenCalled());
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Plugin Variant
 // ---------------------------------------------------------------------------
 
-describe('Plugin Variant', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Plugin Variant", () => {
+    beforeEach(() => vi.clearAllMocks());
 
     it('"Add Mod" button becomes "Add Plugin" for PAPER server', async () => {
-        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never)
-        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()}/>)
-        await waitFor(() => expect(screen.getByText('Add Plugin')).toBeInTheDocument())
-    })
+        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never);
+        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.getByText("Add Plugin")).toBeInTheDocument());
+    });
 
     it('"Add Mod" shown for FABRIC server', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.getByText('Add Mod')).toBeInTheDocument())
-    })
-})
+        await renderModsTab();
+        await waitFor(() => expect(screen.getByText("Add Mod")).toBeInTheDocument());
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Edit Mod
 // ---------------------------------------------------------------------------
 
-describe('Edit Mod', () => {
+describe("Edit Mod", () => {
     beforeEach(() => {
-        vi.clearAllMocks()
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: true, json: async () => []}))
-    })
+        vi.clearAllMocks();
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok: true, json: async () => []}));
+    });
 
-    it('clicking pin button opens edit UI with Save and Cancel', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("clicking pin button opens edit UI with Save and Cancel", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
-
-        await waitFor(() => {
-            expect(screen.getByRole('button', {name: /^save$/i})).toBeInTheDocument()
-            expect(screen.getByRole('button', {name: /cancel/i})).toBeInTheDocument()
-        })
-    })
-
-    it('startEdit shows strategy selector in edit mode', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
 
         await waitFor(() => {
-            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
-            expect(screen.getByRole('button', {name: /^save$/i})).toBeInTheDocument()
-            expect(screen.getByRole('button', {name: /cancel/i})).toBeInTheDocument()
-        })
-    })
+            expect(screen.getByRole("button", {name: /^save$/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", {name: /cancel/i})).toBeInTheDocument();
+        });
+    });
 
-    it('startEdit on PINNED mod fetches versions from Modrinth', async () => {
-        const fetchMock = vi.fn().mockResolvedValue({ok: true, json: async () => []})
-        vi.stubGlobal('fetch', fetchMock)
+    it("startEdit shows strategy selector in edit mode", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[1])
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
 
         await waitFor(() => {
-            expect(fetchMock).toHaveBeenCalledWith('https://api.modrinth.com/v2/project/def456/version?loaders=%5B%22FABRIC%22%5D&game_versions=%5B%221.21%22%5D')
-        })
-    })
+            expect(screen.getByRole("combobox")).toHaveTextContent("Latest stable");
+            expect(screen.getByRole("button", {name: /^save$/i})).toBeInTheDocument();
+            expect(screen.getByRole("button", {name: /cancel/i})).toBeInTheDocument();
+        });
+    });
 
-    it('handleEditStrategyChange switches from LATEST to BETA', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("startEdit on PINNED mod fetches versions from Modrinth", async () => {
+        const fetchMock = vi.fn().mockResolvedValue({ok: true, json: async () => []});
+        vi.stubGlobal("fetch", fetchMock);
 
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        await waitFor(() => {
-            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
-        })
-
-        const strategySelect = screen.getByRole('combobox')
-        await selectComboboxOption(user, strategySelect, 'Latest beta')
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[1]);
 
         await waitFor(() => {
-            expect(screen.getByRole('combobox')).toHaveTextContent('Latest beta')
-        })
-    })
+            expect(fetchMock).toHaveBeenCalledWith(
+                "https://api.modrinth.com/v2/project/def456/version?loaders=%5B%22FABRIC%22%5D&game_versions=%5B%221.21%22%5D",
+            );
+        });
+    });
 
-    it('edit PINNED strategy shows version selector when versions available', async () => {
+    it("handleEditStrategyChange switches from LATEST to BETA", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
+
+        await waitFor(() => {
+            expect(screen.getByRole("combobox")).toHaveTextContent("Latest stable");
+        });
+
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Latest beta");
+
+        await waitFor(() => {
+            expect(screen.getByRole("combobox")).toHaveTextContent("Latest beta");
+        });
+    });
+
+    it("edit PINNED strategy shows version selector when versions available", async () => {
         const versions = [
-            {id: 'v1', version_number: '1.0', name: '1.0', version_type: 'release', date_published: '2024-01-01'},
-        ]
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: true, json: async () => versions}))
+            {id: "v1", version_number: "1.0", name: "1.0", version_type: "release", date_published: "2024-01-01"},
+        ];
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok: true, json: async () => versions}));
 
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
-
-        await waitFor(() => {
-            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
-        })
-
-        const strategySelect = screen.getByRole('combobox')
-        await selectComboboxOption(user, strategySelect, 'Pinned version')
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
 
         await waitFor(() => {
-            expect(screen.getByText('1.0 (release)')).toBeInTheDocument()
-        })
-    })
+            expect(screen.getByRole("combobox")).toHaveTextContent("Latest stable");
+        });
 
-    it('saveEdit calls updateMod with correct params and refreshes list', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-
-        vi.mocked(updateMod).mockResolvedValue({data: {}} as never)
-        vi.mocked(listMods).mockClear()
-
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Pinned version");
 
         await waitFor(() => {
-            expect(screen.getByRole('button', {name: /^save$/i})).toBeInTheDocument()
-        })
+            expect(screen.getByText("1.0 (release)")).toBeInTheDocument();
+        });
+    });
 
-        const strategySelect = screen.getByRole('combobox')
-        await selectComboboxOption(user, strategySelect, 'Latest beta')
-        await user.click(screen.getByRole('button', {name: /^save$/i}))
+    it("saveEdit calls updateMod with correct params and refreshes list", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
+        vi.mocked(listMods).mockClear();
+
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
+
+        await waitFor(() => {
+            expect(screen.getByRole("button", {name: /^save$/i})).toBeInTheDocument();
+        });
+
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Latest beta");
+        await user.click(screen.getByRole("button", {name: /^save$/i}));
 
         await waitFor(() => {
             expect(updateMod).toHaveBeenCalledWith({
-                path: {id: 's1', modId: 'mod-1'},
+                path: {id: "s1", modId: "mod-1"},
                 body: {
-                    pin_strategy: 'BETA',
+                    pin_strategy: "BETA",
                     pinned_version_id: undefined,
                 },
-            })
-        })
+            });
+        });
 
-        await waitFor(() => expect(listMods).toHaveBeenCalled())
-    })
+        await waitFor(() => expect(listMods).toHaveBeenCalled());
+    });
 
-    it('saveEdit error shows error message', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("saveEdit error shows error message", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        vi.mocked(updateMod).mockResolvedValue({error: {message: 'Update failed'}} as never)
+        vi.mocked(updateMod).mockResolvedValue({error: {message: "Update failed"}} as never);
 
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
-
-        await waitFor(() => {
-            expect(screen.getByRole('button', {name: /^save$/i})).toBeInTheDocument()
-        })
-
-        await user.click(screen.getByRole('button', {name: /^save$/i}))
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
 
         await waitFor(() => {
-            expect(screen.getByText('Update failed')).toBeInTheDocument()
-        })
-    })
+            expect(screen.getByRole("button", {name: /^save$/i})).toBeInTheDocument();
+        });
 
-    it('Save button disabled when PINNED strategy with empty version id', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
+        await user.click(screen.getByRole("button", {name: /^save$/i}));
 
         await waitFor(() => {
-            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
-        })
+            expect(screen.getByText("Update failed")).toBeInTheDocument();
+        });
+    });
 
-        const strategySelect = screen.getByRole('combobox')
-        await selectComboboxOption(user, strategySelect, 'Pinned version')
+    it("Save button disabled when PINNED strategy with empty version id", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        await waitFor(() => {
-            expect(screen.getByPlaceholderText('Version ID')).toBeInTheDocument()
-        })
-
-        expect(screen.getByRole('button', {name: /^save$/i})).toBeDisabled()
-    })
-
-    it('cancel edit closes edit UI and restores strategy label', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
 
         await waitFor(() => {
-            expect(screen.getByRole('button', {name: /cancel/i})).toBeInTheDocument()
-        })
+            expect(screen.getByRole("combobox")).toHaveTextContent("Latest stable");
+        });
 
-        await user.click(screen.getByRole('button', {name: /cancel/i}))
-
-        await waitFor(() => {
-            expect(screen.queryByRole('button', {name: /^save$/i})).not.toBeInTheDocument()
-        })
-
-        expect(screen.getByText('Latest stable')).toBeInTheDocument()
-    })
-
-    it('calls onModsChanged after successful saveEdit', async () => {
-        const onModsChanged = vi.fn()
-        await renderModsTab({onModsChanged})
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-
-        vi.mocked(updateMod).mockResolvedValue({data: {}} as never)
-
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Pinned version");
 
         await waitFor(() => {
-            expect(screen.getByRole('button', {name: /^save$/i})).toBeInTheDocument()
-        })
+            expect(screen.getByPlaceholderText("Version ID or number")).toBeInTheDocument();
+        });
 
-        await user.click(screen.getByRole('button', {name: /^save$/i}))
+        expect(screen.getByRole("button", {name: /^save$/i})).toBeDisabled();
+    });
 
-        await waitFor(() => expect(onModsChanged).toHaveBeenCalled())
-    })
+    it("cancel edit closes edit UI and restores strategy label", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-    it('saveEdit with PINNED strategy sends pinned_version_id', async () => {
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
+
+        await waitFor(() => {
+            expect(screen.getByRole("button", {name: /cancel/i})).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", {name: /cancel/i}));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("button", {name: /^save$/i})).not.toBeInTheDocument();
+        });
+
+        expect(screen.getByText("Latest stable")).toBeInTheDocument();
+    });
+
+    it("calls onModsChanged after successful saveEdit", async () => {
+        const onModsChanged = vi.fn();
+        await renderModsTab({onModsChanged});
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
+
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
+
+        await waitFor(() => {
+            expect(screen.getByRole("button", {name: /^save$/i})).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", {name: /^save$/i}));
+
+        await waitFor(() => expect(onModsChanged).toHaveBeenCalled());
+    });
+
+    it("saveEdit with PINNED strategy sends pinned_version_id", async () => {
         const versions = [
-            {id: 'v1', version_number: '1.0', name: '1.0', version_type: 'release', date_published: '2024-01-01'},
-        ]
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: true, json: async () => versions}))
+            {id: "v1", version_number: "1.0", name: "1.0", version_type: "release", date_published: "2024-01-01"},
+        ];
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok: true, json: async () => versions}));
 
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        vi.mocked(updateMod).mockResolvedValue({data: {}} as never)
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
 
-        const user = userEvent.setup()
-        const pinButtons = screen.getAllByTitle('Change pin strategy')
-        await user.click(pinButtons[0])
-
-        await waitFor(() => {
-            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
-        })
-
-        const strategySelect = screen.getByRole('combobox')
-        await selectComboboxOption(user, strategySelect, 'Pinned version')
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
 
         await waitFor(() => {
-            expect(screen.getByText('1.0 (release)')).toBeInTheDocument()
-        })
+            expect(screen.getByRole("combobox")).toHaveTextContent("Latest stable");
+        });
 
-        const versionSelect = screen.getAllByRole('combobox')[1]
-        await selectComboboxOption(user, versionSelect, '1.0 (release)')
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Pinned version");
 
-        await user.click(screen.getByRole('button', {name: /^save$/i}))
+        await waitFor(() => {
+            expect(screen.getByText("1.0 (release)")).toBeInTheDocument();
+        });
+
+        const versionSelect = screen.getAllByRole("combobox")[1];
+        await selectComboboxOption(user, versionSelect, "1.0 (release)");
+
+        await user.click(screen.getByRole("button", {name: /^save$/i}));
 
         await waitFor(() => {
             expect(updateMod).toHaveBeenCalledWith({
-                path: {id: 's1', modId: 'mod-1'},
+                path: {id: "s1", modId: "mod-1"},
                 body: {
-                    pin_strategy: 'PINNED',
-                    pinned_version_id: 'v1',
+                    pin_strategy: "PINNED",
+                    pinned_version_id: "v1",
                 },
-            })
-        })
-    })
-})
+            });
+        });
+    });
+
+    it("saveEdit with a manual version id sends it as pinned_version_id", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok: true, json: async () => []}));
+
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
+
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
+
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Pinned version");
+
+        const versionInput = await screen.findByPlaceholderText("Version ID or number");
+        await user.type(versionInput, "Oa9ZDzZq");
+        await user.click(screen.getByRole("button", {name: /^save$/i}));
+
+        await waitFor(() => {
+            expect(updateMod).toHaveBeenCalledWith({
+                path: {id: "s1", modId: "mod-1"},
+                body: {
+                    pin_strategy: "PINNED",
+                    pinned_version_id: "Oa9ZDzZq",
+                },
+            });
+        });
+    });
+
+    it("saveEdit with a manual version number sends it as pinned_version_id", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ok: true, json: async () => []}));
+
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
+
+        const user = userEvent.setup();
+        const pinButtons = screen.getAllByTitle("Change pin strategy");
+        await user.click(pinButtons[0]);
+
+        const strategySelect = screen.getByRole("combobox");
+        await selectComboboxOption(user, strategySelect, "Pinned version");
+
+        const versionInput = await screen.findByPlaceholderText("Version ID or number");
+        await user.type(versionInput, "0.9.6");
+        await user.click(screen.getByRole("button", {name: /^save$/i}));
+
+        await waitFor(() => {
+            expect(updateMod).toHaveBeenCalledWith({
+                path: {id: "s1", modId: "mod-1"},
+                body: {
+                    pin_strategy: "PINNED",
+                    pinned_version_id: "0.9.6",
+                },
+            });
+        });
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Compatibility Check
 // ---------------------------------------------------------------------------
 
-describe('Compatibility Check', () => {
-    beforeEach(() => vi.clearAllMocks())
+describe("Compatibility Check", () => {
+    beforeEach(() => vi.clearAllMocks());
 
     function compatResponse(overrides: Partial<ModCompatibilityResult>[] = []) {
         const defaults: ModCompatibilityResult[] = [
             {
-                modrinth_project_id: 'abc123',
-                display_name: 'WorldEdit',
+                modrinth_project_id: "abc123",
+                display_name: "WorldEdit",
                 compatible: true,
-                latest_compatible_version_id: 'v-compat',
-                latest_compatible_version_number: '7.4.0+1.22',
+                latest_compatible_version_id: "v-compat",
+                latest_compatible_version_number: "7.4.0+1.22",
             },
             {
-                modrinth_project_id: 'def456',
-                display_name: 'JEI',
+                modrinth_project_id: "def456",
+                display_name: "JEI",
                 compatible: false,
                 latest_compatible_version_id: null,
                 latest_compatible_version_number: null,
             },
-        ]
+        ];
         overrides.forEach((o, i) => {
-            if (defaults[i]) defaults[i] = {...defaults[i], ...o}
-        })
-        return {target_version: '1.22', results: defaults}
+            if (defaults[i]) defaults[i] = {...defaults[i], ...o};
+        });
+        return {target_version: "1.22", results: defaults};
     }
 
-    it('does not show Check Version button when no mods installed', async () => {
-        await renderEmpty()
-        await waitFor(() => expect(screen.queryByText('No mods installed')).toBeInTheDocument())
-        expect(screen.queryByRole('button', {name: /check version/i})).not.toBeInTheDocument()
-    })
+    it("does not show Check Version button when no mods installed", async () => {
+        await renderEmpty();
+        await waitFor(() => expect(screen.queryByText("No mods installed")).toBeInTheDocument());
+        expect(screen.queryByRole("button", {name: /check version/i})).not.toBeInTheDocument();
+    });
 
-    it('shows Check Version button when mods exist', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-        expect(screen.getByRole('button', {name: /check version/i})).toBeInTheDocument()
-    })
+    it("shows Check Version button when mods exist", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+        expect(screen.getByRole("button", {name: /check version/i})).toBeInTheDocument();
+    });
 
-    it('expands the version input form when clicked', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+    it("expands the version input form when clicked", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /check version/i}))
-
-        await waitFor(() => {
-            expect(screen.getByPlaceholderText('Target MC version (e.g. 1.22)')).toBeInTheDocument()
-        })
-    })
-
-    it('pre-fills version input with current server version', async () => {
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
-
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /check version/i}))
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
 
         await waitFor(() => {
-            expect(screen.getByPlaceholderText('Target MC version (e.g. 1.22)')).toHaveValue('1.21')
-        })
-    })
+            expect(screen.getByPlaceholderText("Target MC version (e.g. 1.22)")).toBeInTheDocument();
+        });
+    });
 
-    it('calls checkModCompatibility and shows compatible results', async () => {
-        vi.mocked(checkModCompatibility).mockResolvedValue({data: compatResponse()} as never)
+    it("pre-fills version input with current server version", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /check version/i}))
-        const input = screen.getByPlaceholderText('Target MC version (e.g. 1.22)')
-        await user.clear(input)
-        await user.type(input, '1.22')
-        await user.click(screen.getByRole('button', {name: /^check$/i}))
+        await waitFor(() => {
+            expect(screen.getByPlaceholderText("Target MC version (e.g. 1.22)")).toHaveValue("1.21");
+        });
+    });
+
+    it("calls checkModCompatibility and shows compatible results", async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({data: compatResponse()} as never);
+
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
+        const input = screen.getByPlaceholderText("Target MC version (e.g. 1.22)");
+        await user.clear(input);
+        await user.type(input, "1.22");
+        await user.click(screen.getByRole("button", {name: /^check$/i}));
 
         await waitFor(() => {
             expect(checkModCompatibility).toHaveBeenCalledWith({
-                path: {id: 's1'},
-                query: {target_version: '1.22'},
-            })
-        })
-        await waitFor(() => expect(screen.getByText('1/2 mods compatible with 1.22')).toBeInTheDocument())
-        expect(screen.getAllByText('WorldEdit').length).toBeGreaterThan(0)
-        expect(screen.getByText('Compatible with 1.22')).toBeInTheDocument()
-        expect(screen.getByText('Not compatible')).toBeInTheDocument()
-    })
+                path: {id: "s1"},
+                query: {target_version: "1.22"},
+            });
+        });
+        await waitFor(() => expect(screen.getByText("1/2 mods compatible with 1.22")).toBeInTheDocument());
+        expect(screen.getAllByText("WorldEdit").length).toBeGreaterThan(0);
+        expect(screen.getByText("Compatible with 1.22")).toBeInTheDocument();
+        expect(screen.getByText("Not compatible")).toBeInTheDocument();
+    });
 
-    it('shows all-compatible summary in green when every mod is compatible', async () => {
+    it("shows all-compatible summary in green when every mod is compatible", async () => {
         vi.mocked(checkModCompatibility).mockResolvedValue({
             data: compatResponse([
-                {compatible: true, latest_compatible_version_id: 'v2', latest_compatible_version_number: '11.0.0'},
-                {compatible: true, latest_compatible_version_id: 'v3', latest_compatible_version_number: '12.0.0'},
-            ]) as never
-        })
+                {compatible: true, latest_compatible_version_id: "v2", latest_compatible_version_number: "11.0.0"},
+                {compatible: true, latest_compatible_version_id: "v3", latest_compatible_version_number: "12.0.0"},
+            ]) as never,
+        });
 
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /check version/i}))
-        await user.click(screen.getByRole('button', {name: /^check$/i}))
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
+        await user.click(screen.getByRole("button", {name: /^check$/i}));
 
-        await waitFor(() => expect(screen.getByText('2/2 mods compatible with 1.22')).toBeInTheDocument())
-    })
+        await waitFor(() => expect(screen.getByText("2/2 mods compatible with 1.22")).toBeInTheDocument());
+    });
 
-    it('shows loading state while checking', async () => {
-        vi.mocked(checkModCompatibility).mockReturnValue(new Promise(() => {
-        }) as never)
+    it("shows loading state while checking", async () => {
+        vi.mocked(checkModCompatibility).mockReturnValue(new Promise(() => {}) as never);
 
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /check version/i}))
-        await user.click(screen.getByRole('button', {name: /^check$/i}))
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
+        await user.click(screen.getByRole("button", {name: /^check$/i}));
 
-        await waitFor(() => expect(screen.getByText('Checking…')).toBeInTheDocument())
-    })
+        await waitFor(() => expect(screen.getByText("Checking…")).toBeInTheDocument());
+    });
 
-    it('shows error message when check fails', async () => {
-        vi.mocked(checkModCompatibility).mockResolvedValue({error: {message: 'Modrinth unreachable'}} as never)
+    it("shows error message when check fails", async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({error: {message: "Modrinth unreachable"}} as never);
 
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /check version/i}))
-        await user.click(screen.getByRole('button', {name: /^check$/i}))
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
+        await user.click(screen.getByRole("button", {name: /^check$/i}));
 
-        await waitFor(() => expect(screen.getByText('Modrinth unreachable')).toBeInTheDocument())
-    })
+        await waitFor(() => expect(screen.getByText("Modrinth unreachable")).toBeInTheDocument());
+    });
 
-    it('dismissing the form clears results and error', async () => {
-        vi.mocked(checkModCompatibility).mockResolvedValue({data: compatResponse()} as never)
+    it("dismissing the form clears results and error", async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({data: compatResponse()} as never);
 
-        await renderModsTab()
-        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
 
-        const user = userEvent.setup()
-        await user.click(screen.getByRole('button', {name: /check version/i}))
-        await user.click(screen.getByRole('button', {name: /^check$/i}))
-        await waitFor(() => expect(screen.getByText('1/2 mods compatible with 1.22')).toBeInTheDocument())
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
+        await user.click(screen.getByRole("button", {name: /^check$/i}));
+        await waitFor(() => expect(screen.getByText("1/2 mods compatible with 1.22")).toBeInTheDocument());
 
-        await user.click(screen.getByRole('button', {name: /^cancel$/i}))
+        await user.click(screen.getByRole("button", {name: /^cancel$/i}));
         await waitFor(() => {
-            expect(screen.queryByText(/mods compatible with/)).not.toBeInTheDocument()
-        })
-        expect(screen.queryByPlaceholderText('Target MC version (e.g. 1.22)')).not.toBeInTheDocument()
-    })
-})
+            expect(screen.queryByText(/mods compatible with/)).not.toBeInTheDocument();
+        });
+        expect(screen.queryByPlaceholderText("Target MC version (e.g. 1.22)")).not.toBeInTheDocument();
+    });
+});
