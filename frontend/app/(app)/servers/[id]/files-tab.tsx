@@ -114,16 +114,25 @@ export function FilesTab({serverId}: Props) {
                 setError((err as {message?: string})?.message ?? "Failed to list files - agent may be disconnected");
                 return [];
             }
-            return (data.entries ?? []).map((e) => ({
-                name: e.name,
-                isDirectory: e.is_directory,
-                sizeBytes: e.size_bytes ?? 0,
-                modifiedAt: e.modified_at ?? null,
-                permissions: e.permissions ?? "",
-                path: buildPath(path, e.name),
-                expanded: false,
-                loading: false,
-            }));
+            return (data.entries ?? [])
+                .slice()
+                .sort((a, b) =>
+                    a.is_directory === b.is_directory
+                        ? a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: "base"})
+                        : a.is_directory
+                          ? -1
+                          : 1,
+                )
+                .map((e) => ({
+                    name: e.name,
+                    isDirectory: e.is_directory,
+                    sizeBytes: e.size_bytes ?? 0,
+                    modifiedAt: e.modified_at ?? null,
+                    permissions: e.permissions ?? "",
+                    path: buildPath(path, e.name),
+                    expanded: false,
+                    loading: false,
+                }));
         },
         [serverId],
     );
@@ -383,14 +392,14 @@ export function FilesTab({serverId}: Props) {
                 <div key={node.path}>
                     <div
                         className={[
-                            "group flex cursor-pointer items-center gap-1.5 rounded px-2 py-0.5 text-xs select-none",
+                            "group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-sm select-none",
                             isSelected
                                 ? "bg-surface-higher text-text-primary"
                                 : isCurrent
                                   ? "bg-surface-high text-accent"
                                   : "text-text-dim hover:bg-surface-high hover:text-text-primary",
                         ].join(" ")}
-                        style={{paddingLeft: `${8 + depth * 14}px`}}
+                        style={{paddingLeft: `${8 + depth * 16}px`}}
                         onClick={() => {
                             if (node.isDirectory) void toggleDir(node);
                             else void openFile(node);
@@ -400,17 +409,17 @@ export function FilesTab({serverId}: Props) {
                             node.loading ? (
                                 <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-text-muted border-t-accent" />
                             ) : node.expanded ? (
-                                <ChevronDown size={12} className="shrink-0 text-text-muted" />
+                                <ChevronDown size={14} className="shrink-0 text-text-muted" />
                             ) : (
-                                <ChevronRight size={12} className="shrink-0 text-text-muted" />
+                                <ChevronRight size={14} className="shrink-0 text-text-muted" />
                             )
                         ) : (
                             <span className="w-3" />
                         )}
                         {node.isDirectory ? (
-                            <Folder size={13} className="shrink-0 text-accent" />
+                            <Folder size={15} className="shrink-0 text-accent" />
                         ) : (
-                            <File size={13} className="shrink-0 text-text-muted" />
+                            <File size={15} className="shrink-0 text-text-muted" />
                         )}
                         {renameNode?.path === node.path ? (
                             <input
@@ -434,72 +443,72 @@ export function FilesTab({serverId}: Props) {
                             <button
                                 title="Rename"
                                 aria-label={`Rename ${node.name}`}
-                                className="p-0.5 hover:text-accent"
+                                className="p-1 hover:text-accent"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     void startRename(node);
                                 }}
                             >
-                                <Pencil size={10} />
+                                <Pencil size={13} />
                             </button>
                             <button
                                 title="Move"
                                 aria-label={`Move ${node.name}`}
-                                className="p-0.5 hover:text-accent"
+                                className="p-1 hover:text-accent"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     moveEntry(node);
                                 }}
                             >
-                                <Move size={10} />
+                                <Move size={13} />
                             </button>
                             <button
                                 title="Copy"
                                 aria-label={`Copy ${node.name}`}
-                                className="p-0.5 hover:text-accent"
+                                className="p-1 hover:text-accent"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     copyEntry(node);
                                 }}
                             >
-                                <Copy size={10} />
+                                <Copy size={13} />
                             </button>
                             {node.isDirectory && (
                                 <button
                                     title="Upload here"
                                     aria-label={`Upload to ${node.name}`}
-                                    className="p-0.5 hover:text-accent"
+                                    className="p-1 hover:text-accent"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         uploadHere(node.path);
                                     }}
                                 >
-                                    <Upload size={10} />
+                                    <Upload size={13} />
                                 </button>
                             )}
                             {!node.isDirectory && (
                                 <button
                                     title="Download"
                                     aria-label={`Download ${node.name}`}
-                                    className="p-0.5 hover:text-accent"
+                                    className="p-1 hover:text-accent"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         void handleDownload(node.path);
                                     }}
                                 >
-                                    <Download size={10} />
+                                    <Download size={13} />
                                 </button>
                             )}
                             <button
                                 title="Delete"
                                 aria-label={`Delete ${node.name}`}
-                                className="p-0.5 hover:text-error"
+                                className="p-1 hover:text-error"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     void deleteEntry(node.path, node.isDirectory);
                                 }}
                             >
-                                <Trash2 size={10} />
+                                <Trash2 size={13} />
                             </button>
                         </span>
 
@@ -511,7 +520,7 @@ export function FilesTab({serverId}: Props) {
                                     className="p-1 text-text-muted hover:text-accent"
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    <MoreVertical size={14} />
+                                    <MoreVertical size={16} />
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent
                                     align="end"
@@ -519,22 +528,22 @@ export function FilesTab({serverId}: Props) {
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     <DropdownMenuItem onClick={() => void startRename(node)}>
-                                        <Pencil size={12} /> Rename
+                                        <Pencil size={14} /> Rename
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => moveEntry(node)}>
-                                        <Move size={12} /> Move…
+                                        <Move size={14} /> Move…
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => copyEntry(node)}>
-                                        <Copy size={12} /> Copy…
+                                        <Copy size={14} /> Copy…
                                     </DropdownMenuItem>
                                     {node.isDirectory && (
                                         <DropdownMenuItem onClick={() => uploadHere(node.path)}>
-                                            <Upload size={12} /> Upload here
+                                            <Upload size={14} /> Upload here
                                         </DropdownMenuItem>
                                     )}
                                     {!node.isDirectory && (
                                         <DropdownMenuItem onClick={() => void handleDownload(node.path)}>
-                                            <Download size={12} /> Download
+                                            <Download size={14} /> Download
                                         </DropdownMenuItem>
                                     )}
                                     <DropdownMenuSeparator />
@@ -542,7 +551,7 @@ export function FilesTab({serverId}: Props) {
                                         variant="destructive"
                                         onClick={() => void deleteEntry(node.path, node.isDirectory)}
                                     >
-                                        <Trash2 size={12} /> Delete
+                                        <Trash2 size={14} /> Delete
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
@@ -573,14 +582,14 @@ export function FilesTab({serverId}: Props) {
                             className="p-1 text-text-muted hover:text-accent"
                             onClick={() => uploadRef.current?.click()}
                         >
-                            <Upload size={13} />
+                            <Upload size={16} />
                         </button>
                         <button
                             title="New folder"
                             className="p-1 text-text-muted hover:text-accent"
                             onClick={mkdirPrompt}
                         >
-                            <FolderPlus size={13} />
+                            <FolderPlus size={16} />
                         </button>
                         <input ref={uploadRef} type="file" className="hidden" onChange={handleUpload} />
                     </div>
@@ -609,37 +618,37 @@ export function FilesTab({serverId}: Props) {
                             <div className="flex items-center gap-2 border-b border-border px-4 py-2">
                                 <button
                                     title="Back to files"
-                                    className="-ml-1 p-1 text-text-dim hover:text-accent md:hidden"
+                                    className="-ml-1 p-1.5 text-text-dim hover:text-accent md:hidden"
                                     onClick={() => setSelectedPath(null)}
                                 >
-                                    <ArrowLeft size={14} />
+                                    <ArrowLeft size={16} />
                                 </button>
-                                <span className="flex-1 truncate font-mono text-xs text-text-dim">{selectedPath}</span>
+                                <span className="flex-1 truncate font-mono text-sm text-text-dim">{selectedPath}</span>
                                 {fileEncoding !== "binary" && (
                                     <>
                                         <button
                                             title={wrap ? "Disable word wrap" : "Enable word wrap"}
-                                            className={`p-1 text-text-muted transition-colors hover:text-accent ${wrap ? "text-accent" : ""}`}
+                                            className={`p-1.5 text-text-muted transition-colors hover:text-accent ${wrap ? "text-accent" : ""}`}
                                             onClick={() => setWrap((w) => !w)}
                                         >
-                                            <WrapText size={13} />
+                                            <WrapText size={15} />
                                         </button>
                                         <button
-                                            className="flex items-center gap-1 rounded bg-accent px-2.5 py-1 text-xs font-bold text-bg disabled:opacity-50"
+                                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-sm font-bold text-bg disabled:opacity-50"
                                             onClick={() => void saveFile()}
                                             disabled={savingFile || !dirty}
                                         >
-                                            <Save size={11} />
+                                            <Save size={14} />
                                             {savingFile ? "Saving…" : "Save"}
                                         </button>
                                     </>
                                 )}
                                 {fileEncoding === "binary" && (
                                     <button
-                                        className="flex items-center gap-1 rounded border border-border bg-surface-higher px-2.5 py-1 text-xs font-bold text-text-primary"
+                                        className="flex items-center gap-1.5 rounded border border-border bg-surface-higher px-3 py-1.5 text-sm font-bold text-text-primary"
                                         onClick={() => void handleDownload(selectedPath)}
                                     >
-                                        <Download size={11} />
+                                        <Download size={14} />
                                         Download
                                     </button>
                                 )}

@@ -386,21 +386,21 @@ describe("FilesTab", () => {
             } as never);
             render(<FilesTab serverId="s1" />);
             await waitFor(() => expect(screen.getByText("oldname.txt")).toBeInTheDocument());
-            const renameButtons = screen.getAllByTitle("Rename");
-            return {renameButtons};
+            const renameButton = screen.getByLabelText("Rename oldname.txt");
+            return {renameButton};
         }
 
         it("clicking rename shows an inline input with the current name", async () => {
-            const {renameButtons} = await setupRename();
-            fireEvent.click(renameButtons[0]);
+            const {renameButton} = await setupRename();
+            fireEvent.click(renameButton);
             const input = screen.getByDisplayValue("oldname.txt");
             expect(input).toBeInTheDocument();
         });
 
         it("pressing Enter calls moveServerFile with new name", async () => {
             vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
-            const {renameButtons} = await setupRename();
-            fireEvent.click(renameButtons[0]);
+            const {renameButton} = await setupRename();
+            fireEvent.click(renameButton);
             const input = screen.getByDisplayValue("oldname.txt");
             fireEvent.change(input, {target: {value: "newname.txt"}});
             fireEvent.keyDown(input, {key: "Enter"});
@@ -420,8 +420,8 @@ describe("FilesTab", () => {
 
         it("pressing Escape closes the input without calling the API", async () => {
             vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
-            const {renameButtons} = await setupRename();
-            fireEvent.click(renameButtons[0]);
+            const {renameButton} = await setupRename();
+            fireEvent.click(renameButton);
             const input = screen.getByDisplayValue("oldname.txt");
             fireEvent.keyDown(input, {key: "Escape"});
 
@@ -433,8 +433,8 @@ describe("FilesTab", () => {
 
         it("same name is a no-op (no API call)", async () => {
             vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
-            const {renameButtons} = await setupRename();
-            fireEvent.click(renameButtons[0]);
+            const {renameButton} = await setupRename();
+            fireEvent.click(renameButton);
             const input = screen.getByDisplayValue("oldname.txt");
             fireEvent.keyDown(input, {key: "Enter"});
 
@@ -445,11 +445,11 @@ describe("FilesTab", () => {
         });
 
         it("shows error banner when rename fails", async () => {
-            const {renameButtons} = await setupRename();
+            const {renameButton} = await setupRename();
             vi.mocked(moveServerFile).mockResolvedValue({
                 error: {message: "Bad path"},
             } as never);
-            fireEvent.click(renameButtons[0]);
+            fireEvent.click(renameButton);
             const input = screen.getByDisplayValue("oldname.txt");
             fireEvent.change(input, {target: {value: "bad"}});
             fireEvent.keyDown(input, {key: "Enter"});
@@ -461,8 +461,8 @@ describe("FilesTab", () => {
 
         it("blur commits the rename", async () => {
             vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
-            const {renameButtons} = await setupRename();
-            fireEvent.click(renameButtons[0]);
+            const {renameButton} = await setupRename();
+            fireEvent.click(renameButton);
             const input = screen.getByDisplayValue("oldname.txt");
             fireEvent.change(input, {target: {value: "blurred.txt"}});
             fireEvent.blur(input);
