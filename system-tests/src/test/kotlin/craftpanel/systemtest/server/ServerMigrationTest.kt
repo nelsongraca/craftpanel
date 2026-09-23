@@ -1,28 +1,28 @@
 package craftpanel.systemtest.server
 
-import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
 import io.kotest.core.annotation.Tags
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import okhttp3.*
 import org.openapitools.client.infrastructure.ClientException
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
+/**
+ * Migration lifecycle: a server is moved from the source node to the target node and the migration
+ * reaches a terminal state. Each test creates and migrates its own server.
+ *
+ * Split from the former monolithic spec — the six migrations were ~220s of ServerOps' test time, so
+ * the post-migration/observability cases live in [ServerMigrationTargetTest] to keep each shard
+ * short. Keep both classes `@Isolate`.
+ */
 @Isolate
-@Tags("ServerOps")
+@Tags("ServerMigration")
 class ServerMigrationTest : BaseSystemTest() {
 
     private val serverIds = mutableListOf<String>()
     private val sourceNodeId: String = SharedStack.nodeIds[0]
     private val targetNodeId: String = SharedStack.nodeIds[1]
-
-    private val wsClient = OkHttpClient.Builder()
-        .build()
 
     init {
         afterEach {
@@ -58,7 +58,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 response.id.isNotEmpty()
                 response.status shouldBe MigrationStatus.PENDING
 
-                val migration = pollMigrationStatus(api, response.id, 180_000)
+                val migration = helper.awaitMigrationTerminal(response.id)
                 migration.status shouldBe MigrationStatus.COMPLETED
 
                 val server = api.getServer(serverId)
@@ -81,100 +81,11 @@ class ServerMigrationTest : BaseSystemTest() {
                     )
                 )
 
-                val migration = pollMigrationStatus(api, response.id, 180_000)
+                val migration = helper.awaitMigrationTerminal(response.id)
                 migration.status shouldBe MigrationStatus.COMPLETED
 
                 val server = api.getServer(serverId)
                 server.nodeId shouldBe targetNodeId
-            }
-
-            should("start a server on the target node after migration") {
-                val serverId = helper.createTestServer(sourceNodeId)
-                    .also { serverIds.add(it) }
-
-                val migrateResp = api.startMigration(
-                    serverId,
-                    MigrateRequest(
-                        targetNodeId = targetNodeId,
-                        rsyncImage = "alpine:latest",
-                        playerWarningMessage = "test migration"
-                    )
-                )
-
-                pollMigrationStatus(api, migrateResp.id, 180_000)
-
-                api.stopServer(serverId)
-                helper.awaitStatus(serverId, ServerStatus.STOPPED, timeoutMs = 60_000)
-                api.startServer(serverId)
-                helper.awaitStatus(serverId, ServerStatus.HEALTHY, timeoutMs = 120_000)
-            }
-
-            should("receive migration progress events via WebSocket") {
-                val serverId = helper.createTestServer(sourceNodeId)
-                    .also { serverIds.add(it) }
-
-                val migration = api.startMigration(
-                    serverId,
-                    MigrateRequest(
-                        targetNodeId = targetNodeId,
-                        rsyncImage = "alpine:latest",
-                        playerWarningMessage = "test migration"
-                    )
-                )
-
-                val wsUrl = masterApiUrl.replace("http://", "ws://")
-                val ticket = api.authWsTicket()
-                val events = mutableListOf<String>()
-                val latch = CountDownLatch(1)
-
-                wsClient.newWebSocket(
-                    Request.Builder()
-                        .url("$wsUrl/api/migrations/${migration.id}/events?ticket=${ticket.ticket}")
-                        .build(),
-                    object : WebSocketListener() {
-                        override fun onMessage(webSocket: WebSocket, text: String) {
-                            events.add(text)
-                            if (text.contains("\"completed\"") || text.contains("\"failed\"")) {
-                                latch.countDown()
-                            }
-                        }
-
-                        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                            latch.countDown()
-                        }
-
-                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                            latch.countDown()
-                        }
-
-                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                            latch.countDown()
-                        }
-                    }
-                )
-
-                latch.await(30, TimeUnit.SECONDS)
-                events.shouldNotBeEmpty()
-            }
-
-            should("return a non-empty migration list after migration") {
-                val serverId = helper.createTestServer(sourceNodeId)
-                    .also { serverIds.add(it) }
-
-                val migrateResp = api.startMigration(
-                    serverId,
-                    MigrateRequest(
-                        targetNodeId = targetNodeId,
-                        rsyncImage = "alpine:latest",
-                        playerWarningMessage = "test migration"
-                    )
-                )
-
-                pollMigrationStatus(api, migrateResp.id, 180_000)
-
-                val migrations = api.listMigrations(serverId)
-                migrations["migrations"].orEmpty()
-                    .shouldNotBeEmpty()
             }
 
             should("allow migrating a HEALTHY server (it is stopped as part of migration)") {
@@ -193,7 +104,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 )
                 response.status shouldBe MigrationStatus.PENDING
 
-                val migration = pollMigrationStatus(api, response.id, 180_000)
+                val migration = helper.awaitMigrationTerminal(response.id)
                 migration.status shouldBe MigrationStatus.COMPLETED
             }
 
@@ -220,9 +131,4 @@ class ServerMigrationTest : BaseSystemTest() {
             }
         }
     }
-
-    private suspend fun pollMigrationStatus(api: DefaultApi, migrationId: String, timeoutMs: Long): MigrationResponse = pollUntilNotNull(timeoutMs) {
-        api.getMigration(migrationId)
-            .takeIf { it.status == MigrationStatus.COMPLETED || it.status == MigrationStatus.FAILED }
-    } ?: error("Migration $migrationId did not reach terminal state within ${timeoutMs}ms")
 }

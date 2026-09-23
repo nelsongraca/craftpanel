@@ -112,6 +112,11 @@ class ServerHelper(private val api: DefaultApi) {
         } ?: error("Backup $backupId did not complete within ${timeoutMs}ms")
     }
 
+    suspend fun awaitMigrationTerminal(migrationId: String, timeoutMs: Long = 180_000): MigrationResponse = pollUntilNotNull(timeoutMs) {
+        api.getMigration(migrationId)
+            .takeIf { it.status == MigrationStatus.COMPLETED || it.status == MigrationStatus.FAILED }
+    } ?: error("Migration $migrationId did not reach terminal state within ${timeoutMs}ms")
+
     // Must exceed the agent's graceful-stop timeout (ConvergenceLoop.DEFAULT_STOP_TIMEOUT = 45s):
     // otherwise a container that only exits on the post-command SIGKILL is still STOPPING when
     // the wait expires, and callers assert STOPPED against a STOPPING status.

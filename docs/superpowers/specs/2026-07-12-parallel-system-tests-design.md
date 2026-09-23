@@ -10,20 +10,24 @@ Split system tests across parallel GH Actions jobs by domain, cutting wall-clock
 
 ## Design
 
-### 1. Sharding: Kotest `@Tags`, 7 groups
+### 1. Sharding: Kotest `@Tags`, 8 groups
 
 Domain-based tags added to each spec class (`io.kotest.core.annotation.Tags`), not filename globs — future test files must opt in explicitly.
 
 | Tag | Classes |
 |---|---|
 | `ServerCore` | ServerLifecycleTest, ServerConsoleTest, ServerFilesTest, FileUploadTest, ServerUpdateTest, ServerEdgeCasesTest, ServerMetricsTest, PlayerCountTest |
-| `ServerOps` | ServerMigrationTest, MigrationSecurityTest, ServerModsTest, SearchModsTest, ModrinthInjectionTest, ServerUpgradeTest |
+| `ServerOps` | MigrationSecurityTest, ServerModsTest, SearchModsTest, ModrinthInjectionTest, ServerUpgradeTest, ServerCrashRestartTest |
+| `ServerMigration` | ServerMigrationTest |
+| `ServerMigrationTarget` | ServerMigrationTargetTest |
 | `Node` | NodeOperationsTest, NodeResourcesTest, NodeShutdownTest, NodeIpTest, NodeMetricsTest, NodeRegistrationTest, MultiNodeTest, TokenRotationTest |
 | `Auth` | AuthTest, AuthSecurityTest, PermissionResolutionTest, PermissionsTest |
 | `BackupAlerts` | BackupTest, BackupDownloadTest, AlertTest, AlertEventsTest |
 | `Misc` | ConfigTest, ProxyBackendTest, DashboardWsTest, AdminTest, McRouterRoutingTest, NetworkTest, SystemSettingsTest |
 
-`server` package (14 classes) was the long pole if left as one shard, so it's split into `ServerCore`/`ServerOps` (~7 each) to keep shards roughly balanced (~4-8 classes each).
+`server` package was the long pole if left as one shard, so it's split into `ServerCore`/`ServerOps` (~7 each) to keep shards roughly balanced (~4-8 classes each).
+
+Later, ServerOps was still the long pole (~370-384s per run vs ~190-243s for every other shard): a single spec, `ServerMigrationTest`, accounted for ~220s of its ~249s of test time — six sequential migrations at ~30-38s each. Splitting that spec into `ServerMigrationTest` (lifecycle: stopped/running/healthy, ~115s) and `ServerMigrationTargetTest` (post-migration: start-on-target, WebSocket events, list, ~105s), each on its own shard, drops the critical path by ~2m15s. Splitting the six migrations into more than two shards gains nothing — the other shards become the pole.
 
 Harness/helper files (`BaseSystemTest`, `CraftPanelStack`, `*Helper.kt`, `PortBandAllocator`, `PollUtil`, `TimingListener`, `SystemTestConfig`) are untagged infra, unaffected.
 

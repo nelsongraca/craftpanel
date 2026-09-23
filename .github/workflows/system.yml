@@ -61,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tag: [ServerCore, ServerOps, Node, Auth, BackupAlerts, Misc]
+        tag: [ServerCore, ServerOps, ServerMigration, ServerMigrationTarget, Node, Auth, BackupAlerts, Misc]
     steps:
       - uses: actions/checkout@v4
 
