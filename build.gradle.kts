@@ -22,35 +22,46 @@ version = project.property("craftpanel_version") as String
 val releaseChangelogTemplate = """
 {{#tags}}
 ## [{{name}}] - {{releaseDate}}
+
 {{#ifContainsType commits type='feat'}}
 ### Features
+
 {{#commits}}{{#ifCommitType . type='feat'}}
 - {{{commitDescription .}}} ({{hash}})
 {{/ifCommitType}}{{/commits}}
+
 {{/ifContainsType}}
 {{#ifContainsType commits type='fix'}}
 ### Bug Fixes
+
 {{#commits}}{{#ifCommitType . type='fix'}}
 - {{{commitDescription .}}} ({{hash}})
 {{/ifCommitType}}{{/commits}}
+
 {{/ifContainsType}}
 {{#ifContainsType commits type='perf'}}
 ### Performance
+
 {{#commits}}{{#ifCommitType . type='perf'}}
 - {{{commitDescription .}}} ({{hash}})
 {{/ifCommitType}}{{/commits}}
+
 {{/ifContainsType}}
 {{#ifContainsType commits type='refactor'}}
 ### Refactoring
+
 {{#commits}}{{#ifCommitType . type='refactor'}}
 - {{{commitDescription .}}} ({{hash}})
 {{/ifCommitType}}{{/commits}}
+
 {{/ifContainsType}}
 {{#ifContainsType commits type='docs'}}
 ### Documentation
+
 {{#commits}}{{#ifCommitType . type='docs'}}
 - {{{commitDescription .}}} ({{hash}})
 {{/ifCommitType}}{{/commits}}
+
 {{/ifContainsType}}
 {{/tags}}
 """.trimIndent()
