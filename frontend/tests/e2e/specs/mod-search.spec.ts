@@ -19,16 +19,11 @@ test("search returns results and Add button appears", async ({page}) => {
     await page.getByRole("button", {name: /^Search$/}).click();
 
     await expect(page.getByText("Dynmap")).toBeVisible();
-    await expect(
-        page.getByText("A Google Maps-like map for Minecraft servers.")
-    ).toBeVisible();
+    await expect(page.getByText("A Google Maps-like map for Minecraft servers.")).toBeVisible();
     await expect(page.getByRole("button", {name: "Add", exact: true}).first()).toBeVisible();
 });
 
-test("clicking Add then confirming adds plugin to installed list", async ({
-                                                                           page,
-                                                                           network,
-                                                                       }) => {
+test("clicking Add then confirming adds plugin to installed list", async ({page, network}) => {
     // Intercept GET mods (empty initially) and POST add + reload response
     let modsState: "empty" | "with-dynmap" = "empty";
     network.use(
@@ -46,6 +41,7 @@ test("clicking Add then confirming adds plugin to installed list", async ({
                         pin_strategy: "LATEST",
                         pinned_version_id: null,
                         installed_version_id: null,
+                        enabled: true,
                         created_at: "2025-01-01T00:00:00Z",
                         updated_at: "2025-01-01T00:00:00Z",
                     },
@@ -68,12 +64,13 @@ test("clicking Add then confirming adds plugin to installed list", async ({
                     pin_strategy: body.pin_strategy,
                     pinned_version_id: null,
                     installed_version_id: null,
+                    enabled: true,
                     created_at: "2025-01-01T00:00:00Z",
                     updated_at: "2025-01-01T00:00:00Z",
                 },
-                {status: 201}
+                {status: 201},
             );
-        })
+        }),
     );
 
     await page.goto("/servers/srv-1");

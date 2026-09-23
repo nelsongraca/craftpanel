@@ -19,16 +19,17 @@ test("changes a mod pin strategy to PINNED and saves", async ({page, network}) =
                         pin_strategy: updated?.pin_strategy ?? "LATEST",
                         pinned_version_id: updated?.pinned_version_id ?? null,
                         installed_version_id: "we-7.3.0",
+                        enabled: true,
                         created_at: "2025-01-01T00:00:00Z",
                         updated_at: "2025-01-01T00:00:00Z",
                     },
                 ],
-            })
+            }),
         ),
         http.patch("/api/servers/srv-1/mods/mod-1", async ({request}) => {
             updated = (await request.json()) as typeof updated;
             return HttpResponse.json({});
-        })
+        }),
     );
 
     await page.goto("/servers/srv-1");
@@ -47,6 +48,48 @@ test("changes a mod pin strategy to PINNED and saves", async ({page, network}) =
     await expect(page.getByText("Pinned: we-7.3.0")).toBeVisible();
 });
 
+test("disables and re-enables a mod", async ({page, network}) => {
+    let enabled = true;
+    const patches: Array<{enabled?: boolean}> = [];
+    network.use(
+        http.get("/api/servers/srv-1/mods", () =>
+            HttpResponse.json({
+                mods: [
+                    {
+                        id: "mod-1",
+                        server_id: "srv-1",
+                        modrinth_project_id: "worldedit-id",
+                        display_name: "WorldEdit",
+                        pin_strategy: "LATEST",
+                        pinned_version_id: null,
+                        installed_version_id: "we-7.3.0",
+                        enabled,
+                        created_at: "2025-01-01T00:00:00Z",
+                        updated_at: "2025-01-01T00:00:00Z",
+                    },
+                ],
+            }),
+        ),
+        http.patch("/api/servers/srv-1/mods/mod-1", async ({request}) => {
+            const body = (await request.json()) as {enabled?: boolean};
+            patches.push(body);
+            enabled = body.enabled ?? enabled;
+            return HttpResponse.json({});
+        }),
+    );
+
+    await page.goto("/servers/srv-1");
+    await page.getByRole("tab", {name: "Plugins"}).click();
+
+    await page.getByRole("switch", {name: "Disable WorldEdit"}).click();
+    await expect(page.getByText("Disabled", {exact: true})).toBeVisible();
+    expect(patches).toEqual([{enabled: false}]);
+
+    await page.getByRole("switch", {name: "Enable WorldEdit"}).click();
+    await expect(page.getByText("Disabled", {exact: true})).not.toBeVisible();
+    expect(patches).toEqual([{enabled: false}, {enabled: true}]);
+});
+
 test("removes a mod from the installed list", async ({page, network}) => {
     let deleted = false;
     network.use(
@@ -63,16 +106,17 @@ test("removes a mod from the installed list", async ({page, network}) => {
                               pin_strategy: "LATEST",
                               pinned_version_id: null,
                               installed_version_id: "we-7.3.0",
+                              enabled: true,
                               created_at: "2025-01-01T00:00:00Z",
                               updated_at: "2025-01-01T00:00:00Z",
                           },
                       ],
-            })
+            }),
         ),
         http.delete("/api/servers/srv-1/mods/:modId", () => {
             deleted = true;
             return new HttpResponse(null, {status: 204});
-        })
+        }),
     );
 
     await page.goto("/servers/srv-1");
@@ -96,8 +140,8 @@ test("compatibility check reports compatible mods", async ({page}) => {
 test("compatibility check surfaces an error", async ({page, network}) => {
     network.use(
         http.get("/api/servers/srv-1/mods/compatibility", () =>
-            HttpResponse.json({message: "modrinth unreachable"}, {status: 502})
-        )
+            HttpResponse.json({message: "modrinth unreachable"}, {status: 502}),
+        ),
     );
 
     await page.goto("/servers/srv-1");

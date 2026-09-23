@@ -39,6 +39,7 @@ function makeMod(overrides: Partial<ModResponse> = {}): ModResponse {
         display_name: "WorldEdit",
         pin_strategy: "LATEST",
         pinned_version_id: null,
+        enabled: true,
         ...overrides,
     } as ModResponse;
 }
@@ -561,6 +562,86 @@ describe("Remove Mod", () => {
         await user.click(screen.getAllByTitle("Remove mod")[0]);
 
         await waitFor(() => expect(onModsChanged).toHaveBeenCalled());
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Toggle Mod
+// ---------------------------------------------------------------------------
+
+describe("Toggle Mod", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("clicking the switch disables a mod via updateMod", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("switch", {name: "Disable WorldEdit"}));
+
+        await waitFor(() =>
+            expect(updateMod).toHaveBeenCalledWith({
+                path: {id: "s1", modId: "mod-1"},
+                body: {enabled: false},
+            }),
+        );
+    });
+
+    it("shows a Disabled badge after disabling and removes it on re-enable", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("switch", {name: "Disable WorldEdit"}));
+
+        await waitFor(() => expect(screen.getByText("Disabled")).toBeInTheDocument());
+
+        await user.click(screen.getByRole("switch", {name: "Enable WorldEdit"}));
+
+        await waitFor(() => expect(screen.queryByText("Disabled")).not.toBeInTheDocument());
+        expect(updateMod).toHaveBeenLastCalledWith({
+            path: {id: "s1", modId: "mod-1"},
+            body: {enabled: true},
+        });
+    });
+
+    it("renders an already-disabled mod with the badge", async () => {
+        vi.mocked(listMods).mockResolvedValue({
+            data: {mods: [makeMod({enabled: false})]},
+        } as never);
+        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} />);
+
+        await waitFor(() => expect(screen.getByText("Disabled")).toBeInTheDocument());
+        expect(screen.getByRole("switch", {name: "Enable WorldEdit"})).not.toBeChecked();
+    });
+
+    it("calls onModsChanged after successful toggle", async () => {
+        const onModsChanged = vi.fn();
+        await renderModsTab({onModsChanged});
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("switch", {name: "Disable WorldEdit"}));
+
+        await waitFor(() => expect(onModsChanged).toHaveBeenCalled());
+    });
+
+    it("shows an error message when the toggle fails", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        vi.mocked(updateMod).mockResolvedValue({error: {message: "Nope"}} as never);
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("switch", {name: "Disable WorldEdit"}));
+
+        await waitFor(() => expect(screen.getByText("Nope")).toBeInTheDocument());
     });
 });
 

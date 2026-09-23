@@ -16,6 +16,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         var pinStrategy: String,
         var pinnedVersionId: String?,
         var installedVersionId: String?,
+        var enabled: Boolean = true,
         val createdAt: String = "2025-01-01T00:00:00Z",
         var updatedAt: String = "2025-01-01T00:00:00Z"
     )

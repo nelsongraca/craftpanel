@@ -17,7 +17,7 @@ These values are stored as VARCHAR(10) with application-level validation.
 
 ## `server_mods`
 
-One row per mod or plugin added to a server. The full list is serialised by master into the `MODRINTH_PROJECTS` environment variable when building the container spec.
+One row per mod or plugin added to a server. The full list is serialised by master into the `MODRINTH_PROJECTS` environment variable when building the container spec; rows with `enabled = false` are skipped so itzg prunes their files on restart.
 
 | Column                 | Type                | Description                                                        |
 |------------------------|---------------------|--------------------------------------------------------------------|
@@ -28,5 +28,6 @@ One row per mod or plugin added to a server. The full list is serialised by mast
 | `pin_strategy`         | VARCHAR(10)          | Pin strategy: `PINNED`, `LATEST`, `BETA`, or `ALPHA`                                   |
 | `pinned_version_id`    | VARCHAR(64)         | Modrinth version ID or version number; `NULL` when strategy is `LATEST` |
 | `installed_version_id` | VARCHAR(64)         | Last known version downloaded by itzg; used for update badge in UI |
+| `enabled`              | BOOLEAN             | Default `true`. Disabled rows are excluded from `MODRINTH_PROJECTS` |
 | `created_at`           | TIMESTAMPTZ         |                                                                    |
 | `updated_at`           | TIMESTAMPTZ         |                                                                    |

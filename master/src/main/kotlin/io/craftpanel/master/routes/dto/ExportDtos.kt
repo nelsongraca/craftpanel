@@ -48,7 +48,8 @@ data class ModExportItem(
     @SerialName("modrinth_project_id") val modrinthProjectId: String,
     @SerialName("display_name") val displayName: String,
     @SerialName("pin_strategy") val pinStrategy: String,
-    @SerialName("pinned_version_id") val pinnedVersionId: String? = null
+    @SerialName("pinned_version_id") val pinnedVersionId: String? = null,
+    val enabled: Boolean = true
 )
 
 @Serializable

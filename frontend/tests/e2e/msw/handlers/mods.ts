@@ -26,6 +26,7 @@ export const modHandlers = [
             pin_strategy: body.pin_strategy as ModResponse["pin_strategy"],
             pinned_version_id: body.pinned_version_id ?? null,
             installed_version_id: null,
+            enabled: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
         };
@@ -35,13 +36,15 @@ export const modHandlers = [
 
     http.patch("/api/servers/:id/mods/:modId", async ({params, request}) => {
         const body = (await request.json()) as {
-            pin_strategy: string;
+            pin_strategy?: string;
             pinned_version_id?: string;
+            enabled?: boolean;
         };
         const mod = mods.find((m) => m.id === params.modId);
         if (!mod) return new HttpResponse(null, {status: 404});
-        mod.pin_strategy = body.pin_strategy as ModResponse["pin_strategy"];
-        mod.pinned_version_id = body.pinned_version_id ?? null;
+        if (body.pin_strategy !== undefined) mod.pin_strategy = body.pin_strategy as ModResponse["pin_strategy"];
+        if (body.pinned_version_id !== undefined) mod.pinned_version_id = body.pinned_version_id ?? null;
+        if (body.enabled !== undefined) mod.enabled = body.enabled;
         return HttpResponse.json(mod);
     }),
 
@@ -62,14 +65,26 @@ export const modHandlers = [
                     latest_compatible_version_number: "7.3.0",
                 },
             ],
-        })
+        }),
     ),
 
     // The mods tab fetches versions straight from Modrinth (not via master).
     http.get("https://api.modrinth.com/v2/project/:projectId/version", () =>
         HttpResponse.json([
-            {id: "we-7.3.0", version_number: "7.3.0", name: "WorldEdit 7.3.0", version_type: "release", date_published: "2025-01-01T00:00:00Z"},
-            {id: "we-7.2.0", version_number: "7.2.0", name: "WorldEdit 7.2.0", version_type: "beta", date_published: "2024-12-01T00:00:00Z"},
-        ])
+            {
+                id: "we-7.3.0",
+                version_number: "7.3.0",
+                name: "WorldEdit 7.3.0",
+                version_type: "release",
+                date_published: "2025-01-01T00:00:00Z",
+            },
+            {
+                id: "we-7.2.0",
+                version_number: "7.2.0",
+                name: "WorldEdit 7.2.0",
+                version_type: "beta",
+                date_published: "2024-12-01T00:00:00Z",
+            },
+        ]),
     ),
 ];

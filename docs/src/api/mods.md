@@ -6,7 +6,7 @@ Base path: `/api/servers/{id}/mods`
 |--------|------------------------------|---------------|-------------------------------------------------------|
 | GET    | `/servers/{id}/mods`         | `server.mods` | List installed mods                                   |
 | POST   | `/servers/{id}/mods`         | `server.mods` | Add a mod                                             |
-| PATCH  | `/servers/{id}/mods/{modId}` | `server.mods` | Update pin strategy or pinned version                 |
+| PATCH  | `/servers/{id}/mods/{modId}` | `server.mods` | Update pin strategy, pinned version, or enabled state |
 | DELETE | `/servers/{id}/mods/{modId}` | `server.mods` | Remove a mod                                          |
 | GET    | `/servers/{id}/mods/search`  | `server.mods` | Search Modrinth filtered by server loader and version |
 
@@ -26,6 +26,7 @@ Base path: `/api/servers/{id}/mods`
       "pin_strategy": "PINNED",
       "pinned_version_id": "mc1.21-0.13.0",
       "installed_version_id": "mc1.21-0.13.0",
+      "enabled": true,
       "created_at": "2026-05-04T10:00:00Z"
     }
   ]
@@ -61,6 +62,7 @@ changed.
   "pin_strategy": "PINNED",
   "pinned_version_id": "mc1.21-0.13.0",
   "installed_version_id": null,
+  "enabled": true,
   "created_at": "2026-05-04T10:00:00Z"
 }
 ```
@@ -81,7 +83,7 @@ All fields optional.
 }
 ```
 
-Or to switch to pinned:
+To switch to pinned:
 
 ```json
 {
@@ -89,6 +91,16 @@ Or to switch to pinned:
   "pinned_version_id": "mc1.21-0.14.0"
 }
 ```
+
+To disable (or re-enable) a mod without changing its pin:
+
+```json
+{
+  "enabled": false
+}
+```
+
+`enabled` defaults to `true` for newly added mods. A disabled mod is omitted from `MODRINTH_PROJECTS`, so itzg removes it on the next restart; the pin configuration is preserved.
 
 **Response `200`:** updated mod object.
 

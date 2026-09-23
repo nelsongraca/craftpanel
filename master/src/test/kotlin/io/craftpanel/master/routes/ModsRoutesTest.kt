@@ -324,6 +324,73 @@ class ModsRoutesTest :
             }
         }
 
+        test("patch mod disables it and marks restart pending") {
+            testApplication {
+                testApp { _ -> configureModsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val modId = transaction {
+                    ServerMods.insert {
+                        it[ServerMods.serverId] = serverId
+                        it[ServerMods.modrinthProjectId] = "fabric-api"
+                        it[ServerMods.displayName] = "Fabric API"
+                        it[ServerMods.pinStrategy] = "LATEST"
+                    }[ServerMods.id]
+                }
+
+                val res = client.patch("/api/servers/$serverId/mods/$modId") {
+                    header("Authorization", "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"enabled":false}""")
+                }
+                res.status shouldBe HttpStatusCode.OK
+                res.body<JsonObject>()["enabled"]!!.jsonPrimitive.boolean shouldBe false
+                transaction {
+                    ServerMods.selectAll()
+                        .where { ServerMods.id eq modId }
+                        .first()[ServerMods.enabled] shouldBe false
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()[Servers.restartPending] shouldBe true
+                }
+            }
+        }
+
+        test("patch mod re-enables a disabled mod") {
+            testApplication {
+                testApp { _ -> configureModsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val modId = transaction {
+                    ServerMods.insert {
+                        it[ServerMods.serverId] = serverId
+                        it[ServerMods.modrinthProjectId] = "fabric-api"
+                        it[ServerMods.displayName] = "Fabric API"
+                        it[ServerMods.pinStrategy] = "LATEST"
+                        it[ServerMods.enabled] = false
+                    }[ServerMods.id]
+                }
+
+                val res = client.patch("/api/servers/$serverId/mods/$modId") {
+                    header("Authorization", "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"enabled":true}""")
+                }
+                res.status shouldBe HttpStatusCode.OK
+                res.body<JsonObject>()["enabled"]!!.jsonPrimitive.boolean shouldBe true
+            }
+        }
+
         // ── Delete mod ────────────────────────────────────────────────────────────
 
         test("delete mod removes it") {
@@ -558,5 +625,28 @@ class ModsRoutesTest :
             result.contains("fabric-api") shouldBe true
             result.contains("sodium:abc123") shouldBe true
             result.contains(",") shouldBe true
+        }
+
+        test("modrinthProjectsEnvVar excludes disabled mods") {
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
+            transaction {
+                ServerMods.insert {
+                    it[ServerMods.serverId] = serverId
+                    it[ServerMods.modrinthProjectId] = "fabric-api"
+                    it[ServerMods.displayName] = "Fabric API"
+                    it[ServerMods.pinStrategy] = "LATEST"
+                }
+                ServerMods.insert {
+                    it[ServerMods.serverId] = serverId
+                    it[ServerMods.modrinthProjectId] = "sodium"
+                    it[ServerMods.displayName] = "Sodium"
+                    it[ServerMods.pinStrategy] = "LATEST"
+                    it[ServerMods.enabled] = false
+                }
+            }
+            val result = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository).buildModrinthEnvVar(serverId)
+            result.contains("fabric-api") shouldBe true
+            result.contains("sodium") shouldBe false
         }
     })

@@ -5,6 +5,7 @@ import {Check, GitCompare, Pin, Plus, RefreshCw, Search, Trash2, X} from "lucide
 import {addMod, checkModCompatibility, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
 import type {ModResponse as Mod} from "@/lib/generated/types.gen";
 import {SelectField} from "@/components/ui/form-elements";
+import {Switch} from "@/components/ui/switch";
 import {McVersionSelect} from "@/components/ui/mc-version";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {isModLoaderType, modrinthKind} from "@/lib/server-types";
@@ -85,6 +86,7 @@ export function ModsTab({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
+    const [toggling, setToggling] = useState<string | null>(null);
 
     // Search state
     const [searchQuery, setSearchQuery] = useState("");
@@ -199,6 +201,19 @@ export function ModsTab({
             onModsChanged?.();
         }
         setDeleting(null);
+    }
+
+    async function handleToggle(mod: Mod) {
+        if (!mod.id) return;
+        const nextEnabled = mod.enabled === false;
+        setToggling(mod.id);
+        const res = await updateMod({path: {id: serverId, modId: mod.id}, body: {enabled: nextEnabled}});
+        if (res.error) setError((res.error as {message?: string})?.message ?? "Failed to update mod");
+        else {
+            setMods((prev) => prev.map((m) => (m.id === mod.id ? {...m, enabled: nextEnabled} : m)));
+            onModsChanged?.();
+        }
+        setToggling(null);
     }
 
     async function startEdit(mod: Mod) {
@@ -530,7 +545,12 @@ export function ModsTab({
             ) : (
                 <div className="space-y-2">
                     {mods.map((mod) => (
-                        <div key={mod.id} className="rounded-lg border border-border bg-surface px-4 py-3">
+                        <div
+                            key={mod.id}
+                            className={`rounded-lg border border-border bg-surface px-4 py-3 ${
+                                mod.enabled === false ? "opacity-60" : ""
+                            }`}
+                        >
                             <div className="flex items-center justify-between">
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
@@ -542,6 +562,11 @@ export function ModsTab({
                                         >
                                             {mod.display_name}
                                         </a>
+                                        {mod.enabled === false && (
+                                            <span className="shrink-0 rounded bg-surface-higher px-1.5 py-0.5 text-xs text-text-muted">
+                                                Disabled
+                                            </span>
+                                        )}
                                         <span className="shrink-0 font-mono text-xs text-text-muted">
                                             {mod.modrinth_project_id}
                                         </span>
@@ -555,6 +580,12 @@ export function ModsTab({
                                     )}
                                 </div>
                                 <div className="ml-3 flex shrink-0 items-center gap-2">
+                                    <Switch
+                                        checked={mod.enabled !== false}
+                                        onCheckedChange={() => void handleToggle(mod)}
+                                        disabled={toggling === mod.id}
+                                        aria-label={`${mod.enabled === false ? "Enable" : "Disable"} ${mod.display_name}`}
+                                    />
                                     {editingId !== mod.id && (
                                         <button
                                             onClick={() => startEdit(mod)}

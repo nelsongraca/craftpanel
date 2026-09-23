@@ -42,7 +42,8 @@ class ExportService(
                     modrinthProjectId = it.modrinthProjectId,
                     displayName = it.displayName,
                     pinStrategy = it.pinStrategy,
-                    pinnedVersionId = it.pinnedVersionId
+                    pinnedVersionId = it.pinnedVersionId,
+                    enabled = it.enabled
                 )
             }
         val proxyBackends = if (row.serverType.isProxy) {
@@ -183,7 +184,8 @@ class ExportService(
                     modrinthProjectId = it.modrinthProjectId,
                     displayName = it.displayName,
                     pinStrategy = it.pinStrategy,
-                    pinnedVersionId = it.pinnedVersionId
+                    pinnedVersionId = it.pinnedVersionId,
+                    enabled = it.enabled
                 )
             } ?: emptyList(),
             extraPorts = data.extraPorts?.map {

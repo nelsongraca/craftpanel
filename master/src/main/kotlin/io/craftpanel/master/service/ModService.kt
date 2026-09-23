@@ -42,6 +42,7 @@ data class ModResponse(
     @SerialName("pin_strategy") val pinStrategy: ModPinStrategy,
     @SerialName("pinned_version_id") val pinnedVersionId: String?,
     @SerialName("installed_version_id") val installedVersionId: String?,
+    val enabled: Boolean,
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String
 )
@@ -55,7 +56,7 @@ data class CreateModRequest(
 )
 
 @Serializable
-data class PatchModRequest(@SerialName("pin_strategy") val pinStrategy: ModPinStrategy? = null, @SerialName("pinned_version_id") val pinnedVersionId: String? = null)
+data class PatchModRequest(@SerialName("pin_strategy") val pinStrategy: ModPinStrategy? = null, @SerialName("pinned_version_id") val pinnedVersionId: String? = null, val enabled: Boolean? = null)
 
 data class ModrinthSearchResult(val statusCode: Int, val body: String)
 
@@ -113,6 +114,7 @@ class ModService(
                 this.pinStrategy = req.pinStrategy.name
                 this.pinnedVersionId = req.pinnedVersionId
                 this.installedVersionId = null
+                this.enabled = true
             }
             val row = ServerMods.selectAll()
                 .where { ServerMods.id eq m.id }
@@ -126,6 +128,7 @@ class ModService(
                 pinStrategy = row[ServerMods.pinStrategy],
                 pinnedVersionId = row[ServerMods.pinnedVersionId],
                 installedVersionId = row[ServerMods.installedVersionId],
+                enabled = row[ServerMods.enabled],
                 createdAt = row[ServerMods.createdAt].toUtcString(),
                 updatedAt = row[ServerMods.updatedAt].toUtcString()
             )
@@ -151,6 +154,7 @@ class ModService(
                     if (req.pinStrategy != null) it.pinStrategy = req.pinStrategy.name
                     it.pinnedVersionId = pinnedVersionId?.ifEmpty { null }
                     it.installedVersionId = null
+                    if (req.enabled != null) it.enabled = req.enabled
                 }
             Server.findById(serverId)?.let { it.restartPending = true }
         }
@@ -300,6 +304,7 @@ class ModService(
     }
 
     fun buildModrinthEnvVar(serverId: Uuid): String = modRepository.listMods(serverId)
+        .filter { it.enabled }
         .joinToString(",") { row ->
             val projectId = row.modrinthProjectId
             when (ModPinStrategy.fromDb(row.pinStrategy)) {
@@ -319,6 +324,7 @@ private fun ModRow.toResponse() = ModResponse(
     pinStrategy = ModPinStrategy.fromDb(pinStrategy),
     pinnedVersionId = pinnedVersionId,
     installedVersionId = installedVersionId,
+    enabled = enabled,
     createdAt = createdAt,
     updatedAt = updatedAt
 )

@@ -14,5 +14,5 @@ class FakeModRepository(private val state: FakeRepositories) : ModRepository {
     override fun findModByProjectId(serverId: Uuid, projectId: String): ModRow? = state.mods[serverId]?.values?.firstOrNull { it.modrinthProjectId == projectId }
         ?.toRow()
 
-    private fun FakeServerRepository.MutableMod.toRow() = ModRow(id, serverId, modrinthProjectId, displayName, pinStrategy, pinnedVersionId, installedVersionId, createdAt, updatedAt)
+    private fun FakeServerRepository.MutableMod.toRow() = ModRow(id, serverId, modrinthProjectId, displayName, pinStrategy, pinnedVersionId, installedVersionId, enabled, createdAt, updatedAt)
 }

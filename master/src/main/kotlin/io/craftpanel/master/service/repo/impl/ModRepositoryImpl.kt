@@ -40,6 +40,7 @@ private fun ResultRow.toModRow() = ModRow(
     pinStrategy = this[ServerMods.pinStrategy],
     pinnedVersionId = this[ServerMods.pinnedVersionId],
     installedVersionId = this[ServerMods.installedVersionId],
+    enabled = this[ServerMods.enabled],
     createdAt = this[ServerMods.createdAt].toUtcString(),
     updatedAt = this[ServerMods.updatedAt].toUtcString()
 )

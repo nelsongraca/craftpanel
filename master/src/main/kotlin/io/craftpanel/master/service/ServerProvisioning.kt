@@ -65,7 +65,14 @@ data class ServerProvisionSpec(
     val extraPorts: List<ProvisionExtraPort> = emptyList()
 )
 
-data class ProvisionMod(val modrinthProjectId: String, val displayName: String, val pinStrategy: String, val pinnedVersionId: String? = null, val installedVersionId: String? = null)
+data class ProvisionMod(
+    val modrinthProjectId: String,
+    val displayName: String,
+    val pinStrategy: String,
+    val pinnedVersionId: String? = null,
+    val installedVersionId: String? = null,
+    val enabled: Boolean = true
+)
 
 data class ProvisionExtraPort(val name: String, val containerPort: Int, val protocol: String)
 
@@ -283,6 +290,7 @@ class ServerProvisioning(
                     this.pinStrategy = mod.pinStrategy
                     this.pinnedVersionId = mod.pinnedVersionId
                     this.installedVersionId = mod.installedVersionId
+                    this.enabled = mod.enabled
                 }
             }
 

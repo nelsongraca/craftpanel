@@ -10,6 +10,7 @@ data class ModRow(
     val pinStrategy: String,
     val pinnedVersionId: String?,
     val installedVersionId: String?,
+    val enabled: Boolean = true,
     val createdAt: String,
     val updatedAt: String
 )

@@ -10,6 +10,7 @@ Mods tab on the server detail page.
 .cp-badge-pinned { background: #e8f0fe; color: #1a56db; }
 .cp-badge-latest { background: var(--md-default-fg-color--lightest); color: var(--md-default-fg-color--light); }
 .cp-badge-update { background: #fff3e0; color: #856404; }
+.cp-badge-disabled { background: var(--md-default-fg-color--lightest); color: var(--md-default-fg-color--light); }
 .cp-btn { border-radius: 4px; padding: 5px 10px; font-size: 12px; cursor: pointer; background: var(--md-default-bg-color); color: var(--md-default-fg-color); border: 1px solid var(--md-default-fg-color--lightest); }
 .cp-btn-primary { background: var(--md-primary-fg-color); color: white; border: none; padding: 7px 14px; font-size: 13px; }
 .cp-muted { color: var(--md-default-fg-color--light); }
@@ -74,10 +75,10 @@ Mods tab on the server detail page.
       </div>
     </div>
 
-    <div class="cp-mod-row">
+    <div class="cp-mod-row" style="opacity: 0.6;">
       <div class="cp-mod-icon">🔧</div>
       <div>
-        <div style="font-weight: bold;">Spark</div>
+        <div style="font-weight: bold;">Spark <span class="cp-badge cp-badge-disabled">DISABLED</span></div>
         <div style="font-size: 11px;" class="cp-muted">Performance profiler</div>
       </div>
       <span class="cp-badge cp-badge-latest">LATEST</span>
@@ -86,7 +87,7 @@ Mods tab on the server detail page.
         <div style="font-size: 11px;" class="cp-muted">installed: 1.10.119</div>
       </div>
       <div style="display:flex;gap:5px;">
-        <button class="cp-btn" style="padding:3px 8px;">Edit</button>
+        <button class="cp-btn" style="padding:3px 8px;">Enable</button>
         <button class="cp-btn" style="padding:3px 8px;">🗑</button>
       </div>
     </div>

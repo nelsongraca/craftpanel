@@ -17,6 +17,7 @@ class Mod(id: EntityID<Uuid>) : UuidEntity(id) {
     var pinStrategy by ServerMods.pinStrategy
     var pinnedVersionId by ServerMods.pinnedVersionId
     var installedVersionId by ServerMods.installedVersionId
+    var enabled by ServerMods.enabled
     var createdAt by ServerMods.createdAt
     var updatedAt by ServerMods.updatedAt
 
@@ -28,6 +29,7 @@ class Mod(id: EntityID<Uuid>) : UuidEntity(id) {
         pinStrategy = pinStrategy,
         pinnedVersionId = pinnedVersionId,
         installedVersionId = installedVersionId,
+        enabled = enabled,
         createdAt = createdAt.toUtcString(),
         updatedAt = updatedAt.toUtcString()
     )

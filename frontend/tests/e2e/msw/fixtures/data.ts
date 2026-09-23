@@ -239,6 +239,7 @@ export const fakeMods: Record<string, ModResponse[]> = {
             pin_strategy: "LATEST",
             pinned_version_id: null,
             installed_version_id: "we-7.3.0",
+            enabled: true,
             created_at: "2025-01-01T00:00:00Z",
             updated_at: "2025-01-01T00:00:00Z",
         },
