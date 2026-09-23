@@ -33,6 +33,8 @@ data class AgentConfig(
     val craftpanelNetwork: String,
     val containerNamePrefix: String,
     val privateIpOverride: String,
+    // Explicit public IP reported to master. Takes priority over publicIpUrl discovery.
+    val publicIpOverride: String = "",
     val metricsPollIntervalSeconds: Int,
     // Max concurrent per-container metrics collections. Bounds Docker-daemon load while removing
     // the serial O(N) scan that made stats lag on nodes with many servers.
@@ -104,6 +106,7 @@ data class AgentConfig(
                 craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",
                 containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: ContainerNames.DEFAULT_PREFIX,
                 privateIpOverride = System.getenv("NODE_PRIVATE_IP") ?: "",
+                publicIpOverride = System.getenv("NODE_PUBLIC_IP") ?: "",
                 metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
                     ?.toIntOrNull()
                     ?.coerceAtLeast(1) ?: 5,

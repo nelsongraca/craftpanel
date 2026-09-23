@@ -60,8 +60,9 @@ The agent is configured entirely through environment variables.
 | `NODE_KEY_FILE`                 | `/app/config/node.key`        | Path where the agent persists its node key after registration. Mount a writable volume so it survives restarts.                                                                                                                           |
 | `NODE_HOSTNAME`                 | *(auto-detected)*             | Hostname reported to master. Overrides `InetAddress.getLocalHost().hostName`. Useful in containerised environments where the auto-detected name is an ephemeral container ID.                                                             |
 | `NODE_PRIVATE_IP`               | *(auto-discovered)*           | Private IP reported to master. When not set the agent auto-discovers it (see **Private IP discovery** below). Override when auto-discovery returns the wrong address (e.g. multiple NICs, VPN interfaces, or unusual network topologies). |
+| `NODE_PUBLIC_IP`                | *(empty)*                     | Public IP reported to master. When set it takes priority over `PUBLIC_IP_URL` and is used verbatim. Set on hosts behind NAT when `PUBLIC_IP_URL` returns the wrong address or to avoid the external lookup.                                    |
 | `PULL_MAX_IMAGE_AGE_HOURS`      | `24`                          | Maximum age in hours of a locally-cached Docker image before the agent forces a pull. Prevents serving stale server/proxy images.                                                                                                         |
-| `PUBLIC_IP_URL`                 | *(empty)*                     | URL to fetch the node's public IP (e.g. `https://api.ipify.org`). When empty, the private IP is used as the public IP.                                                                                                                    |
+| `PUBLIC_IP_URL`                 | *(empty)*                     | URL to fetch the node's public IP (e.g. `https://api.ipify.org`). Used only when `NODE_PUBLIC_IP` is unset. When both are empty, the private IP is used as the public IP.                                                                  |
 | `DOCKER_SOCKET`                 | `unix:///var/run/docker.sock` | Docker socket path.                                                                                                                                                                                                                       |
 | `DATA_PATH`                     | `/data`                       | Container-internal path the agent uses for file access (file browser, backups, migrations).                                                                                                                                               |
 | `HOST_DATA_PATH`                | *(value of `DATA_PATH`)*      | Host path Docker uses as the bind-mount source when creating server containers. Must match the node's **Data Path** field in the UI. Defaults to `DATA_PATH`.                                                                             |
@@ -85,6 +86,16 @@ automatically using the following fallback chain:
 
 Set `NODE_PRIVATE_IP` explicitly when auto-discovery returns the wrong address — for example, on hosts with multiple NICs, VPN tunnels, or Kubernetes pod networks where the outbound IP seen by master
 differs from the IP other agents should use to reach this node.
+
+### Public IP discovery
+
+The agent reports its public IP to master for DNS records pointing at exposed servers. It is resolved in this order:
+
+1. **`NODE_PUBLIC_IP`** — used verbatim when set.
+2. **`PUBLIC_IP_URL`** — the agent fetches the URL and trims the response (e.g. `https://api.ipify.org`).
+3. **Private IP** — when neither is configured, the private IP is reported as the public IP.
+
+Set `NODE_PUBLIC_IP` on hosts behind NAT where the external lookup returns the wrong address, or to avoid the outbound request entirely.
 
 ### Data path alignment
 

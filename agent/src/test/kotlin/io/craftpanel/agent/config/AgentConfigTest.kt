@@ -65,6 +65,15 @@ class AgentConfigTest :
             config.hostnameOverride shouldBe "my-node.example.com"
         }
 
+        test("publicIpOverride reflects configured value") {
+            val config = config(publicIpOverride = "203.0.113.5")
+            config.publicIpOverride shouldBe "203.0.113.5"
+        }
+
+        test("publicIpOverride defaults to empty string") {
+            config().publicIpOverride shouldBe ""
+        }
+
         test("data class equality holds for identical configs") {
             val a = config()
             val b = config()
@@ -99,6 +108,7 @@ class AgentConfigTest :
             mcRouterUpdateOnStart: Boolean = true,
             publicIpUrl: String = "",
             hostnameOverride: String = "",
+            publicIpOverride: String = "",
             craftpanelNetwork: String = "craftpanel",
             containerNamePrefix: String = "craftpanel",
             metricsPollIntervalSeconds: Int = 60
@@ -126,6 +136,7 @@ class AgentConfigTest :
             metricsPollIntervalSeconds = metricsPollIntervalSeconds,
             masterHttpPort = 80,
             privateIpOverride = "",
+            publicIpOverride = publicIpOverride,
             mcRouterContainerName = ""
         )
     }

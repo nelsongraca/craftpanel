@@ -71,6 +71,7 @@ class NodeAuthenticator(private val config: AgentConfig, private val metricsColl
     }
 
     private fun resolvePublicIp(): String {
+        config.publicIpOverride.takeIf { it.isNotBlank() }?.let { return it }
         if (config.publicIpUrl.isBlank()) return resolvePrivateIp()
         return runCatching {
             val conn = URI(config.publicIpUrl).toURL()

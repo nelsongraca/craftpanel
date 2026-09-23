@@ -122,6 +122,29 @@ class NodeAuthenticatorTest :
             result.exceptionOrNull()?.message shouldBe "Node node-4 was REJECTED by master"
             result.isFailure.shouldBeTrue()
         }
+
+        test("prefers the public IP override over publicIpUrl") {
+            val captured = slot<RegisterNodeRequest>()
+            val service = object : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
+                override suspend fun registerNode(request: RegisterNodeRequest): RegisterNodeResponse {
+                    captured.captured = request
+                    return registerNodeResponse {
+                        nodeId = "node-5"
+                        nodeKey = "returned-key"
+                    }
+                }
+            }
+            val overrideConfig = config.copy(
+                publicIpOverride = "203.0.113.5",
+                publicIpUrl = "http://127.0.0.1:1/unreachable"
+            )
+
+            withChannel(service) { channel ->
+                runBlocking { NodeAuthenticator(overrideConfig, metrics).authenticate(channel) }
+            }
+
+            captured.captured.metadata.publicIp shouldBe "203.0.113.5"
+        }
     }) {
     companion object {
         private fun <T> withChannel(service: ControlServiceGrpcKt.ControlServiceCoroutineImplBase, block: (io.grpc.ManagedChannel) -> T): T {
