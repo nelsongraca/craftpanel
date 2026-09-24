@@ -38,6 +38,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -173,26 +174,56 @@ fun Application.module() {
     }
 
     install(StatusPages) {
+        // Per-request logging stays at DEBUG (CallLogging); errors are logged here so a 5xx is
+        // visible at the default INFO level without having to set LOG_LEVEL=DEBUG.
+        val httpLog = LoggerFactory.getLogger("io.craftpanel.master.http")
+
+        fun logClientError(call: ApplicationCall, status: HttpStatusCode, ex: Throwable) {
+            httpLog.debug(
+                "{} {} -> {}: {}",
+                call.request.httpMethod.value, call.request.path(), status.value, ex.message
+            )
+        }
+
         exception<NotFoundException> { call, ex ->
+            logClientError(call, HttpStatusCode.NotFound, ex)
             call.respond(HttpStatusCode.NotFound, ErrorResponse(ex.message ?: "Not found"))
         }
         exception<ForbiddenException> { call, ex ->
+            logClientError(call, HttpStatusCode.Forbidden, ex)
             call.respond(HttpStatusCode.Forbidden, ErrorResponse(ex.message ?: "Forbidden"))
         }
         exception<ConflictException> { call, ex ->
+            logClientError(call, HttpStatusCode.Conflict, ex)
             call.respond(HttpStatusCode.Conflict, ErrorResponse(ex.message ?: "Conflict"))
         }
         exception<UnprocessableException> { call, ex ->
+            logClientError(call, HttpStatusCode.UnprocessableEntity, ex)
             call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse(ex.message ?: "Unprocessable"))
         }
         exception<BadGatewayException> { call, ex ->
+            httpLog.warn(
+                "{} {} -> 502: {}",
+                call.request.httpMethod.value, call.request.path(), ex.message, ex
+            )
             call.respond(HttpStatusCode.BadGateway, ErrorResponse(ex.message ?: "Bad gateway"))
         }
         exception<BadRequestException> { call, ex ->
+            logClientError(call, HttpStatusCode.BadRequest, ex)
             call.respond(HttpStatusCode.BadRequest, ErrorResponse(ex.message ?: "Bad request"))
         }
         exception<PortExhaustedException> { call, ex ->
+            logClientError(call, HttpStatusCode.Conflict, ex)
             call.respond(HttpStatusCode.Conflict, ErrorResponse(ex.message ?: "No free ports available"))
+        }
+        exception<Throwable> { call, ex ->
+            // Coroutine cancellation is control flow, not a server error — let it propagate.
+            if (ex is CancellationException) throw ex
+            httpLog.error(
+                "{} {} -> 500: unhandled {}",
+                call.request.httpMethod.value, call.request.path(), ex::class.simpleName, ex
+            )
+            call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Internal server error"))
         }
     }
 
