@@ -89,8 +89,20 @@ class ProxyConfigPatchServiceTest :
             val alphaId = createServer(nodeId, alphaName, ServerType.VANILLA)
             val betaId = createServer(nodeId, betaName, ServerType.PAPER)
             transaction {
-                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
-                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(betaId, Servers); it[ProxyBackends.backendName] = "beta"; it[ProxyBackends.order] = 1 }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers)
+                    it[ProxyBackends.backendName] =
+                        "alpha"
+                    it[ProxyBackends.order] = 0
+                }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(betaId, Servers)
+                    it[ProxyBackends.backendName] =
+                        "beta"
+                    it[ProxyBackends.order] = 1
+                }
             }
 
             val patch = service.generatePatch(proxyId)!!
@@ -98,7 +110,7 @@ class ProxyConfigPatchServiceTest :
             root["patches"]!!.jsonArray[0].jsonObject["file"] shouldBe JsonPrimitive("/server/velocity.toml")
             val ops = opsOf(patch)
 
-            ops.size shouldBe 4
+            ops.size shouldBe 5
 
             val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
@@ -107,16 +119,20 @@ class ProxyConfigPatchServiceTest :
             servers["beta"] shouldBe JsonPrimitive("$betaName:25565")
             servers["try"] shouldBe JsonArray(listOf(JsonPrimitive("alpha"), JsonPrimitive("beta")))
 
-            val motdOp = ops[1]["\$set"]!!.jsonObject
+            val forcedHostsOp = ops[1]["\$set"]!!.jsonObject
+            forcedHostsOp["path"] shouldBe JsonPrimitive("\$['forced-hosts']")
+            forcedHostsOp["value"] shouldBe JsonObject(emptyMap())
+
+            val motdOp = ops[2]["\$set"]!!.jsonObject
             motdOp["path"] shouldBe JsonPrimitive("$.motd")
             motdOp["value"] shouldBe JsonPrimitive("Welcome")
 
-            val maxPlayersOp = ops[2]["\$set"]!!.jsonObject
+            val maxPlayersOp = ops[3]["\$set"]!!.jsonObject
             maxPlayersOp["path"] shouldBe JsonPrimitive("\$['show-max-players']")
             maxPlayersOp["value"] shouldBe JsonPrimitive(20)
             maxPlayersOp["value-type"] shouldBe JsonPrimitive("int")
 
-            val forwardingOp = ops[3]["\$set"]!!.jsonObject
+            val forwardingOp = ops[4]["\$set"]!!.jsonObject
             forwardingOp["path"] shouldBe JsonPrimitive("\$['player-info-forwarding-mode']")
             forwardingOp["value"] shouldBe JsonPrimitive("legacy")
         }
@@ -136,8 +152,20 @@ class ProxyConfigPatchServiceTest :
             val alphaId = createServer(nodeId, alphaName, ServerType.VANILLA)
             val betaId = createServer(nodeId, betaName, ServerType.PAPER)
             transaction {
-                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
-                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(betaId, Servers); it[ProxyBackends.backendName] = "beta"; it[ProxyBackends.order] = 1 }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers)
+                    it[ProxyBackends.backendName] =
+                        "alpha"
+                    it[ProxyBackends.order] = 0
+                }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(betaId, Servers)
+                    it[ProxyBackends.backendName] =
+                        "beta"
+                    it[ProxyBackends.order] = 1
+                }
             }
 
             val patch = service.generatePatch(proxyId)!!
@@ -145,7 +173,7 @@ class ProxyConfigPatchServiceTest :
             root["patches"]!!.jsonArray[0].jsonObject["file"] shouldBe JsonPrimitive("/server/config.yml")
             val ops = opsOf(patch)
 
-            ops.size shouldBe 5
+            ops.size shouldBe 6
 
             val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
@@ -163,20 +191,24 @@ class ProxyConfigPatchServiceTest :
                 )
             )
 
-            val prioritiesOp = ops[1]["\$set"]!!.jsonObject
+            val forcedHostsOp = ops[1]["\$set"]!!.jsonObject
+            forcedHostsOp["path"] shouldBe JsonPrimitive("$.listeners[0].forced_hosts")
+            forcedHostsOp["value"] shouldBe JsonObject(emptyMap())
+
+            val prioritiesOp = ops[2]["\$set"]!!.jsonObject
             prioritiesOp["path"] shouldBe JsonPrimitive("$.listeners[0].priorities")
             prioritiesOp["value"] shouldBe JsonArray(listOf(JsonPrimitive("alpha"), JsonPrimitive("beta")))
 
-            val motdOp = ops[2]["\$set"]!!.jsonObject
+            val motdOp = ops[3]["\$set"]!!.jsonObject
             motdOp["path"] shouldBe JsonPrimitive("$.listeners[0].motd")
             motdOp["value"] shouldBe JsonPrimitive("Welcome")
 
-            val maxPlayersOp = ops[3]["\$set"]!!.jsonObject
+            val maxPlayersOp = ops[4]["\$set"]!!.jsonObject
             maxPlayersOp["path"] shouldBe JsonPrimitive("$.player_limit")
             maxPlayersOp["value"] shouldBe JsonPrimitive(20)
             maxPlayersOp["value-type"] shouldBe JsonPrimitive("int")
 
-            val forwardingOp = ops[4]["\$set"]!!.jsonObject
+            val forwardingOp = ops[5]["\$set"]!!.jsonObject
             forwardingOp["path"] shouldBe JsonPrimitive("$.ip_forward")
             forwardingOp["value"] shouldBe JsonPrimitive(true)
             forwardingOp["value-type"] shouldBe JsonPrimitive("bool")
@@ -213,17 +245,27 @@ class ProxyConfigPatchServiceTest :
             val alphaName = "alpha-${Uuid.random()}"
             val alphaId = createServer(nodeId, alphaName, ServerType.VANILLA)
             transaction {
-                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers)
+                    it[ProxyBackends.backendName] =
+                        "alpha"
+                    it[ProxyBackends.order] = 0
+                }
             }
 
             val patch = service.generatePatch(proxyId)!!
             val ops = opsOf(patch)
 
-            ops.size shouldBe 1
+            ops.size shouldBe 2
             val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
             val servers = serversOp["value"]!!.jsonObject
             servers["alpha"] shouldBe JsonPrimitive("$alphaName:25565")
             servers["try"] shouldBe JsonArray(listOf(JsonPrimitive("alpha")))
+
+            val forcedHostsOp = ops[1]["\$set"]!!.jsonObject
+            forcedHostsOp["path"] shouldBe JsonPrimitive("\$['forced-hosts']")
+            forcedHostsOp["value"] shouldBe JsonObject(emptyMap())
         }
     })

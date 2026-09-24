@@ -174,6 +174,9 @@ class ProxySettingsTest : BaseSystemTest() {
 
                     [servers]
                     try = []
+
+                    [forced-hosts]
+                    "lobby.example.com" = ["lobby"]
                 """.trimIndent()
                 execInContainer(proxyContainer, "sh", "-c", "cat > /server/velocity.toml <<'EOF'\n$seedVelocityToml\nEOF")
                 execInContainer(proxyContainer, "mc-image-helper", "patch", "/server/craftpanel-patch.json")
@@ -186,6 +189,10 @@ class ProxySettingsTest : BaseSystemTest() {
                 servers.keySet() shouldContainExactly setOf("game-server-1", "try")
                 servers.getString("game-server-1") shouldBe "${api.getServer(gameServerId).name}:25565"
                 servers.getArray("try")!!.toList() shouldContainExactly listOf("game-server-1")
+
+                // The stock forced-hosts entries must be cleared — they reference servers that
+                // don't exist, which makes Velocity log an error on every boot.
+                (toml.getTable("forced-hosts")?.keySet() ?: emptySet()).isEmpty() shouldBe true
             }
         }
     }

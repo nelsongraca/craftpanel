@@ -21,6 +21,7 @@ private data class ProxyDialect(
     val maxPlayersValueType: String,
     val forwardingModePath: String,
     val forwardingModeValueType: String?,
+    val forcedHostsPath: String,
     val isVelocity: Boolean
 )
 
@@ -30,6 +31,7 @@ private val VELOCITY_DIALECT = ProxyDialect(
     maxPlayersValueType = "int",
     forwardingModePath = "\$['player-info-forwarding-mode']",
     forwardingModeValueType = null,
+    forcedHostsPath = "\$['forced-hosts']",
     isVelocity = true
 )
 
@@ -39,6 +41,7 @@ private val BUNGEE_DIALECT = ProxyDialect(
     maxPlayersValueType = "int",
     forwardingModePath = "$.ip_forward",
     forwardingModeValueType = "bool",
+    forcedHostsPath = "$.listeners[0].forced_hosts",
     isVelocity = false
 )
 
@@ -62,6 +65,11 @@ class ProxyConfigPatchService(
         val ops = mutableListOf<JsonObject>()
 
         ops.add(serversOp(dialect, backends))
+        // The proxy's stock default config ships active example forced-hosts (Velocity:
+        // lobby/factions/minigames.example.com; Bungee: pvp.md-5.net). We own routing, so clear
+        // them — otherwise they dangle against servers we replaced in $.servers and the proxy logs
+        // "Server 'X' for forced host 'Y' does not exist" on every boot.
+        ops.add(ProxyPatch.set(dialect.forcedHostsPath, JsonObject(emptyMap())))
         if (serverRow.serverType != ServerType.VELOCITY && backends.isNotEmpty()) {
             ops.add(prioritiesOp(backends.map { it.first }))
         }
