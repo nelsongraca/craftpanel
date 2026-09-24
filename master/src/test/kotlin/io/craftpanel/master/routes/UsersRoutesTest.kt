@@ -92,6 +92,37 @@ class UsersRoutesTest :
             }
         }
 
+        test("listUsers includes groups assigned at non-global scopes") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val adminId = createUser()
+                assignGlobalGroup(adminId, "Super Admin")
+                val targetId = createUser(username = "target", email = "target@example.com")
+
+                val customGroupId = transaction {
+                    Groups.insert {
+                        it[Groups.name] = "Builders"
+                        it[Groups.isSystem] = false
+                    }[Groups.id]
+                }
+                transaction {
+                    UserGroupAssignments.insert {
+                        it[UserGroupAssignments.userId] = targetId
+                        it[UserGroupAssignments.groupId] = customGroupId
+                        it[UserGroupAssignments.scopeType] = "SERVER"
+                        it[UserGroupAssignments.scopeId] = Uuid.random()
+                    }
+                }
+
+                val users = jsonClient().get("/api/users") { bearerAuth(tokenFor(adminId)) }
+                    .body<JsonObject>()["users"]!!.jsonArray
+                val target = users.map { it.jsonObject }
+                    .first { it["username"]!!.jsonPrimitive.content == "target" }
+                val groups = target["groups"]!!.jsonArray.map { it.jsonPrimitive.content }
+                groups shouldBe listOf("Builders")
+            }
+        }
+
         // ── POST /api/users ───────────────────────────────────────────────────────
 
         test("createUser returns 403 without permission") {

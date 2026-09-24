@@ -2,7 +2,16 @@ package io.craftpanel.master.service.repo
 
 import kotlin.uuid.Uuid
 
-data class UserRow(val id: Uuid, val username: String, val email: String, val isActive: Boolean, val createdAt: String, val totpEnabled: Boolean = false, val mustChangePassword: Boolean = false, val lastLoginAt: String? = null)
+data class UserRow(
+    val id: Uuid,
+    val username: String,
+    val email: String,
+    val isActive: Boolean,
+    val createdAt: String,
+    val totpEnabled: Boolean = false,
+    val mustChangePassword: Boolean = false,
+    val lastLoginAt: String? = null
+)
 
 data class AssignmentRow(val id: Uuid, val userId: Uuid, val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
 
@@ -39,6 +48,9 @@ interface UserRepository {
     fun findTrustedDevice(userId: Uuid, tokenHash: String, deviceFingerprint: String, userAgent: String): TrustedDeviceRow?
 
     fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow>
+
+    /** Distinct groups the user is assigned to at any scope (GLOBAL/SERVER/NETWORK). */
+    fun getUserGroups(userId: Uuid): List<GroupAssignmentRow>
 
     fun updatePassword(userId: Uuid, newHash: String)
 

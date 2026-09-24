@@ -127,7 +127,7 @@ private fun UserRow.toResponse(repo: UserRepository) = UserResponse(
     isActive = isActive,
     createdAt = createdAt,
     mustChangePassword = mustChangePassword,
-    groups = repo.getUserGlobalGroups(id)
+    groups = repo.getUserGroups(id)
         .map { it.groupName },
     lastLoginAt = lastLoginAt
 )

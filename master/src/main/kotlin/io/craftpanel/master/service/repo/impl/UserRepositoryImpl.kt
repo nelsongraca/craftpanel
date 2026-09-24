@@ -163,6 +163,19 @@ class UserRepositoryImpl : UserRepository {
             }
     }
 
+    override fun getUserGroups(userId: Uuid): List<GroupAssignmentRow> = transaction {
+        (UserGroupAssignments innerJoin Groups)
+            .selectAll()
+            .where { UserGroupAssignments.userId eq userId }
+            .map {
+                GroupAssignmentRow(
+                    groupId = it[Groups.id].value,
+                    groupName = it[Groups.name]
+                )
+            }
+            .distinctBy { it.groupId }
+    }
+
     override fun updatePassword(userId: Uuid, newHash: String) {
         transaction {
             Users.update({ Users.id eq userId }) {
