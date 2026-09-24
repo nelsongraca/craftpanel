@@ -3,6 +3,7 @@ package craftpanel.systemtest.config
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
+import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
@@ -12,6 +13,7 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import org.openapitools.client.infrastructure.ClientException
 import org.tomlj.Toml
+import java.io.File
 
 @Tags("Misc")
 class ProxySettingsTest : BaseSystemTest() {
@@ -244,8 +246,13 @@ class ProxySettingsTest : BaseSystemTest() {
                 val proxySecret = execInContainer(containerName(proxyServerId), "cat", "/server/forwarding.secret")
                 proxySecret.isNotBlank() shouldBe true
 
-                val backendPatch = execInContainer(containerName(gameServerId), "cat", "/data/craftpanel-paper-global.yml")
-                backendPatch shouldContain proxySecret.trim()
+                // The backend was never started, so its container does not exist — the patch lands
+                // on the node's host data dir. Read it from there.
+                val backendPatchFile = SharedStack.agentDataDirs()
+                    .map { File(it, "servers/$gameServerId/craftpanel-paper-global.yml") }
+                    .firstOrNull { it.exists() }
+                backendPatchFile shouldNotBe null
+                backendPatchFile!!.readText() shouldContain proxySecret.trim()
             }
 
             should("patch the BungeeCord listener proxy_protocol flag") {
