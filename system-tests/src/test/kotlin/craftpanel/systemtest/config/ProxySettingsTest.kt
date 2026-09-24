@@ -46,6 +46,7 @@ class ProxySettingsTest : BaseSystemTest() {
                 settings.motd shouldBe "Velocity powered by CraftPanel"
                 settings.maxPlayers shouldBe null
                 settings.forwardingMode shouldBe null
+                settings.proxyProtocol shouldBe false
             }
 
             should("set and return proxy settings") {
@@ -54,17 +55,20 @@ class ProxySettingsTest : BaseSystemTest() {
                     UpdateProxySettingsRequest(
                         motd = "Welcome to the Proxy",
                         maxPlayers = 50,
-                        forwardingMode = "legacy"
+                        forwardingMode = "legacy",
+                        proxyProtocol = true
                     )
                 )
                 result.motd shouldBe "Welcome to the Proxy"
                 result.maxPlayers shouldBe 50
                 result.forwardingMode shouldBe "LEGACY"
+                result.proxyProtocol shouldBe true
 
                 val settings = api.getProxySettings(proxyServerId)
                 settings.motd shouldBe "Welcome to the Proxy"
                 settings.maxPlayers shouldBe 50
                 settings.forwardingMode shouldBe "LEGACY"
+                settings.proxyProtocol shouldBe true
             }
 
             should("clear settings by setting null values") {
@@ -137,7 +141,8 @@ class ProxySettingsTest : BaseSystemTest() {
                     UpdateProxySettingsRequest(
                         motd = "My Proxy",
                         maxPlayers = 20,
-                        forwardingMode = "legacy"
+                        forwardingMode = "legacy",
+                        proxyProtocol = true
                     )
                 )
                 api.replaceProxyBackends(
@@ -193,6 +198,9 @@ class ProxySettingsTest : BaseSystemTest() {
                 // The stock forced-hosts entries must be cleared — they reference servers that
                 // don't exist, which makes Velocity log an error on every boot.
                 (toml.getTable("forced-hosts")?.keySet() ?: emptySet()).isEmpty() shouldBe true
+
+                // PROXY-protocol listener flag is patched in (Velocity top-level haproxy-protocol).
+                toml.getBoolean("haproxy-protocol") shouldBe true
             }
         }
     }

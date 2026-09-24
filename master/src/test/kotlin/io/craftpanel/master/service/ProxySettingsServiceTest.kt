@@ -78,14 +78,28 @@ class ProxySettingsServiceTest :
             val nodeId = createNode()
             val proxyId = createServer(nodeId, ServerType.VELOCITY)
 
-            service.updateSettings(proxyId, UpdateProxySettingsRequest(motd = "Welcome", maxPlayers = 40, forwardingMode = "legacy"))
+            service.updateSettings(proxyId, UpdateProxySettingsRequest(motd = "Welcome", maxPlayers = 40, forwardingMode = "legacy", proxyProtocol = true))
 
             val row = serverRepository.findById(proxyId)!!
             row.proxyMotd shouldBe "Welcome"
             row.proxyMaxPlayers shouldBe 40
             row.proxyForwardingMode shouldBe "LEGACY"
+            row.proxyProtocol shouldBe true
 
-            service.getSettings(proxyId) shouldBe ProxySettingsResponse("Welcome", 40, "LEGACY")
+            service.getSettings(proxyId) shouldBe ProxySettingsResponse("Welcome", 40, "LEGACY", proxyProtocol = true)
+        }
+
+        test("proxyProtocol defaults off and is left unchanged when absent from the request") {
+            val nodeId = createNode()
+            val proxyId = createServer(nodeId, ServerType.VELOCITY)
+
+            service.getSettings(proxyId).proxyProtocol shouldBe false
+
+            service.updateSettings(proxyId, UpdateProxySettingsRequest(motd = "x", maxPlayers = null, forwardingMode = null, proxyProtocol = true))
+            serverRepository.findById(proxyId)!!.proxyProtocol shouldBe true
+
+            service.updateSettings(proxyId, UpdateProxySettingsRequest(motd = "y", maxPlayers = null, forwardingMode = null))
+            serverRepository.findById(proxyId)!!.proxyProtocol shouldBe true
         }
 
         test("validates forwarding mode against proxy family") {

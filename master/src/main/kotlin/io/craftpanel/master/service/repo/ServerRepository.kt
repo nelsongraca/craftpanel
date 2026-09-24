@@ -40,6 +40,7 @@ data class ServerView(
     val proxyMotd: String? = null,
     val proxyMaxPlayers: Int? = null,
     val proxyForwardingMode: String? = null,
+    val proxyProtocol: Boolean = false,
     val forwardingSecretEnc: String? = null,
     val backupSchedule: String?,
     val backupMaxCount: Int,

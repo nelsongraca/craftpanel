@@ -82,6 +82,7 @@ class ProxyConfigPatchServiceTest :
                 e.proxyMotd = "Welcome"
                 e.proxyMaxPlayers = 20
                 e.proxyForwardingMode = "LEGACY"
+                e.proxyProtocol = true
             }
 
             val alphaName = "alpha-${Uuid.random()}"
@@ -110,7 +111,7 @@ class ProxyConfigPatchServiceTest :
             root["patches"]!!.jsonArray[0].jsonObject["file"] shouldBe JsonPrimitive("/server/velocity.toml")
             val ops = opsOf(patch)
 
-            ops.size shouldBe 5
+            ops.size shouldBe 6
 
             val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
@@ -135,6 +136,11 @@ class ProxyConfigPatchServiceTest :
             val forwardingOp = ops[4]["\$set"]!!.jsonObject
             forwardingOp["path"] shouldBe JsonPrimitive("\$['player-info-forwarding-mode']")
             forwardingOp["value"] shouldBe JsonPrimitive("legacy")
+
+            val proxyProtocolOp = ops[5]["\$set"]!!.jsonObject
+            proxyProtocolOp["path"] shouldBe JsonPrimitive("\$['haproxy-protocol']")
+            proxyProtocolOp["value"] shouldBe JsonPrimitive(true)
+            proxyProtocolOp["value-type"] shouldBe JsonPrimitive("bool")
         }
 
         test("generates BungeeCord patch with all settings and backends") {
@@ -145,6 +151,7 @@ class ProxyConfigPatchServiceTest :
                 e.proxyMotd = "Welcome"
                 e.proxyMaxPlayers = 20
                 e.proxyForwardingMode = "LEGACY"
+                e.proxyProtocol = true
             }
 
             val alphaName = "alpha-${Uuid.random()}"
@@ -173,7 +180,7 @@ class ProxyConfigPatchServiceTest :
             root["patches"]!!.jsonArray[0].jsonObject["file"] shouldBe JsonPrimitive("/server/config.yml")
             val ops = opsOf(patch)
 
-            ops.size shouldBe 6
+            ops.size shouldBe 7
 
             val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
@@ -212,6 +219,11 @@ class ProxyConfigPatchServiceTest :
             forwardingOp["path"] shouldBe JsonPrimitive("$.ip_forward")
             forwardingOp["value"] shouldBe JsonPrimitive(true)
             forwardingOp["value-type"] shouldBe JsonPrimitive("bool")
+
+            val proxyProtocolOp = ops[6]["\$set"]!!.jsonObject
+            proxyProtocolOp["path"] shouldBe JsonPrimitive("$.listeners[0].proxy_protocol")
+            proxyProtocolOp["value"] shouldBe JsonPrimitive(true)
+            proxyProtocolOp["value-type"] shouldBe JsonPrimitive("bool")
         }
 
         test("MANUAL config mode - returns null") {
@@ -257,7 +269,7 @@ class ProxyConfigPatchServiceTest :
             val patch = service.generatePatch(proxyId)!!
             val ops = opsOf(patch)
 
-            ops.size shouldBe 2
+            ops.size shouldBe 3
             val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
             val servers = serversOp["value"]!!.jsonObject
@@ -267,5 +279,10 @@ class ProxyConfigPatchServiceTest :
             val forcedHostsOp = ops[1]["\$set"]!!.jsonObject
             forcedHostsOp["path"] shouldBe JsonPrimitive("\$['forced-hosts']")
             forcedHostsOp["value"] shouldBe JsonObject(emptyMap())
+
+            val proxyProtocolOp = ops[2]["\$set"]!!.jsonObject
+            proxyProtocolOp["path"] shouldBe JsonPrimitive("\$['haproxy-protocol']")
+            proxyProtocolOp["value"] shouldBe JsonPrimitive(false)
+            proxyProtocolOp["value-type"] shouldBe JsonPrimitive("bool")
         }
     })

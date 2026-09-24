@@ -71,6 +71,9 @@ object Servers : UuidTable("servers") {
     val proxyMotd = varchar("proxy_motd", 500).nullable()
     val proxyMaxPlayers = integer("proxy_max_players").nullable()
     val proxyForwardingMode = varchar("proxy_forwarding_mode", 20).nullable()
+
+    // Proxy listens for the HAProxy PROXY protocol (Velocity haproxy-protocol / Bungee listeners[0].proxy_protocol).
+    val proxyProtocol = bool("proxy_protocol").default(false)
     val forwardingSecretEnc = text("forwarding_secret_enc").nullable()
     val backupSchedule = varchar("backup_schedule", 64).nullable()
     val backupMaxCount = integer("backup_max_count").default(10)

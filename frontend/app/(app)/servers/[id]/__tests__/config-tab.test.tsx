@@ -128,10 +128,10 @@ async function renderProxyServer(
     vi.mocked(replaceProxyBackends).mockResolvedValue({data: {}} as never);
     vi.mocked(updateStopCommand).mockResolvedValue({data: {}} as never);
     vi.mocked(getProxySettings).mockResolvedValue({
-        data: {motd: null, max_players: null, forwarding_mode: null},
+        data: {motd: null, max_players: null, forwarding_mode: null, proxy_protocol: false},
     } as never);
     vi.mocked(updateProxySettings).mockResolvedValue({
-        data: {motd: null, max_players: null, forwarding_mode: null},
+        data: {motd: null, max_players: null, forwarding_mode: null, proxy_protocol: false},
     } as never);
     vi.mocked(getEnvVars).mockResolvedValue({data: {env_vars: []}} as never);
     vi.mocked(replaceEnvVars).mockResolvedValue({data: {}} as never);

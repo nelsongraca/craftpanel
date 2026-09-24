@@ -317,6 +317,15 @@ Backend address resolution is automatic:
 - **Same node as proxy** — Docker container hostname is used (bridge network, no port exposure needed)
 - **Different node** — Node's private IP and the backend's assigned host port are used
 
+### PROXY Protocol
+
+The proxy's Configuration tab has a **PROXY Protocol** toggle. When enabled, master patches the proxy listener to accept the HAProxy PROXY protocol —
+Velocity `haproxy-protocol = true`, BungeeCord/Waterfall `listeners[0].proxy_protocol = true`. This is what lets a proxy placed behind mc-router preserve the real client IP when mc-router
+forwards a PROXY header.
+
+Enable it **only** when a load balancer that emits the PROXY protocol sits in front of the node's router. Enabling it without such a source can reject direct player connections. Toggling it marks
+the proxy **restart pending**; the new listener setting takes effect on the next start/restart.
+
 ### Manual Mode
 
 Full file editor access to the proxy config file. Easy mode backend selections are ignored. The administrator is responsible for keeping the config consistent with the actual server topology.

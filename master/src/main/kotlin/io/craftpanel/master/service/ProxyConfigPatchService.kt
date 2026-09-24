@@ -21,6 +21,7 @@ private data class ProxyDialect(
     val maxPlayersValueType: String,
     val forwardingModePath: String,
     val forwardingModeValueType: String?,
+    val proxyProtocolPath: String,
     val forcedHostsPath: String,
     val isVelocity: Boolean
 )
@@ -31,6 +32,7 @@ private val VELOCITY_DIALECT = ProxyDialect(
     maxPlayersValueType = "int",
     forwardingModePath = "\$['player-info-forwarding-mode']",
     forwardingModeValueType = null,
+    proxyProtocolPath = "\$['haproxy-protocol']",
     forcedHostsPath = "\$['forced-hosts']",
     isVelocity = true
 )
@@ -41,6 +43,7 @@ private val BUNGEE_DIALECT = ProxyDialect(
     maxPlayersValueType = "int",
     forwardingModePath = "$.ip_forward",
     forwardingModeValueType = "bool",
+    proxyProtocolPath = "$.listeners[0].proxy_protocol",
     forcedHostsPath = "$.listeners[0].forced_hosts",
     isVelocity = false
 )
@@ -82,6 +85,7 @@ class ProxyConfigPatchService(
         if (serverRow.proxyForwardingMode != null) {
             ops.add(forwardingModeOp(dialect, serverRow.proxyForwardingMode))
         }
+        ops.add(ProxyPatch.set(dialect.proxyProtocolPath, JsonPrimitive(serverRow.proxyProtocol), "bool"))
 
         val file = if (dialect.isVelocity) VELOCITY_FILE else BUNGEE_FILE
         return ProxyPatch.patchSet(file, ops)

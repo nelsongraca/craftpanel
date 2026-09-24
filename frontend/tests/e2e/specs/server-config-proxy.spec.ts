@@ -36,19 +36,26 @@ test("changes the forwarding mode via the select", async ({page}) => {
     await expect(page.getByText("Unsaved changes")).toBeVisible();
 });
 
+test("toggles the PROXY protocol setting", async ({page}) => {
+    await page.goto("/servers/srv-proxy");
+    await page.getByRole("tab", {name: "Configuration"}).click();
+
+    const toggle = page.getByRole("checkbox", {name: "PROXY Protocol", exact: true});
+    await expect(toggle).not.toBeChecked();
+    await toggle.click();
+    await expect(toggle).toBeChecked();
+    await expect(page.getByText("Unsaved changes")).toBeVisible();
+});
+
 test("adds a backend through the modal", async ({page, network}) => {
-    let backends = [
-        {id: "backend-1", backend_server_id: "srv-2", backend_name: "creative", order: 0},
-    ];
+    let backends = [{id: "backend-1", backend_server_id: "srv-2", backend_name: "creative", order: 0}];
     network.use(
-        http.get("/api/servers/srv-proxy/config/proxy", () =>
-            HttpResponse.json({backends, forwarding_warnings: []})
-        ),
+        http.get("/api/servers/srv-proxy/config/proxy", () => HttpResponse.json({backends, forwarding_warnings: []})),
         http.put("/api/servers/srv-proxy/config/proxy", async ({request}) => {
             const body = (await request.json()) as {backends: typeof backends};
             backends = body.backends.map((b, i) => ({...b, order: i}));
             return HttpResponse.json({backends, forwarding_warnings: []});
-        })
+        }),
     );
 
     await page.goto("/servers/srv-proxy");
@@ -75,8 +82,8 @@ test("duplicate backend names surface a client-side error", async ({page, networ
                     {id: "backend-2", backend_server_id: "srv-3", backend_name: "survival", order: 1},
                 ],
                 forwarding_warnings: [],
-            })
-        )
+            }),
+        ),
     );
 
     await page.goto("/servers/srv-proxy");
@@ -93,12 +100,10 @@ test("removing a backend updates the table", async ({page, network}) => {
     network.use(
         http.get("/api/servers/srv-proxy/config/proxy", () =>
             HttpResponse.json({
-                backends: [
-                    {id: "backend-1", backend_server_id: "srv-2", backend_name: "creative", order: 0},
-                ],
+                backends: [{id: "backend-1", backend_server_id: "srv-2", backend_name: "creative", order: 0}],
                 forwarding_warnings: [],
-            })
-        )
+            }),
+        ),
     );
 
     await page.goto("/servers/srv-proxy");
@@ -118,14 +123,15 @@ test("renders forwarding warnings when the API returns them", async ({page, netw
                 motd: "Proxy",
                 max_players: 20,
                 forwarding_mode: "MODERN",
+                proxy_protocol: false,
                 forwarding_warnings: [],
-            })
+            }),
         ),
         http.put("/api/servers/srv-proxy/config/proxy-settings", () =>
             HttpResponse.json({
                 forwarding_warnings: ["Forwarding secret is not set"],
-            })
-        )
+            }),
+        ),
     );
 
     await page.goto("/servers/srv-proxy");

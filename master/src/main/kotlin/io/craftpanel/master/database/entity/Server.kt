@@ -48,6 +48,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var proxyMotd by Servers.proxyMotd
     var proxyMaxPlayers by Servers.proxyMaxPlayers
     var proxyForwardingMode by Servers.proxyForwardingMode
+    var proxyProtocol by Servers.proxyProtocol
     var forwardingSecretEnc by Servers.forwardingSecretEnc
     var backupSchedule by Servers.backupSchedule
     var backupMaxCount by Servers.backupMaxCount
@@ -106,6 +107,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
         proxyMotd = proxyMotd,
         proxyMaxPlayers = proxyMaxPlayers,
         proxyForwardingMode = proxyForwardingMode,
+        proxyProtocol = proxyProtocol,
         forwardingSecretEnc = forwardingSecretEnc,
         backupSchedule = backupSchedule,
         backupMaxCount = backupMaxCount,

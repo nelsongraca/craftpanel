@@ -28,6 +28,7 @@ data class ServerExportData(
     @SerialName("proxy_motd") val proxyMotd: String? = null,
     @SerialName("proxy_max_players") val proxyMaxPlayers: Int? = null,
     @SerialName("proxy_forwarding_mode") val proxyForwardingMode: String? = null,
+    @SerialName("proxy_protocol") val proxyProtocol: Boolean? = false,
     @SerialName("forwarding_secret_enc") val forwardingSecretEnc: String? = null,
     @SerialName("backup_schedule") val backupSchedule: String? = null,
     @SerialName("backup_max_count") val backupMaxCount: Int? = 10,

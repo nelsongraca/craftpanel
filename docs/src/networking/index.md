@@ -179,7 +179,10 @@ mc-router runs with `IN_DOCKER=true` and `DYNAMIC_PROXY_PROTOCOL=true` so it sub
 | `mc-router.port` | `25565` | container-internal Minecraft port |
 | `mc-router.network` | the `craftpanel` network name | which Docker network mc-router dials the backend on |
 
-The label key is `mc-router.host` (not `hostname`) and `IN_DOCKER=true` is required — without it the mounted Docker socket is unused and labels are ignored. `DYNAMIC_PROXY_PROTOCOL=true` makes mc-router send PROXY protocol to backends that support it.
+The label key is `mc-router.host` (not `hostname`) and `IN_DOCKER=true` is required — without it the mounted Docker socket is unused and labels are ignored. `DYNAMIC_PROXY_PROTOCOL=true` makes mc-router accept connections with or without the HAProxy PROXY protocol and forward the header to the backend when one is present.
+
+!!! note "Backends must opt in"
+    A backend that receives a forwarded PROXY header (a Velocity/BungeeCord proxy behind mc-router) must be configured to read it, or the connection is rejected. Managed proxies expose a **PROXY Protocol** toggle in their Configuration tab that writes Velocity's `haproxy-protocol` / Bungee's `listeners[0].proxy_protocol`. Enable it only when a PROXY-protocol source (an L4 load balancer) sits in front of mc-router — enabling it without one can break direct player connections. See [Proxy Configuration](../servers/configuration.md#proxy-protocol).
 
 When expose is disabled, no public DNS record exists. The server is reachable only within its Docker network or by node IP + port (used for cross-node proxy easy-mode configuration).
 

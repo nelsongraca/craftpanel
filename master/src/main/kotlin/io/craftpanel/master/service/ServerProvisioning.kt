@@ -54,6 +54,7 @@ data class ServerProvisionSpec(
     val proxyMotd: String? = null,
     val proxyMaxPlayers: Int? = null,
     val proxyForwardingMode: String? = null,
+    val proxyProtocol: Boolean? = null,
     val forwardingSecretEnc: String? = null,
     val backupSchedule: String? = null,
     val backupMaxCount: Int? = null,
@@ -185,6 +186,7 @@ class ServerProvisioning(
             proxyMotd = source.proxyMotd,
             proxyMaxPlayers = source.proxyMaxPlayers,
             proxyForwardingMode = source.proxyForwardingMode,
+            proxyProtocol = source.proxyProtocol,
             forwardingSecretEnc = source.forwardingSecretEnc,
             backupSchedule = source.backupSchedule,
             backupMaxCount = source.backupMaxCount,
@@ -266,6 +268,7 @@ class ServerProvisioning(
             }
             entity.proxyMaxPlayers = spec.proxyMaxPlayers
             entity.proxyForwardingMode = spec.proxyForwardingMode
+            spec.proxyProtocol?.let { entity.proxyProtocol = it }
             entity.forwardingSecretEnc = spec.forwardingSecretEnc
 
             val envVars = spec.envVars

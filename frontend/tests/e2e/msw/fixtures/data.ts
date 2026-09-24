@@ -322,6 +322,7 @@ export const fakeProxySettings: ProxySettingsResponse = {
     motd: "A Minecraft Proxy",
     max_players: 20,
     forwarding_mode: "MODERN",
+    proxy_protocol: false,
     forwarding_warnings: [],
 };
 

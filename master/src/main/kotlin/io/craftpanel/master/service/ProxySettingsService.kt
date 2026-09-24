@@ -13,11 +13,18 @@ data class ProxySettingsResponse(
     val motd: String?,
     @SerialName("max_players") val maxPlayers: Int?,
     @SerialName("forwarding_mode") val forwardingMode: String?,
+    @SerialName("proxy_protocol") val proxyProtocol: Boolean,
     @SerialName("forwarding_warnings") val forwardingWarnings: List<String> = emptyList()
 )
 
 @Serializable
-data class UpdateProxySettingsRequest(val motd: String?, @SerialName("max_players") val maxPlayers: Int?, @SerialName("forwarding_mode") val forwardingMode: String?)
+data class UpdateProxySettingsRequest(
+    val motd: String?,
+    @SerialName("max_players") val maxPlayers: Int?,
+    @SerialName("forwarding_mode") val forwardingMode: String?,
+    // null = leave unchanged (absent for older clients); a boolean sets the proxy's PROXY-protocol listener flag.
+    @SerialName("proxy_protocol") val proxyProtocol: Boolean? = null
+)
 
 /**
  * Proxy-side settings (MOTD, max players, forwarding mode) stored on the proxy
@@ -27,18 +34,15 @@ data class UpdateProxySettingsRequest(val motd: String?, @SerialName("max_player
  * via [BackendForwardingService] (#44) — backends that can't support the mode are
  * warn-skipped and surfaced back to the caller.
  */
-class ProxySettingsService(
-    private val serverRepository: ServerRepository,
-    private val proxyPatchWriter: ProxyPatchWriter,
-    private val backendForwardingService: BackendForwardingService
-) {
+class ProxySettingsService(private val serverRepository: ServerRepository, private val proxyPatchWriter: ProxyPatchWriter, private val backendForwardingService: BackendForwardingService) {
 
     fun getSettings(proxyServerId: Uuid): ProxySettingsResponse {
         val row = serverRepository.requireProxy(proxyServerId)
         return ProxySettingsResponse(
             motd = row.proxyMotd,
             maxPlayers = row.proxyMaxPlayers,
-            forwardingMode = row.proxyForwardingMode
+            forwardingMode = row.proxyForwardingMode,
+            proxyProtocol = row.proxyProtocol
         )
     }
 
@@ -56,6 +60,7 @@ class ProxySettingsService(
             e.proxyMotd = req.motd
             e.proxyMaxPlayers = req.maxPlayers
             e.proxyForwardingMode = mode
+            req.proxyProtocol?.let { e.proxyProtocol = it }
             e.restartPending = true
         }
         proxyPatchWriter.writeIfRunning(row)
@@ -63,8 +68,7 @@ class ProxySettingsService(
         val warnings = if (mode != null) {
             backendForwardingService.applyToAllBackends(proxyServerId, mode)
                 .map { it.reason }
-        }
-        else {
+        } else {
             emptyList()
         }
         return getSettings(proxyServerId).copy(forwardingWarnings = warnings)
