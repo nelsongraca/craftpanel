@@ -60,7 +60,6 @@ val agentModule = module {
         DockerContainerManager(
             get<DockerClient>(),
             get<WatcherGate>(),
-            get<AgentConfig>().craftpanelNetwork,
             get<AgentConfig>().containerNamePrefix,
             get<AgentConfig>().pullMaxImageAgeHours
         )
@@ -78,10 +77,11 @@ val agentModule = module {
         NetworkManager(
             get(),
             get<McRouterProvisioner>().containerName,
-            get<AgentConfig>().mcRouterEnabled
+            get<AgentConfig>().mcRouterEnabled,
+            get<AgentConfig>().containerNamePrefix
         )
     }
-    single { RouterSupervisor(get(), get<AgentConfig>().mcRouterEnabled) }
+    single { RouterSupervisor(get(), get(), get<AgentConfig>().mcRouterEnabled) }
     single { MetricsCollector(get()) }
     single {
         RsyncMigrator(

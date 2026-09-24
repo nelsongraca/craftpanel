@@ -15,7 +15,8 @@ enum class SpecDiffReason {
     PORTS,
     HOSTNAME_LABEL,
     NETWORK_MODE,
-    HOSTNAME
+    HOSTNAME,
+    NETWORKS
 }
 
 /** Outcome of comparing a desired spec against the live container's inspected configuration. */
@@ -72,6 +73,13 @@ object ContainerSpecDiff {
             if (spec.dockerNetwork.isNotEmpty() && snapshot.networkMode != spec.dockerNetwork) {
                 add(SpecDiffReason.NETWORK_MODE)
             }
+            // The container must be attached to its server network and nothing else, and (for TCP
+            // servers) its routing label must point there. Catches a legacy container still on the
+            // shared infra network, and a stale routing target — either forces a recreate on the
+            // next start, which is how those containers migrate off the shared network.
+            if (spec.dockerNetwork.isNotEmpty() && networkMismatch(spec, snapshot)) {
+                add(SpecDiffReason.NETWORKS)
+            }
             if (spec.serverName.isNotEmpty() && snapshot.hostname != spec.serverName) {
                 add(SpecDiffReason.HOSTNAME)
             }
@@ -94,5 +102,16 @@ object ContainerSpecDiff {
         val recorded = snapshot.labels[DockerLabels.MANAGED_ENV_KEYS] ?: return false
         val recordedKeys = recorded.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
         return recordedKeys != spec.envVarsMap.keys
+    }
+
+    /**
+     * True when the container is attached to a network other than the spec's, or its
+     * `mc-router.network` label names a different network. A snapshot with no readable network set is
+     * not flagged, so an uninspectable container never forces a recreate.
+     */
+    private fun networkMismatch(spec: StartContainerCommand, snapshot: ContainerSnapshot): Boolean {
+        if (snapshot.networks.isNotEmpty() && snapshot.networks.any { it != spec.dockerNetwork }) return true
+        val labelled = snapshot.labels["mc-router.network"]
+        return labelled != null && labelled != spec.dockerNetwork
     }
 }

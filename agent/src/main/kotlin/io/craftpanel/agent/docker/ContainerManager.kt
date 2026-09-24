@@ -27,7 +27,9 @@ data class ContainerSnapshot(
     /** Docker hostname (`Config.Hostname`) — the server name, and thus its DNS name on the network. */
     val hostname: String,
     /** Whether the container is currently running (`State.Running`). */
-    val running: Boolean = false
+    val running: Boolean = false,
+    /** Names of every network the container is attached to (`NetworkSettings.Networks`). */
+    val networks: Set<String> = emptySet()
 )
 
 data class BindSnapshot(val hostPath: String, val containerPath: String, val readOnly: Boolean)

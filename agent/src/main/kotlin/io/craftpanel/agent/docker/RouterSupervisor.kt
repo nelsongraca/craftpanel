@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
 import kotlin.time.Duration.Companion.seconds
 
-class RouterSupervisor(private val provisioner: McRouterProvisioner, private val enabled: Boolean = true) {
+class RouterSupervisor(private val provisioner: McRouterProvisioner, private val networkManager: NetworkManager, private val enabled: Boolean = true) {
 
     private val log = LoggerFactory.getLogger(RouterSupervisor::class.java)
     private val _isRunning = AtomicBoolean(false)
@@ -16,6 +16,11 @@ class RouterSupervisor(private val provisioner: McRouterProvisioner, private val
     // Serializes ensureRunning() between the periodic loop and on-demand ensureReady() calls
     // (server start), so two concurrent provisioner runs cannot race on remove/create.
     private val provisionMutex = Mutex()
+
+    // Reconcile the router's per-server network attachments once per agent lifetime (a router that
+    // survived the agent restart keeps them, but a missed/failed attach must self-heal), and again
+    // whenever ensureRunning reports a created/recreated/reused router. Guarded by [provisionMutex].
+    private var reconciledAttachments = false
 
     val isRunning: Boolean get() = _isRunning.get()
 
@@ -55,7 +60,11 @@ class RouterSupervisor(private val provisioner: McRouterProvisioner, private val
 
     /** Returns true when mc-router is up and correct after the call. Caller must hold [provisionMutex]. */
     private fun provision(): Boolean = runCatching {
-        provisioner.ensureRunning()
+        val provisioned = provisioner.ensureRunning()
+        if (provisioned || !reconciledAttachments) {
+            networkManager.reconcileRouterAttachments()
+            reconciledAttachments = true
+        }
         _isRunning.set(true)
         log.debug("mc-router running")
     }.onFailure { e ->

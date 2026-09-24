@@ -48,7 +48,7 @@ class ControlStreamHandlerTest :
         )
         val containerHandler = ContainerHandler(containerManager, config, mockk<NetworkManager>(relaxed = true))
         val backupHandler = BackupHandler(config)
-        val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true))
+        val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true), mockk<NetworkManager>(relaxed = true))
         val eventWatcher = ContainerEventWatcher(mockk(relaxed = true))
         val consoleHandler = ConsoleHandler(mockk(relaxed = true), mockk(relaxed = true))
         // Shared test view: the convergence loop is a mock here because these tests exercise the

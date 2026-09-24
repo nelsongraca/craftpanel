@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit
 class DockerContainerManager(
     private val docker: DockerClient,
     private val gate: WatcherGate,
-    private val craftpanelNetwork: String = "",
     private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
     private val pullMaxImageAgeHours: Long = 24
 ) : ContainerManager {
@@ -127,13 +126,13 @@ class DockerContainerManager(
                         // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
                         // `mc-router.host` is the routing hostname; `mc-router.port` is the
                         // container-internal Minecraft port; `mc-router.network` tells mc-router
-                        // which Docker network to dial the backend on (the shared craftpanel
-                        // network both mc-router and this container are attached to). UDP
-                        // backends cannot be proxied by mc-router, so skip the labels.
+                        // which Docker network to dial the backend on (the container's own server
+                        // network, which mc-router is attached to). UDP backends cannot be proxied
+                        // by mc-router, so skip the labels.
                         put("mc-router.host", cmd.publicHostname)
                         put("mc-router.port", cmd.internalListenPort.toString())
-                        if (craftpanelNetwork.isNotEmpty()) {
-                            put("mc-router.network", craftpanelNetwork)
+                        if (cmd.dockerNetwork.isNotEmpty()) {
+                            put("mc-router.network", cmd.dockerNetwork)
                         }
                     }
                     if (cmd.stopCommand.isNotEmpty()) {
@@ -152,9 +151,6 @@ class DockerContainerManager(
             }
             .exec()
 
-        if (craftpanelNetwork.isNotEmpty()) {
-            docker.connectIfAbsent(craftpanelNetwork, response.id)
-        }
         log.info("Created container ${cmd.containerName} (server ${cmd.serverId})")
         return response.id
     }
@@ -377,7 +373,8 @@ class DockerContainerManager(
             labels = config?.labels.orEmpty(),
             networkMode = hostConfig?.networkMode ?: "",
             hostname = config?.hostName ?: "",
-            running = info.state?.running ?: false
+            running = info.state?.running ?: false,
+            networks = info.networkSettings?.networks?.keys.orEmpty()
         )
     }.getOrNull()
 

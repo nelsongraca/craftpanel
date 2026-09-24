@@ -172,6 +172,31 @@ class ContainerSpecDiffTest :
                 SpecDiff.Match
         }
 
+        test("an extra attached network forces a recreate") {
+            diff(snap = snapshot().copy(networks = setOf("craftpanel-server-srv-1", "craftpanel"))) shouldBe
+                SpecDiff.Mismatch(listOf(SpecDiffReason.NETWORKS))
+        }
+
+        test("exactly the spec network matches") {
+            diff(snap = snapshot().copy(networks = setOf("craftpanel-server-srv-1"))) shouldBe
+                SpecDiff.Match
+        }
+
+        test("an unreadable network set is not checked") {
+            diff(snap = snapshot().copy(networks = emptySet())) shouldBe
+                SpecDiff.Match
+        }
+
+        test("a stale mc-router.network label forces a recreate") {
+            diff(snap = snapshot().copy(labels = snapshot().labels + ("mc-router.network" to "craftpanel"))) shouldBe
+                SpecDiff.Mismatch(listOf(SpecDiffReason.NETWORKS))
+        }
+
+        test("a matching mc-router.network label matches") {
+            diff(snap = snapshot().copy(labels = snapshot().labels + ("mc-router.network" to "craftpanel-server-srv-1"))) shouldBe
+                SpecDiff.Match
+        }
+
         test("hostname differs from the server name") {
             diff(snap = snapshot().copy(hostname = "9f8e7d6c5b4a")) shouldBe
                 SpecDiff.Mismatch(listOf(SpecDiffReason.HOSTNAME))
