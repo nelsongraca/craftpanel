@@ -16,6 +16,7 @@ import org.tomlj.Toml
 class ProxySettingsTest : BaseSystemTest() {
 
     private lateinit var proxyServerId: String
+    private lateinit var bungeeProxyId: String
     private lateinit var gameServerId: String
 
     init {
@@ -31,11 +32,23 @@ class ProxySettingsTest : BaseSystemTest() {
                     cpuLimitMillicores = 1000
                 )
             ).id
+            bungeeProxyId = api.createServer(
+                CreateServerRequest(
+                    name = "test-bungee-${System.currentTimeMillis()}",
+                    nodeId = nodeId,
+                    serverType = "BUNGEECORD",
+                    mcVersion = "latest",
+                    itzgImageTag = "latest",
+                    memoryMb = 256,
+                    cpuLimitMillicores = 1000
+                )
+            ).id
             gameServerId = ServerHelper(api).createTestServer(nodeId)
         }
 
         afterSpec {
             runCatching { api.deleteServer(proxyServerId) }
+            runCatching { api.deleteServer(bungeeProxyId) }
             runCatching { api.deleteServer(gameServerId) }
         }
 
@@ -176,6 +189,7 @@ class ProxySettingsTest : BaseSystemTest() {
                     motd = "A Velocity Server"
                     show-max-players = 500
                     player-info-forwarding-mode = "NONE"
+                    haproxy-protocol = false
 
                     [servers]
                     try = []
@@ -201,6 +215,76 @@ class ProxySettingsTest : BaseSystemTest() {
 
                 // PROXY-protocol listener flag is patched in (Velocity top-level haproxy-protocol).
                 toml.getBoolean("haproxy-protocol") shouldBe true
+            }
+
+            should("patch the BungeeCord listener proxy_protocol flag") {
+                api.updateProxySettings(
+                    bungeeProxyId,
+                    UpdateProxySettingsRequest(
+                        motd = "My Bungee",
+                        maxPlayers = 20,
+                        forwardingMode = "legacy",
+                        proxyProtocol = true
+                    )
+                )
+                api.replaceProxyBackends(
+                    bungeeProxyId,
+                    PutProxyBackendsRequest(
+                        backends = listOf(
+                            BackendInput(
+                                backendServerId = gameServerId,
+                                backendName = "game-server-1",
+                                order = 1
+                            )
+                        )
+                    )
+                )
+                api.startServer(bungeeProxyId)
+                helper.awaitStatus(bungeeProxyId, ServerStatus.HEALTHY)
+
+                // Same stub trick as the Velocity case: seed a default config.yml shaped like the
+                // real itzg/mc-proxy image's, then run the real mc-image-helper against the patch
+                // master wrote. BungeeCord/Waterfall parse `listeners[0].proxy_protocol` (there is
+                // no top-level haproxy-protocol as in Velocity).
+                val proxyContainer = containerName(bungeeProxyId)
+                val seedConfigYml = """
+                    listeners:
+                    - query_port: 25577
+                      motd: '&1A BungeeCord Server'
+                      tab_list: GLOBAL_PING
+                      query_enabled: false
+                      proxy_protocol: false
+                      forced_hosts:
+                        pvp.md-5.net: pvp
+                      ping_passthrough: false
+                      priorities:
+                        - lobby
+                      bind_local_address: true
+                      host: 0.0.0.0:25577
+                      max_players: 1
+                      tab_size: 60
+                      force_default_server: false
+
+                    servers:
+                      lobby:
+                        motd: '&1Just another BungeeCord - Forced Host'
+                        address: localhost:25565
+                        restricted: false
+
+                    player_limit: -1
+                    ip_forward: false
+                    online_mode: true
+                """.trimIndent()
+                execInContainer(proxyContainer, "sh", "-c", "cat > /server/config.yml <<'EOF'\n$seedConfigYml\nEOF")
+                execInContainer(proxyContainer, "mc-image-helper", "patch", "/server/craftpanel-patch.json")
+
+                val proxyProtocolLine = execInContainer(
+                    proxyContainer,
+                    "sh",
+                    "-c",
+                    "grep -E '^[[:space:]]*proxy_protocol:' /server/config.yml"
+                )
+                proxyProtocolLine.trim() shouldBe "proxy_protocol: true"
             }
         }
     }

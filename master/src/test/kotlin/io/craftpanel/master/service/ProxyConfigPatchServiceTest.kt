@@ -226,6 +226,21 @@ class ProxyConfigPatchServiceTest :
             proxyProtocolOp["value-type"] shouldBe JsonPrimitive("bool")
         }
 
+        test("WATERFALL uses the BungeeCord proxy-protocol path") {
+            val nodeId = createNode()
+            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.WATERFALL)
+            transaction { Server.findById(proxyId)?.let { it.proxyProtocol = true } }
+
+            val ops = opsOf(service.generatePatch(proxyId)!!)
+
+            // Waterfall is a BungeeCord fork — same config.yml shape, so it must use the same path
+            // and not be mistaken for Velocity.
+            val op = ops.last()["\$set"]!!.jsonObject
+            op["path"] shouldBe JsonPrimitive("$.listeners[0].proxy_protocol")
+            op["value"] shouldBe JsonPrimitive(true)
+            op["value-type"] shouldBe JsonPrimitive("bool")
+        }
+
         test("MANUAL config mode - returns null") {
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
