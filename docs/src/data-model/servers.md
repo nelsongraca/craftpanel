@@ -136,7 +136,7 @@ The UI combines both — showing the server's live status alongside a migration 
 
     The mc-router label `mc-router.host` is always the **comma-joined** list of all available hostnames (`[managedHostname, customHostname]`, nulls filtered). Both hostnames can route simultaneously.
 
-| `last_player_count`       | INT                  | Last observed player count from Minecraft query protocol; refreshed every 60 s; `NULL` when unknown                                                   |
+| `last_player_count`       | INT                  | Last observed player count from the agent's `mc-monitor` probe; refreshed every metrics poll (default 5 s); `NULL` when unknown                        |
 | `last_player_names`       | VARCHAR(1000)        | Comma-separated string of online player names; `NULL` when unknown                                                                                    |
 | `last_player_update`      | TIMESTAMPTZ          | Timestamp of the most recent player data refresh; `NULL` if never polled                                                                              |
 | `last_seen_at`       | TIMESTAMPTZ          | Timestamp of last successful health check from agent                                                                                                             |

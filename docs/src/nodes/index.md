@@ -70,7 +70,7 @@ the table below mirrors it with extra protocol context.
 | `HOST_DATA_PATH`                | *(value of `DATA_PATH`)*      | Host path Docker uses as the bind-mount source when creating server containers. Must match the node's **Data Path** field in the UI. Defaults to `DATA_PATH`.                                                                             |
 | `SERVERS_BY_NAME_PATH`          | `$DATA_PATH/servers-by-name`  | Root of the human-readable `servers-by-name/<name>` symlink overlay.                                                                                                                                                                      |
 | `BACKUPS_BY_SERVER_PATH`        | `$DATA_PATH/backups-by-server` | Root of the `backups-by-server/<name>/<timestamp>.tar.gz` symlink overlay.                                                                                                                                                               |
-| `CRAFTPANEL_NETWORK`            | `craftpanel`                  | Name of the Docker bridge network shared by the agent, mc-router, and all server containers. The network must exist before the agent starts. See [Docker Network](../networking/index.md#docker-networks).                                 |
+| `CRAFTPANEL_NETWORK`            | `craftpanel`                  | Name of the Docker bridge network shared by the agent, mc-router, and rsync utility containers. Game server containers are **not** on it. The network must exist before the agent starts. See [Docker Network](../networking/index.md#docker-networks). |
 | `CRAFTPANEL_CONTAINER_PREFIX`   | `craftpanel`                  | Prefix applied to all container names created by this agent (e.g. `craftpanel-<server-id>`). Change only when running multiple isolated CraftPanel stacks on the same Docker daemon.                                                      |
 | `MCROUTER_IMAGE`                | `itzg/mc-router:latest`       | Docker image used when provisioning the mc-router container on startup.                                                                                                                                                                   |
 | `MCROUTER_UPDATE_ON_START`      | `true`                        | Pull the mc-router image on every agent startup. Set to `false` to skip the pull and use the locally cached image.                                                                                                                        |
@@ -143,7 +143,8 @@ On startup the agent automatically provisions a single `craftpanel-mc-router` co
 This container routes incoming Minecraft TCP connections to the correct game server container using Docker label-based hostname matching (label `mc-router.host=<hostname>`, plus `mc-router.port` and
 `mc-router.network`).
 
-The mc-router container is attached to the `craftpanel` network (controlled by `CRAFTPANEL_NETWORK`) so it can reach game server containers by their container name.
+The mc-router container is attached to the `craftpanel` network (controlled by `CRAFTPANEL_NETWORK`) as its home, and to every server network bridge/overlay on the node so it can reach game
+server containers by their container name. On startup, and after any recreate, the agent re-attaches it to every server network present locally.
 See [Docker Network](../networking/index.md#docker-networks).
 
 The image is pulled whenever the container is created or recreated: with `MCROUTER_UPDATE_ON_START=true` (default) the configured image is pulled first; with `false` it is pulled only when it is

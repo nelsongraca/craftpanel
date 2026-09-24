@@ -6,7 +6,7 @@ Each node operates two categories of Docker networks:
 
 | Network               | Name                       | Created by                        | Purpose                                                                                   |
 |-----------------------|----------------------------|-----------------------------------|-------------------------------------------------------------------------------------------|
-| Infra network         | `craftpanel`               | Operator (pre-created)            | Connects agent and mc-router; mc-router uses it to reach all server bridges               |
+| Infra network         | `craftpanel`               | Operator (pre-created)            | Connects the agent, mc-router, and rsync utility containers                               |
 | Server Network bridge | `craftpanel-net-<uuid>`    | Agent (bridge) / Master (overlay) | Per-Server-Network isolation; containers in the same network reach each other by hostname |
 | Standalone server     | `craftpanel-server-<uuid>` | Agent (bridge)                    | Isolates standalone servers (no assigned network)                                         |
 
@@ -23,7 +23,8 @@ Each node operates two categories of Docker networks:
 Each node runs one instance of [`itzg/mc-router`](https://github.com/itzg/mc-router). It listens on port **25565** and routes incoming Minecraft connections by hostname, reading its routing table from
 **Docker container labels**. Master sets the appropriate labels when creating or updating containers — no direct API communication between master and mc-router is required.
 
-The mc-router container is named **`craftpanel-mc-router-<node-id>`** — the node ID suffix ensures uniqueness in Swarm deployments where multiple agents share a Docker context.
+The mc-router container is named **`craftpanel-mc-router`** (override via `MCROUTER_CONTAINER_NAME`). It is host-global — one router serves every server on the node, and co-located agents
+share it. Docker container names are scoped to a single daemon, so the same name on different nodes is not a collision.
 
 Game traffic flows directly from players to mc-router to containers. It never passes through the master backend.
 
@@ -36,7 +37,7 @@ start) the agent:
 
 1. Recreates the container when it drifts from the configured image (controlled by `MCROUTER_IMAGE`, default `itzg/mc-router:latest`) or is missing the required env flags / docker.sock group
 2. Otherwise starts it if it is not running, or leaves it in place if it is
-3. Attaches mc-router to any server network bridges that exist locally
+3. Attaches mc-router to every server network bridge/overlay that exists locally — and re-attaches after a recreate, which otherwise loses all per-server attachments
 
 The image is pulled whenever the container is created or recreated. `MCROUTER_UPDATE_ON_START=false` skips the pull unless the image is absent locally — useful when the image is pinned to a specific
 digest or when image pulls are restricted. See [Agent Configuration](../nodes/index.md#agent-configuration) for the full list of env vars.
@@ -79,7 +80,7 @@ When master assigns a server to a Server Network, it derives the Docker network 
 
 1. On `StartContainerCommand`: if the bridge named `craftpanel-net-<uuid>` does not exist, the agent creates it
 2. Agent starts the container and attaches it to the bridge
-3. Agent attaches mc-router to the bridge (if not already attached)
+3. Agent attaches mc-router to the bridge before the container starts, so routing is ready the moment the container's label is visible
 4. On container removal: if no other containers remain on the bridge, the agent detaches mc-router and deletes the bridge
 
 ### Standalone server bridges (`craftpanel-server-<uuid>`)
@@ -177,7 +178,7 @@ mc-router runs with `IN_DOCKER=true` and `DYNAMIC_PROXY_PROTOCOL=true` so it sub
 |---|---|---|
 | `mc-router.host` | the public hostname(s) | routing hostname; comma-separated for multiple hostnames |
 | `mc-router.port` | `25565` | container-internal Minecraft port |
-| `mc-router.network` | the `craftpanel` network name | which Docker network mc-router dials the backend on |
+| `mc-router.network` | the container's own server network | which Docker network mc-router dials the backend on |
 
 The label key is `mc-router.host` (not `hostname`) and `IN_DOCKER=true` is required — without it the mounted Docker socket is unused and labels are ignored. `DYNAMIC_PROXY_PROTOCOL=true` makes mc-router accept connections with or without the HAProxy PROXY protocol and forward the header to the backend when one is present.
 

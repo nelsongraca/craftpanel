@@ -13,9 +13,20 @@ The `itzg/minecraft-server` image exposes a built-in health check endpoint. Mast
 
 ## Player Count
 
-The agent retrieves player count using the **Minecraft TCP status ping** protocol, routed through the local mc-router on port 25565. mc-router proxies the status request to the target game container.
+The agent probes each running container for its player list by running the image's bundled `mc-monitor` inside the container:
 
-Player count and online player list are refreshed every 60 seconds and surfaced on the server detail page and dashboard.
+```bash
+docker exec <container> mc-monitor status --json --host localhost --port <internal listen port>
+```
+
+The probe is network-independent — it runs inside the container's own namespace — so it works for exposed and non-exposed servers alike, and never depends on mc-router or the Docker network
+layout. For a proxy whose listener expects the HAProxy PROXY protocol, the agent adds `--use-proxy` (from the server's PROXY Protocol setting).
+
+Player count and online player list are refreshed every metrics poll (`METRICS_POLL_INTERVAL_SECONDS`, default 5 s) and surfaced on the server detail page and dashboard.
+
+!!! note
+`mc-monitor` is bundled with the `itzg/minecraft-server` and `itzg/mc-proxy` images. A custom image
+that does not ship it simply reports no player count.
 
 !!! note
 `ENABLE_QUERY` is no longer automatically injected into server containers. If you require the UDP query protocol for external tooling (e.g. server list websites), add `ENABLE_QUERY=TRUE` and `QUERY_PORT=25565` via the server's environment variable editor.
