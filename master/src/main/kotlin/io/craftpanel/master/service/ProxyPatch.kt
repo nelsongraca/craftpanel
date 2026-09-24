@@ -22,7 +22,12 @@ internal object ProxyPatch {
         return Json.encodeToString(JsonObject(mapOf("patches" to JsonArray(listOf(JsonObject(entry))))))
     }
 
-    /** A `$set` op. [valueType] adds `value-type` when non-null. */
+    /**
+     * A `$set` op — overwrites an existing field. mc-image-helper (via Jayway JsonPath) throws
+     * `PathNotFoundException` when the target key/array index is absent, so use [put] for keys that
+     * may not exist in the stock config (a missing key would otherwise fail the whole PatchSet).
+     * [valueType] adds `value-type` when non-null.
+     */
     fun set(path: String, value: JsonElement, valueType: String? = null): JsonObject {
         val fields = buildMap<String, JsonElement> {
             put("path", JsonPrimitive(path))
@@ -30,5 +35,16 @@ internal object ProxyPatch {
             if (valueType != null) put("value-type", JsonPrimitive(valueType))
         }
         return JsonObject(mapOf("\$set" to JsonObject(fields)))
+    }
+
+    /** A `$put` op — adds or updates [key] under the object at [path]. Unlike [set], it creates a missing key. */
+    fun put(path: String, key: String, value: JsonElement, valueType: String? = null): JsonObject {
+        val fields = buildMap<String, JsonElement> {
+            put("path", JsonPrimitive(path))
+            put("key", JsonPrimitive(key))
+            put("value", value)
+            if (valueType != null) put("value-type", JsonPrimitive(valueType))
+        }
+        return JsonObject(mapOf("\$put" to JsonObject(fields)))
     }
 }

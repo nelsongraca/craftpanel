@@ -137,8 +137,9 @@ class ProxyConfigPatchServiceTest :
             forwardingOp["path"] shouldBe JsonPrimitive("\$['player-info-forwarding-mode']")
             forwardingOp["value"] shouldBe JsonPrimitive("legacy")
 
-            val proxyProtocolOp = ops[5]["\$set"]!!.jsonObject
-            proxyProtocolOp["path"] shouldBe JsonPrimitive("\$['haproxy-protocol']")
+            val proxyProtocolOp = ops[5]["\$put"]!!.jsonObject
+            proxyProtocolOp["path"] shouldBe JsonPrimitive("$.advanced")
+            proxyProtocolOp["key"] shouldBe JsonPrimitive("haproxy-protocol")
             proxyProtocolOp["value"] shouldBe JsonPrimitive(true)
             proxyProtocolOp["value-type"] shouldBe JsonPrimitive("bool")
         }
@@ -220,8 +221,9 @@ class ProxyConfigPatchServiceTest :
             forwardingOp["value"] shouldBe JsonPrimitive(true)
             forwardingOp["value-type"] shouldBe JsonPrimitive("bool")
 
-            val proxyProtocolOp = ops[6]["\$set"]!!.jsonObject
-            proxyProtocolOp["path"] shouldBe JsonPrimitive("$.listeners[0].proxy_protocol")
+            val proxyProtocolOp = ops[6]["\$put"]!!.jsonObject
+            proxyProtocolOp["path"] shouldBe JsonPrimitive("$.listeners[0]")
+            proxyProtocolOp["key"] shouldBe JsonPrimitive("proxy_protocol")
             proxyProtocolOp["value"] shouldBe JsonPrimitive(true)
             proxyProtocolOp["value-type"] shouldBe JsonPrimitive("bool")
         }
@@ -235,8 +237,9 @@ class ProxyConfigPatchServiceTest :
 
             // Waterfall is a BungeeCord fork — same config.yml shape, so it must use the same path
             // and not be mistaken for Velocity.
-            val op = ops.last()["\$set"]!!.jsonObject
-            op["path"] shouldBe JsonPrimitive("$.listeners[0].proxy_protocol")
+            val op = ops.last()["\$put"]!!.jsonObject
+            op["path"] shouldBe JsonPrimitive("$.listeners[0]")
+            op["key"] shouldBe JsonPrimitive("proxy_protocol")
             op["value"] shouldBe JsonPrimitive(true)
             op["value-type"] shouldBe JsonPrimitive("bool")
         }
@@ -295,8 +298,9 @@ class ProxyConfigPatchServiceTest :
             forcedHostsOp["path"] shouldBe JsonPrimitive("\$['forced-hosts']")
             forcedHostsOp["value"] shouldBe JsonObject(emptyMap())
 
-            val proxyProtocolOp = ops[2]["\$set"]!!.jsonObject
-            proxyProtocolOp["path"] shouldBe JsonPrimitive("\$['haproxy-protocol']")
+            val proxyProtocolOp = ops[2]["\$put"]!!.jsonObject
+            proxyProtocolOp["path"] shouldBe JsonPrimitive("$.advanced")
+            proxyProtocolOp["key"] shouldBe JsonPrimitive("haproxy-protocol")
             proxyProtocolOp["value"] shouldBe JsonPrimitive(false)
             proxyProtocolOp["value-type"] shouldBe JsonPrimitive("bool")
         }

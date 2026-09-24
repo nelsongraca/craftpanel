@@ -188,17 +188,22 @@ class ProxySettingsTest : BaseSystemTest() {
                 // already wrote — proving the PatchSet JSON is genuinely parseable, not just
                 // shaped the way our own renderer/test expect.
                 val proxyContainer = containerName(proxyServerId)
+                // Shape matches the real Velocity default (config-version 2.8): PROXY protocol lives
+                // under [advanced], NOT top-level. The earlier top-level seed matched our renderer
+                // instead of the image and let a wrong JSONPath ship to prod.
                 val seedVelocityToml = """
                     motd = "A Velocity Server"
                     show-max-players = 500
                     player-info-forwarding-mode = "NONE"
-                    haproxy-protocol = false
 
                     [servers]
                     try = []
 
                     [forced-hosts]
                     "lobby.example.com" = ["lobby"]
+
+                    [advanced]
+                    haproxy-protocol = false
                 """.trimIndent()
                 execInContainer(proxyContainer, "sh", "-c", "cat > /server/velocity.toml <<'EOF'\n$seedVelocityToml\nEOF")
                 execInContainer(proxyContainer, "mc-image-helper", "patch", "/server/craftpanel-patch.json")
@@ -216,8 +221,8 @@ class ProxySettingsTest : BaseSystemTest() {
                 // don't exist, which makes Velocity log an error on every boot.
                 (toml.getTable("forced-hosts")?.keySet() ?: emptySet()).isEmpty() shouldBe true
 
-                // PROXY-protocol listener flag is patched in (Velocity top-level haproxy-protocol).
-                toml.getBoolean("haproxy-protocol") shouldBe true
+                // PROXY-protocol listener flag is patched in (Velocity [advanced] haproxy-protocol).
+                toml.getTable("advanced")!!.getBoolean("haproxy-protocol") shouldBe true
             }
 
             should("write the master-minted forwarding secret to the proxy and its backends") {
@@ -282,8 +287,8 @@ class ProxySettingsTest : BaseSystemTest() {
 
                 // Same stub trick as the Velocity case: seed a default config.yml shaped like the
                 // real itzg/mc-proxy image's, then run the real mc-image-helper against the patch
-                // master wrote. BungeeCord/Waterfall parse `listeners[0].proxy_protocol` (there is
-                // no top-level haproxy-protocol as in Velocity).
+                // master wrote. BungeeCord/Waterfall parse `listeners[0].proxy_protocol` (Velocity
+                // has no listener table — its flag lives under [advanced]).
                 val proxyContainer = containerName(bungeeProxyId)
                 val seedConfigYml = """
                     listeners:
