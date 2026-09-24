@@ -91,6 +91,12 @@ describe("NetworksPage", () => {
         expect(screen.getAllByText("Creative").length).toBeGreaterThan(0);
     });
 
+    it("links a network name to the filtered server list", async () => {
+        await renderWith({networks: [network({id: "n1", name: "Survival Network"})]});
+        const link = screen.getAllByRole("link", {name: "Survival Network"})[0];
+        expect(link).toHaveAttribute("href", "/servers?network=n1");
+    });
+
     it("shows server count badge in desktop table", async () => {
         await renderWith({networks: [network({server_count: 5})]});
         expect(screen.getAllByText("5").length).toBeGreaterThan(0);

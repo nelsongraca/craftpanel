@@ -1,6 +1,7 @@
 "use client";
 
 import {useRef, useState} from "react";
+import Link from "next/link";
 import {Download, Pencil, Plus, Trash2, Upload} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createNetwork, deleteNetwork, exportNetwork, importNetwork, listNetworks, listNodes, updateNetwork} from "@/lib/generated/sdk.gen";
@@ -19,7 +20,14 @@ import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/
 // ── Columns ───────────────────────────────────────────────────────────────────
 
 const NETWORK_COLUMNS: SmartListColumn<Network>[] = [
-    {key: 'name', header: 'Name', render: (n) => <span className="font-medium text-text-primary">{n.name}</span>},
+    {key: 'name', header: 'Name', render: (n) => (
+        <Link
+            href={`/servers?network=${n.id}`}
+            className="font-medium text-text-primary hover:text-accent transition-colors"
+        >
+            {n.name}
+        </Link>
+    )},
     {key: 'servers', header: 'Servers', render: (n) => (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold bg-surface-higher border border-border text-text-dim">
             {n.server_count}

@@ -176,7 +176,7 @@ export function ServerList({
             onHeaderClick: () => toggleSort("name"),
             render: (server) => (
                 <>
-                    <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
+                    <p className="text-sm font-heading font-medium text-text-primary group-hover:text-accent transition-colors leading-none">
                         {server.display_name}
                     </p>
                     {server.is_migrating && (
@@ -198,9 +198,9 @@ export function ServerList({
                             Restart pending
                         </p>
                     )}
-                    {server.exposed_externally && server.public_subdomain && (
+                    {server.canonical_hostname && (
                         <p className="mt-0.5 text-xs font-mono text-text-muted leading-none">
-                            {server.public_subdomain}
+                            {server.canonical_hostname}
                         </p>
                     )}
                 </>
@@ -277,13 +277,13 @@ export function ServerList({
             >
                 <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                        <p className="text-sm font-heading font-bold text-text-primary truncate">{server.display_name}</p>
+                        <p className="text-sm font-heading font-medium text-text-primary truncate">{server.display_name}</p>
                         <p className="mt-0.5 font-mono text-xs text-text-dim truncate">
                             {server.server_type}
                             {showNodeColumn && ` · ${node?.display_name ?? `${server.node_id.slice(0, 8)}…`}`}
                         </p>
-                        {server.exposed_externally && server.public_subdomain && (
-                            <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{server.public_subdomain}</p>
+                        {server.canonical_hostname && (
+                            <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{server.canonical_hostname}</p>
                         )}
                         {server.restart_pending && server.status !== "STOPPED" && (
                             <p className="mt-0.5 font-mono text-xs text-warning truncate">Restart pending</p>

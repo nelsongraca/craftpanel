@@ -68,6 +68,21 @@ describe('OverviewTab', () => {
         expect(screen.getByText('Test Network')).toBeInTheDocument()
     })
 
+    it('shows the canonical hostname', () => {
+        render(
+            <OverviewTab
+                server={makeServer({canonical_hostname: 'play.example.com'})}
+                node={makeNode()}
+                network={makeNetwork()}
+                permissions={['server.view']}
+                liveMetrics={null}
+                livePlayers={null}
+                onSaved={vi.fn()}
+            />,
+        )
+        expect(screen.getByText('play.example.com')).toBeInTheDocument()
+    })
+
     it('renders General Settings when has server.configure permission', () => {
         render(
             <OverviewTab

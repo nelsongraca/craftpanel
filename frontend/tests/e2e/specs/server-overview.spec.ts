@@ -159,7 +159,11 @@ test("saves exposure settings from the overview tab", async ({page, network}) =>
     let subdomain = "survival";
     network.use(
         http.get("/api/servers/srv-1", () =>
-            HttpResponse.json({...healthyServer(), public_subdomain: subdomain})
+            HttpResponse.json({
+                ...healthyServer(),
+                public_subdomain: subdomain,
+                canonical_hostname: subdomain ? `${subdomain}.mc.example.com` : null,
+            })
         ),
         http.patch("/api/servers/srv-1/exposure", async ({request}) => {
             const body = (await request.json()) as {public_subdomain: string | null};
@@ -174,7 +178,7 @@ test("saves exposure settings from the overview tab", async ({page, network}) =>
     await page.getByPlaceholder("myserver").fill("survival2");
     await page.getByRole("button", {name: "Save", exact: true}).first().click();
 
-    await expect(page.getByText("survival2", {exact: true}).first()).toBeVisible();
+    await expect(page.getByText("survival2.mc.example.com", {exact: true}).first()).toBeVisible();
 });
 
 function healthyServer() {
@@ -203,7 +207,7 @@ function healthyServer() {
         last_player_count: 3,
         last_player_names: ["Steve", "Alex"],
         custom_hostname: null,
-        canonical_hostname: null,
+        canonical_hostname: "survival.mc.example.com",
         created_at: "2025-01-01T00:00:00Z",
         updated_at: "2025-01-01T00:00:00Z",
     };

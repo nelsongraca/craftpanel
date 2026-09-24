@@ -678,12 +678,24 @@ describe("ServersPage", () => {
     });
 
     describe("Exposed subdomain", () => {
-        it("server with exposed_externally and public_subdomain shows subdomain", async () => {
+        it("server with a canonical hostname shows it in the list", async () => {
             await renderWith({
-                servers: [server({exposed_externally: true, public_subdomain: "mc.example.com"})],
+                servers: [server({
+                    exposed_externally: true,
+                    public_subdomain: "survival",
+                    canonical_hostname: "mc.example.com",
+                })],
             });
 
             expect(screen.getAllByText("mc.example.com").length).toBeGreaterThan(0);
+        });
+
+        it("server without a canonical hostname shows no hostname", async () => {
+            await renderWith({
+                servers: [server({exposed_externally: true, public_subdomain: "survival", canonical_hostname: null})],
+            });
+
+            expect(screen.queryByText("survival")).not.toBeInTheDocument();
         });
     });
 

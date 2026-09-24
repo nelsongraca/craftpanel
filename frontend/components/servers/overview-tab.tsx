@@ -79,11 +79,7 @@ export function OverviewTab({
                 <InfoRow label="Port" value={server.host_port}/>
                 <InfoRow
                     label="Hostname"
-                    value={
-                        server.exposed_externally && server.public_subdomain
-                            ? server.public_subdomain
-                            : "-"
-                    }
+                    value={server.canonical_hostname ?? "-"}
                 />
                 <InfoRow
                     label="Last seen"

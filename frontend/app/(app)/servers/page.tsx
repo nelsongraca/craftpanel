@@ -81,7 +81,7 @@ export default function ServersPage() {
             if (
                 !s.display_name.toLowerCase().includes(q) &&
                 !s.name.toLowerCase().includes(q) &&
-                !(s.public_subdomain?.toLowerCase().includes(q))
+                !(s.canonical_hostname?.toLowerCase().includes(q))
             ) return false;
         }
         if (filterStatus) {

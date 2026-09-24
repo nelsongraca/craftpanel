@@ -372,9 +372,9 @@ export default function ServerDetailPage() {
                 </div>
 
                 {/* Hostname */}
-                {server.exposed_externally && server.public_subdomain && (
+                {server.canonical_hostname && (
                     <p className="mt-2 font-mono text-xs text-text-muted">
-                        {server.public_subdomain}
+                        {server.canonical_hostname}
                     </p>
                 )}
 
