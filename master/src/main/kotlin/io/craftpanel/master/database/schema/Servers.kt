@@ -75,6 +75,10 @@ object Servers : UuidTable("servers") {
     // Proxy listens for the HAProxy PROXY protocol (Velocity haproxy-protocol / Bungee listeners[0].proxy_protocol).
     val proxyProtocol = bool("proxy_protocol").default(false)
     val forwardingSecretEnc = text("forwarding_secret_enc").nullable()
+
+    // Backend-side forwarding patch file (container path, e.g. /data/craftpanel-paper-global.yml)
+    // injected as PATCH_DEFINITIONS for this server. Master-owned — never a user-editable env var.
+    val forwardingPatchFile = varchar("forwarding_patch_file", 255).nullable()
     val backupSchedule = varchar("backup_schedule", 64).nullable()
     val backupMaxCount = integer("backup_max_count").default(10)
     val backupScheduleLastFired = datetime("backup_schedule_last_fired").nullable()

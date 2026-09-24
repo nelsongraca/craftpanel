@@ -1,5 +1,6 @@
 package io.craftpanel.agent.docker
 
+import io.craftpanel.common.DockerLabels
 import io.craftpanel.proto.StartContainerCommand
 import io.craftpanel.proto.extraPortBinding
 import io.craftpanel.proto.startContainerCommand
@@ -80,6 +81,27 @@ class ContainerSpecDiffTest :
         test("a configured env var missing from the container") {
             diff(snap = snapshot().copy(env = mapOf("PVP" to "true"))) shouldBe
                 SpecDiff.Mismatch(listOf(SpecDiffReason.ENV))
+        }
+
+        test("a managed env key removed from the spec forces a recreate") {
+            // Container was created with CUSTOM in addition to the current spec keys; the label
+            // still records it, so the drop is visible even though the stale var remains in env.
+            val snap = snapshot().copy(
+                env = snapshot().env + ("CUSTOM" to "x"),
+                labels = snapshot().labels + (DockerLabels.MANAGED_ENV_KEYS to "CUSTOM,MOTD,PVP")
+            )
+            diff(snap = snap) shouldBe SpecDiff.Mismatch(listOf(SpecDiffReason.ENV))
+        }
+
+        test("a managed env key set matching the spec matches") {
+            val snap = snapshot().copy(labels = snapshot().labels + (DockerLabels.MANAGED_ENV_KEYS to "MOTD,PVP"))
+            diff(snap = snap) shouldBe SpecDiff.Match
+        }
+
+        test("a container without the managed-env-keys label skips the key-set check") {
+            // Pre-upgrade container: an extra var cannot be distinguished from an image default, so
+            // it is ignored (no mass-recreate on upgrade).
+            diff(snap = snapshot().copy(env = snapshot().env + ("LEGACY_EXTRA" to "x"))) shouldBe SpecDiff.Match
         }
 
         test("a bind mounted somewhere else") {

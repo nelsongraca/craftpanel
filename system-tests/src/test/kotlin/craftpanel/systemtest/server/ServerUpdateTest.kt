@@ -117,6 +117,48 @@ class ServerUpdateTest : BaseSystemTest() {
                 api.stopServer(serverId)
                 helper.awaitStoppedOrGone(serverId)
             }
+
+            should("recreate on restart after an env var is removed") {
+                api.replaceEnvVars(
+                    serverId,
+                    PutEnvVarsRequest(
+                        envVars = listOf(
+                            EnvVarItem(key = "RECONFIG_MARKER", value = "changed"),
+                            EnvVarItem(key = "REMOVABLE_MARKER", value = "here")
+                        )
+                    )
+                )
+                api.startServer(serverId)
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
+                val before = docker.inspectContainerCmd(containerName(serverId)).exec().id
+
+                // Drop one env var while running — still no restart (reconfigure-only).
+                api.replaceEnvVars(
+                    serverId,
+                    PutEnvVarsRequest(envVars = listOf(EnvVarItem(key = "RECONFIG_MARKER", value = "changed")))
+                )
+                api.getServer(serverId).status shouldBe ServerStatus.HEALTHY
+                docker.inspectContainerCmd(containerName(serverId)).exec().id shouldBe before
+
+                // A restart must recreate: the recorded managed-env-key set no longer matches the spec.
+                api.restartServer(serverId)
+                var after = before
+                val deadline = System.currentTimeMillis() + 60_000
+                while (System.currentTimeMillis() < deadline && after == before) {
+                    delay(250.milliseconds)
+                    after = runCatching {
+                        docker.inspectContainerCmd(containerName(serverId)).exec().id
+                    }.getOrNull() ?: before
+                }
+                after shouldNotBe before
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
+                docker.inspectContainerCmd(containerName(serverId)).exec()
+                    .config?.env?.toList().orEmpty()
+                    .any { it.startsWith("REMOVABLE_MARKER=") } shouldBe false
+
+                api.stopServer(serverId)
+                helper.awaitStoppedOrGone(serverId)
+            }
         }
     }
 }

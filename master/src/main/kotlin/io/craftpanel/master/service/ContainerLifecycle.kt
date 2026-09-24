@@ -196,6 +196,9 @@ class ContainerLifecycle(
             put("MEMORY", "${defaultHeapMb(server.memoryMb)}M")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
             if (isProxy && !isManual) put("PATCH_DEFINITIONS", "/server/craftpanel-patch.json")
+            // Backend forwarding patch (ADR-0003): master-owned, injected here rather than persisted
+            // as a user env var. Honours MANUAL (#49) — no config is injected in manual mode.
+            server.forwardingPatchFile?.takeIf { !isManual }?.let { put("PATCH_DEFINITIONS", it) }
             if (isCustom) {
                 val jar = server.customServerJar
                 if (!jar.isNullOrBlank()) put("CUSTOM_SERVER", jar)

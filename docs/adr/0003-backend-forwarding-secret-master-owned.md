@@ -53,6 +53,14 @@ any backend can be configured, which races migration and recreate flows.
 - The proxy's `forwarding.secret` is now master-written (patch), not
   image-generated. ADR-0002's other decisions (patch mechanism, master renders,
   agent writes, same-node) stand unchanged.
+- The proxy secret is written on every forwarding fan-out and re-asserted before
+  each managed Velocity proxy start/restart (`ServerLifecycleService` →
+  `BackendForwardingService.ensureProxySecret`), so the secret cannot drift from
+  the one pushed to backends. MODERN only — LEGACY/BungeeGuard do not read the file.
+- `PATCH_DEFINITIONS` on a backend is master-owned state
+  (`servers.forwarding_patch_file`), injected at container-build time, not a user
+  env var — otherwise it surfaced in the config UI's extra variables and a config
+  save could erase it.
 - Secret **rotation** is out of scope for #44 v1 — mint-once only. Rotation would
   re-push to proxy + all backends on the same write path when added later.
 

@@ -42,6 +42,7 @@ data class ServerView(
     val proxyForwardingMode: String? = null,
     val proxyProtocol: Boolean = false,
     val forwardingSecretEnc: String? = null,
+    val forwardingPatchFile: String? = null,
     val backupSchedule: String?,
     val backupMaxCount: Int,
     val backupScheduleLastFired: String?,

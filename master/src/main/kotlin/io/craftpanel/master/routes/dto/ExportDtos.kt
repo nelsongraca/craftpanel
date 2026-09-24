@@ -30,6 +30,7 @@ data class ServerExportData(
     @SerialName("proxy_forwarding_mode") val proxyForwardingMode: String? = null,
     @SerialName("proxy_protocol") val proxyProtocol: Boolean? = false,
     @SerialName("forwarding_secret_enc") val forwardingSecretEnc: String? = null,
+    @SerialName("forwarding_patch_file") val forwardingPatchFile: String? = null,
     @SerialName("backup_schedule") val backupSchedule: String? = null,
     @SerialName("backup_max_count") val backupMaxCount: Int? = 10,
     @SerialName("env_vars") val envVars: List<EnvVarExportItem>? = null,

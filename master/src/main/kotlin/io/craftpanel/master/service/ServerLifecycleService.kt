@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.ServerView
 import io.craftpanel.master.service.repo.disabledReason
 import io.craftpanel.master.service.repo.isDisabled
 import kotlin.uuid.Uuid
@@ -18,7 +19,8 @@ class ServerLifecycleService(
     private val serverRepository: ServerRepository,
     private val serverHostnames: ServerHostnames,
     private val serverIntent: ServerIntent,
-    private val proxyPatchWriter: ProxyPatchWriter
+    private val proxyPatchWriter: ProxyPatchWriter,
+    private val backendForwardingService: BackendForwardingService
 ) {
 
     suspend fun startServer(id: Uuid) {
@@ -34,6 +36,7 @@ class ServerLifecycleService(
         val publicHostname = serverHostnames.mcRouterLabel(serverRow)
         // Write the proxy patch before pushing intent: a failure here must surface loudly and leave
         // the prior intent untouched, not strand the server at a running intent with no process starting.
+        ensureProxySecret(serverRow)
         proxyPatchWriter.write(serverRow)
         // Re-issuing a start while intent is already RUNNING means recovery from a failed/crash-looped
         // container — force a restart so the agent retries past its exhausted crash budget.
@@ -51,10 +54,20 @@ class ServerLifecycleService(
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (ServerStatus.fromDb(serverRow.status).isStopped) throw ConflictException("Server is not running")
         if (serverRow.isDisabled()) throw ConflictException(serverRow.disabledReason())
+        ensureProxySecret(serverRow)
         proxyPatchWriter.write(serverRow)
         serverIntent.withIntent(id, DesiredStatus.RUNNING) {
             lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverHostnames.mcRouterLabel(serverRow))
         }
+    }
+
+    /**
+     * Re-assert the proxy's `forwarding.secret` before a start/restart, covering paths that bypass
+     * [BackendForwardingService.applyToAllBackends] (import, migration, recreate). No-op unless the
+     * proxy is a managed Velocity server in MODERN forwarding mode.
+     */
+    private suspend fun ensureProxySecret(server: ServerView) {
+        server.proxyForwardingMode?.let { backendForwardingService.ensureProxySecret(server.id, it) }
     }
 
     private suspend fun requestStop(id: Uuid, force: Boolean) {

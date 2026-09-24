@@ -3,6 +3,7 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
@@ -27,10 +28,7 @@ import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
-private class FakeDnsProvider(
-    private val existing: Map<String, String> = emptyMap(),
-    private val failDelete: Boolean = false
-) : DnsProvider {
+private class FakeDnsProvider(private val existing: Map<String, String> = emptyMap(), private val failDelete: Boolean = false) : DnsProvider {
     val created = mutableListOf<Pair<String, String>>()
     val updated = mutableListOf<String>()
     val deleted = mutableListOf<String>()
@@ -51,8 +49,7 @@ private class FakeDnsProvider(
         deleted += recordId
     }
 
-    override suspend fun findARecord(zoneId: String, hostname: String): DnsRecord? =
-        existing[hostname]?.let { DnsRecord(it, hostname) }
+    override suspend fun findARecord(zoneId: String, hostname: String): DnsRecord? = existing[hostname]?.let { DnsRecord(it, hostname) }
 
     override suspend fun verifyZone(zoneId: String) {}
 }
@@ -85,7 +82,7 @@ class ServersRoutesTest :
                 modService = modService,
                 serverIntent = ServerIntent(serverRepository),
                 envVarsRepository = repos.envVarsRepository,
-                extraPortRepository = repos.extraPortRepository,
+                extraPortRepository = repos.extraPortRepository
             )
             val nodeRepository = NodeRepositoryImpl()
             val serverHostnames = ServerHostnames(
@@ -101,7 +98,13 @@ class ServersRoutesTest :
                 serverRepository = serverRepository,
                 serverHostnames = serverHostnames,
                 serverIntent = ServerIntent(serverRepository),
-                proxyPatchWriter = proxyPatchWriter
+                proxyPatchWriter = proxyPatchWriter,
+                backendForwardingService = BackendForwardingService(
+                    serverRepository = serverRepository,
+                    proxyBackendRepository = repos.proxyBackendRepository,
+                    envVarsRepository = repos.envVarsRepository,
+                    cipher = SecretCipher(ByteArray(32) { 0x42 })
+                ) { _, _, _ -> }
             )
             val exposureService = ServerExposureService(
                 dnsProvider = dnsProvider,
@@ -273,13 +276,7 @@ class ServersRoutesTest :
             }
         }
 
-        fun setExposure(
-            id: Uuid,
-            exposedExternally: Boolean,
-            publicSubdomain: String? = null,
-            dnsRecordId: String? = null,
-            dnsRecordName: String? = null
-        ) = transaction {
+        fun setExposure(id: Uuid, exposedExternally: Boolean, publicSubdomain: String? = null, dnsRecordId: String? = null, dnsRecordName: String? = null) = transaction {
             Server.findById(id)?.let {
                 it.exposedExternally = exposedExternally
                 it.publicSubdomain = publicSubdomain

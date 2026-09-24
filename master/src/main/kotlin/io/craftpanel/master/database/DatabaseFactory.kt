@@ -9,6 +9,8 @@ import io.craftpanel.master.domain.DesiredStatus
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 
@@ -61,6 +63,7 @@ object DatabaseFactory {
             widenServerStatusColumn()
             seedSystemGroups()
             backfillDesiredStatus()
+            migrateBackendForwardingEnvToColumn()
         }
     }
 
@@ -108,5 +111,22 @@ object DatabaseFactory {
         Servers.update({ Servers.desiredStatus.isNull() }) {
             it[desiredStatus] = DesiredStatus.STOPPED.toDb()
         }
+    }
+
+    /**
+     * `PATCH_DEFINITIONS` used to be persisted as a user env var on forwarding backends; it is now a
+     * master-owned `servers.forwarding_patch_file` column injected at container-build time. Copy any
+     * existing value across and drop the env rows so the UI no longer shows it and a config save
+     * cannot wipe it. Idempotent.
+     */
+    private fun Transaction.migrateBackendForwardingEnvToColumn() {
+        ServerEnvVars.selectAll()
+            .where { ServerEnvVars.key eq "PATCH_DEFINITIONS" }
+            .forEach { row ->
+                Servers.update({ Servers.id eq row[ServerEnvVars.serverId].value }) {
+                    it[forwardingPatchFile] = row[ServerEnvVars.value]
+                }
+            }
+        ServerEnvVars.deleteWhere { ServerEnvVars.key eq "PATCH_DEFINITIONS" }
     }
 }

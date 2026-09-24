@@ -187,7 +187,8 @@ val appModule = module {
             serverRepository = get(),
             serverHostnames = get(),
             serverIntent = get(),
-            proxyPatchWriter = get()
+            proxyPatchWriter = get(),
+            backendForwardingService = get()
         )
     }
     single {

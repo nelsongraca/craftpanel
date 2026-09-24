@@ -125,6 +125,7 @@ class DockerContainerManager(
                 buildMap {
                     put(DockerLabels.MANAGED, DockerLabels.MANAGED_VALUE)
                     put("craftpanel.server.id", cmd.serverId)
+                    put(DockerLabels.MANAGED_ENV_KEYS, cmd.envVarsMap.keys.sorted().joinToString(","))
                     if (cmd.publicHostname.isNotEmpty() && !isUdp) {
                         // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
                         // `mc-router.host` is the routing hostname; `mc-router.port` is the

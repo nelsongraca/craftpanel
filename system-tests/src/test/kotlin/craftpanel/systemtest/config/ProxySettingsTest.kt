@@ -9,6 +9,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import org.openapitools.client.infrastructure.ClientException
 import org.tomlj.Toml
 
@@ -215,6 +216,36 @@ class ProxySettingsTest : BaseSystemTest() {
 
                 // PROXY-protocol listener flag is patched in (Velocity top-level haproxy-protocol).
                 toml.getBoolean("haproxy-protocol") shouldBe true
+            }
+
+            should("write the master-minted forwarding secret to the proxy and its backends") {
+                // MODERN forwarding: master mints one secret and writes it to both sides (ADR-0003).
+                api.updateProxySettings(
+                    proxyServerId,
+                    UpdateProxySettingsRequest(
+                        motd = "My Proxy",
+                        maxPlayers = 20,
+                        forwardingMode = "modern"
+                    )
+                )
+                api.replaceProxyBackends(
+                    proxyServerId,
+                    PutProxyBackendsRequest(
+                        backends = listOf(
+                            BackendInput(
+                                backendServerId = gameServerId,
+                                backendName = "game-server-1",
+                                order = 1
+                            )
+                        )
+                    )
+                )
+
+                val proxySecret = execInContainer(containerName(proxyServerId), "cat", "/server/forwarding.secret")
+                proxySecret.isNotBlank() shouldBe true
+
+                val backendPatch = execInContainer(containerName(gameServerId), "cat", "/data/craftpanel-paper-global.yml")
+                backendPatch shouldContain proxySecret.trim()
             }
 
             should("patch the BungeeCord listener proxy_protocol flag") {

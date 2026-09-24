@@ -50,6 +50,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var proxyForwardingMode by Servers.proxyForwardingMode
     var proxyProtocol by Servers.proxyProtocol
     var forwardingSecretEnc by Servers.forwardingSecretEnc
+    var forwardingPatchFile by Servers.forwardingPatchFile
     var backupSchedule by Servers.backupSchedule
     var backupMaxCount by Servers.backupMaxCount
     var backupScheduleLastFired by Servers.backupScheduleLastFired
@@ -109,6 +110,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
         proxyForwardingMode = proxyForwardingMode,
         proxyProtocol = proxyProtocol,
         forwardingSecretEnc = forwardingSecretEnc,
+        forwardingPatchFile = forwardingPatchFile,
         backupSchedule = backupSchedule,
         backupMaxCount = backupMaxCount,
         backupScheduleLastFired = backupScheduleLastFired?.toUtcString(),

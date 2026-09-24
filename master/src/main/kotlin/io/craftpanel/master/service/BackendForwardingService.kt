@@ -5,6 +5,7 @@ import io.craftpanel.master.database.entity.EnvVar
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.util.CryptoUtils
 import org.jetbrains.exposed.v1.core.and
@@ -32,6 +33,10 @@ class BackendForwardingService(
         val proxyRow = serverRepository.findById(proxyServerId)
             ?: throw NotFoundException("Proxy server not found")
         if (proxyRow.configMode == "MANUAL") return emptyList()
+
+        // The proxy must carry the same secret the backends receive, or modern forwarding is
+        // rejected at the backend (ADR-0003: master writes the secret to both sides).
+        ensureProxySecret(proxyServerId, mode)
 
         val backends = proxyBackendRepository.listProxyBackends(proxyServerId)
         val warnings = mutableListOf<BackendWarning>()
@@ -65,24 +70,31 @@ class BackendForwardingService(
                             }
                         }
                         val existingPatch = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "PATCH_DEFINITIONS") }.firstOrNull()
-                        if (existingPatch !=
-                            null
-                        ) {
-                            existingPatch.value = patchFileEnvValue(classification.file)
-                        } else {
-                            EnvVar.new {
-                                this.serverId = EntityID(backend.backendServerId, Servers)
-                                key = "PATCH_DEFINITIONS"
-                                value =
-                                    patchFileEnvValue(classification.file)
-                            }
+                        existingPatch?.delete()
+                        Server.findById(backend.backendServerId)?.let {
+                            it.forwardingPatchFile = patchFileContainerPath(classification.file)
+                            it.restartPending = true
                         }
-                        Server.findById(backend.backendServerId)?.let { it.restartPending = true }
                     }
                 }
             }
         }
         return warnings
+    }
+
+    /**
+     * Write the master-minted secret into the proxy's own `forwarding.secret` (Velocity modern
+     * forwarding only — LEGACY `ip_forward` and BungeeGuard do not read the file). No-op for a
+     * non-Velocity or MANUAL proxy. Safe to call on every start: the write is idempotent.
+     */
+    suspend fun ensureProxySecret(proxyServerId: Uuid, mode: String) {
+        if (mode != "MODERN") return
+        val proxyRow = serverRepository.findById(proxyServerId)
+            ?: throw NotFoundException("Proxy server not found")
+        if (proxyRow.configMode == "MANUAL") return
+        if (proxyRow.serverType != ServerType.VELOCITY) return
+        val secret = mintOrReadSecret(proxyServerId)
+        writeFile(proxyServerId, PROXY_SECRET_FILENAME, secret.toByteArray())
     }
 
     /**
@@ -107,12 +119,16 @@ class BackendForwardingService(
         return "craftpanel-$name"
     }
 
-    private fun patchFileEnvValue(file: String): String {
+    private fun patchFileContainerPath(file: String): String {
         val name = patchFileName(file)
         return "/data/$name"
     }
 
     companion object {
+
+        /** Velocity's default `forwarding-secret-file`, resolved under the proxy data dir. */
+        const val PROXY_SECRET_FILENAME = "forwarding.secret"
+
         fun generateSecret(): String = CryptoUtils.generateToken(24)
     }
 }

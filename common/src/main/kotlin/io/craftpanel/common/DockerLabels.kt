@@ -11,4 +11,11 @@ object DockerLabels {
 
     /** Value of [MANAGED] on every managed resource. */
     const val MANAGED_VALUE = "true"
+
+    /**
+     * Records the exact env-var keys master set on a container at create time (sorted, comma-joined).
+     * The spec-diff reads it back to detect a *removed* key — the container still carries the stale
+     * value, which a subset check alone cannot see. Image/daemon-provided keys are never included.
+     */
+    const val MANAGED_ENV_KEYS = "craftpanel.managed-env-keys"
 }

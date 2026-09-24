@@ -56,6 +56,7 @@ data class ServerProvisionSpec(
     val proxyForwardingMode: String? = null,
     val proxyProtocol: Boolean? = null,
     val forwardingSecretEnc: String? = null,
+    val forwardingPatchFile: String? = null,
     val backupSchedule: String? = null,
     val backupMaxCount: Int? = null,
     val exposedExternally: Boolean? = null,
@@ -188,6 +189,7 @@ class ServerProvisioning(
             proxyForwardingMode = source.proxyForwardingMode,
             proxyProtocol = source.proxyProtocol,
             forwardingSecretEnc = source.forwardingSecretEnc,
+            forwardingPatchFile = source.forwardingPatchFile,
             backupSchedule = source.backupSchedule,
             backupMaxCount = source.backupMaxCount,
             envVars = envVarsRepository.getEnvVars(sourceId).associate { it.key to it.value },
@@ -270,6 +272,7 @@ class ServerProvisioning(
             entity.proxyForwardingMode = spec.proxyForwardingMode
             spec.proxyProtocol?.let { entity.proxyProtocol = it }
             entity.forwardingSecretEnc = spec.forwardingSecretEnc
+            entity.forwardingPatchFile = spec.forwardingPatchFile
 
             val envVars = spec.envVars
                 ?: if (!st.isProxy && !st.isCustom && !st.isPicolimbo) {

@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.database.entity.EnvVar
 import io.craftpanel.master.database.entity.ProxyBackend
 import io.craftpanel.master.database.entity.Server
@@ -9,7 +10,6 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
 import io.kotest.core.spec.style.FunSpec
@@ -122,25 +122,34 @@ class BackendForwardingServiceTest :
 
             warnings shouldBe emptyList()
 
-            writeCalls.size shouldBe 2
-            writeCalls[0].serverId shouldBe paperId
-            writeCalls[0].path shouldBe "craftpanel-paper-global.yml"
-            writeCalls[1].serverId shouldBe purpurId
+            writeCalls.size shouldBe 3
+            writeCalls[0].serverId shouldBe proxyId
+            writeCalls[0].path shouldBe "forwarding.secret"
+            writeCalls[1].serverId shouldBe paperId
             writeCalls[1].path shouldBe "craftpanel-paper-global.yml"
+            writeCalls[2].serverId shouldBe purpurId
+            writeCalls[2].path shouldBe "craftpanel-paper-global.yml"
+
+            // The proxy secret is the same one embedded in each backend patch.
+            val proxySecret = writeCalls[0].content.decodeToString()
+            writeCalls[1].content.decodeToString() shouldContain proxySecret
+            writeCalls[2].content.decodeToString() shouldContain proxySecret
 
             val paperEnv = transaction {
                 EnvVar.find { (ServerEnvVars.serverId eq EntityID(paperId, Servers)) }
                     .associate { it.key to it.value }
             }
             paperEnv["ONLINE_MODE"] shouldBe "false"
-            paperEnv["PATCH_DEFINITIONS"] shouldBe "/data/craftpanel-paper-global.yml"
+            paperEnv["PATCH_DEFINITIONS"] shouldBe null
+            serverRepository.findById(paperId)!!.forwardingPatchFile shouldBe "/data/craftpanel-paper-global.yml"
 
             val purpurEnv = transaction {
                 EnvVar.find { (ServerEnvVars.serverId eq EntityID(purpurId, Servers)) }
                     .associate { it.key to it.value }
             }
             purpurEnv["ONLINE_MODE"] shouldBe "false"
-            purpurEnv["PATCH_DEFINITIONS"] shouldBe "/data/craftpanel-paper-global.yml"
+            purpurEnv["PATCH_DEFINITIONS"] shouldBe null
+            serverRepository.findById(purpurId)!!.forwardingPatchFile shouldBe "/data/craftpanel-paper-global.yml"
         }
 
         test("warns for Vanilla backend (modern)") {
@@ -170,8 +179,10 @@ class BackendForwardingServiceTest :
             warnings[0].backendId shouldBe vanillaId
             warnings[0].reason shouldContain "does not support forwarding"
 
-            writeCalls.size shouldBe 1
-            writeCalls[0].serverId shouldBe paperId
+            writeCalls.size shouldBe 2
+            writeCalls[0].serverId shouldBe proxyId
+            writeCalls[0].path shouldBe "forwarding.secret"
+            writeCalls[1].serverId shouldBe paperId
         }
 
         test("warns for MANUAL backend") {
@@ -201,8 +212,10 @@ class BackendForwardingServiceTest :
             warnings[0].backendId shouldBe manualId
             warnings[0].reason shouldContain "MANUAL"
 
-            writeCalls.size shouldBe 1
-            writeCalls[0].serverId shouldBe paperId
+            writeCalls.size shouldBe 2
+            writeCalls[0].serverId shouldBe proxyId
+            writeCalls[0].path shouldBe "forwarding.secret"
+            writeCalls[1].serverId shouldBe paperId
         }
 
         test("skips entire fan-out when proxy is MANUAL") {
@@ -253,9 +266,11 @@ class BackendForwardingServiceTest :
             val decrypted = cipher.decrypt(enc!!)
             decrypted.length shouldBe 32
 
-            writeCalls.size shouldBe 2
-            val contentA = writeCalls[0].content.decodeToString()
-            val contentB = writeCalls[1].content.decodeToString()
+            writeCalls.size shouldBe 3
+            writeCalls[0].path shouldBe "forwarding.secret"
+            writeCalls[0].content.decodeToString() shouldBe decrypted
+            val contentA = writeCalls[1].content.decodeToString()
+            val contentB = writeCalls[2].content.decodeToString()
             contentA shouldBe contentB
         }
 
@@ -283,7 +298,8 @@ class BackendForwardingServiceTest :
                 EnvVar.find { (ServerEnvVars.serverId eq EntityID(spigotId, Servers)) }
                     .associate { it.key to it.value }
             }
-            env["PATCH_DEFINITIONS"] shouldBe "/data/craftpanel-spigot.yml"
+            env["PATCH_DEFINITIONS"] shouldBe null
+            serverRepository.findById(spigotId)!!.forwardingPatchFile shouldBe "/data/craftpanel-spigot.yml"
         }
 
         test("legacy mode warns for Vanilla backend") {

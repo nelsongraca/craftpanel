@@ -1,5 +1,6 @@
 package io.craftpanel.agent.docker
 
+import io.craftpanel.common.DockerLabels
 import io.craftpanel.common.ServerPaths
 import io.craftpanel.proto.StartContainerCommand
 
@@ -31,8 +32,10 @@ sealed interface SpecDiff {
  * no config beyond the host data root — so it is directly testable with constructed
  * [ContainerSnapshot]s.
  *
- * Compares every field the agent sets and can read back; env is a subset check (Docker and the image
- * add extra vars). `stop_command` is deliberately **not** compared: it is an agent-side action read
+ * Compares every field the agent sets and can read back; env checks that every configured key is
+ * present with the right value and that no managed key was removed (Docker and the image add extra
+ * vars, so the container's recorded managed-key set is compared instead of raw env equality).
+ * `stop_command` is deliberately **not** compared: it is an agent-side action read
  * from the spec at stop time, so changing it must not force a recreate. A spec field that is empty
  * means "not managed", so the matching snapshot field is not checked.
  */
@@ -44,12 +47,7 @@ object ContainerSpecDiff {
             if (snapshot.user != spec.containerUser) add(SpecDiffReason.USER)
             if (snapshot.memoryMb != spec.memoryMb) add(SpecDiffReason.MEMORY)
             if (snapshot.cpuLimitMillicores != spec.cpuLimitMillicores) add(SpecDiffReason.CPU)
-            for ((key, value) in spec.envVarsMap) {
-                if (snapshot.env[key] != value) {
-                    add(SpecDiffReason.ENV)
-                    break
-                }
-            }
+            if (envMismatch(spec, snapshot)) add(SpecDiffReason.ENV)
 
             val expectedMount = BindSnapshot(
                 hostPath = ServerPaths.dataDir(hostDataBasePath, spec.serverId, spec.dataDirName),
@@ -79,5 +77,22 @@ object ContainerSpecDiff {
             }
         }
         return if (reasons.isEmpty()) SpecDiff.Match else SpecDiff.Mismatch(reasons)
+    }
+
+    /**
+     * Env matches when every configured key is present with the expected value AND no managed key
+     * was dropped. The container carries image/daemon defaults we do not set, so a plain equality
+     * check is impossible — instead we compare the container's recorded managed-key set (the
+     * [DockerLabels.MANAGED_ENV_KEYS] label, written at create time) against the spec's keys. A
+     * missing label means a pre-upgrade container: skip the key-set check (the subset check still
+     * runs), so upgrading never mass-recreates.
+     */
+    private fun envMismatch(spec: StartContainerCommand, snapshot: ContainerSnapshot): Boolean {
+        for ((key, value) in spec.envVarsMap) {
+            if (snapshot.env[key] != value) return true
+        }
+        val recorded = snapshot.labels[DockerLabels.MANAGED_ENV_KEYS] ?: return false
+        val recordedKeys = recorded.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        return recordedKeys != spec.envVarsMap.keys
     }
 }

@@ -243,6 +243,7 @@ class ContainerManagerTest :
                     mapOf(
                         "craftpanel.managed" to "true",
                         "craftpanel.server.id" to "srv-1",
+                        "craftpanel.managed-env-keys" to "",
                         "mc-router.host" to "mc.example.com",
                         "mc-router.port" to "25565"
                     )
@@ -270,6 +271,7 @@ class ContainerManagerTest :
                     mapOf(
                         "craftpanel.managed" to "true",
                         "craftpanel.server.id" to "srv-proxy",
+                        "craftpanel.managed-env-keys" to "",
                         "mc-router.host" to "proxy.example.com",
                         "mc-router.port" to "25577"
                     )
@@ -297,7 +299,8 @@ class ContainerManagerTest :
                 createCmd.withLabels(
                     mapOf(
                         "craftpanel.managed" to "true",
-                        "craftpanel.server.id" to "srv-udp"
+                        "craftpanel.server.id" to "srv-udp",
+                        "craftpanel.managed-env-keys" to ""
                     )
                 )
             }
@@ -318,7 +321,8 @@ class ContainerManagerTest :
                 createCmd.withLabels(
                     mapOf(
                         "craftpanel.managed" to "true",
-                        "craftpanel.server.id" to "srv-label-test"
+                        "craftpanel.server.id" to "srv-label-test",
+                        "craftpanel.managed-env-keys" to ""
                     )
                 )
             }
@@ -341,6 +345,7 @@ class ContainerManagerTest :
                     mapOf(
                         "craftpanel.managed" to "true",
                         "craftpanel.server.id" to "srv-1",
+                        "craftpanel.managed-env-keys" to "",
                         "craftpanel.stop.command" to "stop"
                     )
                 )
@@ -363,7 +368,8 @@ class ContainerManagerTest :
                 createCmd.withLabels(
                     mapOf(
                         "craftpanel.managed" to "true",
-                        "craftpanel.server.id" to "srv-1"
+                        "craftpanel.server.id" to "srv-1",
+                        "craftpanel.managed-env-keys" to ""
                     )
                 )
             }

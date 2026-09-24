@@ -316,11 +316,14 @@ The module that writes **Backend Forwarding Config** into each **Backend Server*
 so it accepts forwarded players. Follows #36; reuses its patch/`writeFile` path.
 
 - Master mints and owns the **Forwarding Secret** (ADR-0003), encrypted-at-rest,
-  key outside the DB — supersedes ADR-0002's image-owned-secret clause.
+  key outside the DB — supersedes ADR-0002's image-owned-secret clause. Written to
+  the proxy's `forwarding.secret` (on fan-out and re-asserted before each managed
+  Velocity start/restart) and into each backend's `paper-global.yml`.
 - Per-backend patch: `paper-global.yml proxies.velocity.*` (modern, Paper-lineage
   only) or `settings.yml bungeecord: true` (legacy, any Bukkit). Always paired
-  with `ONLINE_MODE=false` env (the actual "invalid player data" fix) and a new
-  `PATCH_DEFINITIONS` env on the backend (backends lacked it before #44).
+  with `ONLINE_MODE=false` env (the actual "invalid player data" fix) and the
+  backend's master-owned `forwarding_patch_file` column, injected as
+  `PATCH_DEFINITIONS` at container-build time (backends lacked it before #44).
 - Two triggers: proxy-settings mode/secret change, and a new **Backend Server**
   assigned to an already-forwarding **Proxy** (`replaceBackends`) — a 1→N write
   across backend rows. Each affected backend gets **Needs Recreate**.
