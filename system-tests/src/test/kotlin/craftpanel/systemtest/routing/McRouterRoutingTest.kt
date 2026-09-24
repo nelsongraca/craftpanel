@@ -142,7 +142,7 @@ class McRouterRoutingTest : BaseSystemTest() {
                 helper.awaitStatus(serverIdC, ServerStatus.HEALTHY)
 
                 // Managed subdomain still routes
-                awaitRoutedMotdAfterRecreate(hostnameC) shouldContain motdC
+                awaitRoutedMotd(hostnameC) shouldContain motdC
 
                 // Custom hostname no longer routes — mc-router drops the route when the container
                 // is recreated without the customHostnameC label.
@@ -217,8 +217,28 @@ class McRouterRoutingTest : BaseSystemTest() {
         return serverId
     }
 
+    /**
+     * Polls mc-router until [hostname] routes, recovering once from a missed Docker discovery event.
+     *
+     * mc-router learns backends from the Docker event stream and has no periodic re-list, so an
+     * event dropped under CI load leaves a route missing/stale that never heals on its own — this
+     * showed up as intermittent routing timeouts on CI (e.g. the custom hostname never routing).
+     * If the first window elapses, restart the router: startup performs a full container listing,
+     * which converges the route table. A genuinely broken router still fails, because rediscovery
+     * cannot route a hostname that no container carries.
+     */
+    private suspend fun awaitRoutedMotd(hostname: String, timeoutMs: Long = 30_000): String = try {
+        awaitRoutedMotdOnce(hostname, timeoutMs)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        System.err.println("[mcrouter-diag] '$hostname' not routed within ${timeoutMs}ms — restarting mc-router to force rediscovery")
+        restartRouter()
+        awaitRoutedMotdOnce(hostname, timeoutMs = 60_000)
+    }
+
     /** Polls mc-router until the hostname routes to a backend that returns a status MOTD, or times out. */
-    private suspend fun awaitRoutedMotd(hostname: String, timeoutMs: Long = 60_000): String {
+    private suspend fun awaitRoutedMotdOnce(hostname: String, timeoutMs: Long): String {
         val deadline = System.currentTimeMillis() + timeoutMs
         var interval = 250L
         var lastError: Throwable? = null
@@ -234,24 +254,6 @@ class McRouterRoutingTest : BaseSystemTest() {
         System.err.println("[mcrouter-diag] last ping error for '$hostname': ${lastError?.javaClass?.simpleName}: ${lastError?.message}")
         dumpRouterDiagnostics(hostname)
         error("Hostname '$hostname' never routed through mc-router within ${timeoutMs}ms")
-    }
-
-    /**
-     * Like [awaitRoutedMotd] but tolerant of mc-router's event-stream discovery missing the route
-     * update that follows a container recreate. mc-router learns backends from Docker events and has
-     * no periodic re-list, so an event dropped under CI load leaves a stale route that never heals
-     * on its own. If the hostname doesn't route within a shortened window, restart the router —
-     * startup performs a full container listing, forcing the route table back in sync. Only invoked
-     * for the post-recreate assertion, so the happy path never restarts shared infrastructure, and a
-     * genuinely broken router still fails (rediscovery cannot route a hostname no container carries).
-     */
-    private suspend fun awaitRoutedMotdAfterRecreate(hostname: String): String {
-        val first = runCatching { awaitRoutedMotd(hostname, timeoutMs = 40_000) }
-        return first.getOrElse {
-            System.err.println("[mcrouter-diag] '$hostname' not routed after recreate — restarting mc-router to force rediscovery")
-            restartRouter()
-            awaitRoutedMotd(hostname, timeoutMs = 60_000)
-        }
     }
 
     /** Restarts the shared mc-router container and waits for it to be running again. */
