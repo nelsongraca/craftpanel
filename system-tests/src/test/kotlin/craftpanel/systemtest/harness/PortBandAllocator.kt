@@ -8,19 +8,22 @@ import kotlin.random.Random
  * JVM-wide allocator for non-overlapping 500-wide port bands used by test nodes.
  *
  * Bands live in the window [WINDOW_START, WINDOW_END) carved into [SLOT_COUNT]
- * 1000-port slots (500-wide band + 500 gap). A random starting slot per JVM run
+ * 550-port slots (499-wide band + 51 gap). A random starting slot per JVM run
  * avoids collisions with leftover containers from a previous run that may still
  * hold ports in the low part of the window. Slots wrap modulo [SLOT_COUNT] so the
  * computed port can never exceed 65535, no matter how many bands are claimed.
  *
- * The window stays well below 65535: WINDOW_START=30000, SLOT_COUNT=30 →
- * highest band start = 30000 + 29*1000 = 59000, end 59499.
+ * The window must stay **below the kernel's ephemeral port range** (32768-60999 by
+ * default on Linux). Outbound connections — e.g. an agent's long-lived gRPC stream to
+ * master — take a source port from that range, and binding a band port that a live
+ * connection already holds fails with EADDRINUSE. It must also avoid 25565, which
+ * mc-router always binds on the host. 10000-25349 satisfies both.
  */
 object PortBandAllocator {
 
-    private const val WINDOW_START = 30000
-    private const val SLOT_COUNT = 30
-    private const val SLOT_WIDTH = 1000
+    private const val WINDOW_START = 10000
+    private const val SLOT_COUNT = 28
+    private const val SLOT_WIDTH = 550
     private const val BAND_WIDTH = 499
 
     // Random starting slot per JVM run; subsequent calls advance and wrap.
