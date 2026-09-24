@@ -4,6 +4,9 @@ import io.craftpanel.master.*
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.dns.DnsRecord
+import io.craftpanel.master.service.BadGatewayException
 import io.craftpanel.master.service.BrandingService
 import io.craftpanel.master.service.SettingsProvider
 import io.craftpanel.master.service.SystemService
@@ -38,9 +41,13 @@ class SystemRoutesTest :
             TestDatabase.reset()
         }
 
-        fun Route.configureSystemTest() {
+        fun Route.configureSystemTest(dnsProvider: DnsProvider? = null) {
             systemRoutes(
-                SystemService(settingsRepository = SettingsRepositoryImpl(), settingsProvider = SettingsProvider(SettingsRepositoryImpl())),
+                SystemService(
+                    settingsRepository = SettingsRepositoryImpl(),
+                    settingsProvider = SettingsProvider(SettingsRepositoryImpl()),
+                    dnsProvider = dnsProvider
+                ),
                 BrandingService(settingsProvider = SettingsProvider(SettingsRepositoryImpl()))
             )
         }
@@ -194,6 +201,58 @@ class SystemRoutesTest :
                     setBody("""{"console_tail_lines":0}""")
                 }
                 response.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("updateSystemSettings returns 422 when the DNS provider rejects the zone") {
+            val rejecting = object : DnsProvider {
+                override val type = "test"
+                override suspend fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int) = "rec"
+                override suspend fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int) {}
+                override suspend fun deleteARecord(zoneId: String, recordId: String) {}
+                override suspend fun findARecord(zoneId: String, hostname: String): DnsRecord? = null
+                override suspend fun verifyZone(zoneId: String) {
+                    throw BadGatewayException("DNS error: Authentication error")
+                }
+            }
+            testApplication {
+                testApp { _ -> configureSystemTest(rejecting) }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+
+                val response = client.patch("/api/system/settings") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"dns_zone_id":"${"a".repeat(32)}"}""")
+                }
+                response.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("updateSystemSettings persists DNS settings when the provider verifies the zone") {
+            val ok = object : DnsProvider {
+                override val type = "test"
+                override suspend fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int) = "rec"
+                override suspend fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int) {}
+                override suspend fun deleteARecord(zoneId: String, recordId: String) {}
+                override suspend fun findARecord(zoneId: String, hostname: String): DnsRecord? = null
+                override suspend fun verifyZone(zoneId: String) {}
+            }
+            testApplication {
+                testApp { _ -> configureSystemTest(ok) }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val client = jsonClient()
+
+                val body = client.patch("/api/system/settings") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"dns_zone_id":"${"a".repeat(32)}","dns_domain_suffix":"example.com"}""")
+                }.body<JsonObject>()
+
+                val settings = body["settings"]!!.jsonObject
+                settings["dns_zone_id"]!!.jsonPrimitive.content shouldBe "a".repeat(32)
+                settings["dns_domain_suffix"]!!.jsonPrimitive.content shouldBe "example.com"
             }
         }
     })

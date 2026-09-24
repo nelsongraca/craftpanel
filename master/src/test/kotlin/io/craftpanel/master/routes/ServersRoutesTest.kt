@@ -5,6 +5,8 @@ import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.dns.DnsRecord
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
@@ -25,6 +27,36 @@ import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
+private class FakeDnsProvider(
+    private val existing: Map<String, String> = emptyMap(),
+    private val failDelete: Boolean = false
+) : DnsProvider {
+    val created = mutableListOf<Pair<String, String>>()
+    val updated = mutableListOf<String>()
+    val deleted = mutableListOf<String>()
+
+    override val type = "test"
+
+    override suspend fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int): String {
+        created += hostname to ip
+        return "rec-$hostname"
+    }
+
+    override suspend fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int) {
+        updated += recordId
+    }
+
+    override suspend fun deleteARecord(zoneId: String, recordId: String) {
+        if (failDelete) throw BadGatewayException("DNS error: delete failed")
+        deleted += recordId
+    }
+
+    override suspend fun findARecord(zoneId: String, hostname: String): DnsRecord? =
+        existing[hostname]?.let { DnsRecord(it, hostname) }
+
+    override suspend fun verifyZone(zoneId: String) {}
+}
+
 class ServersRoutesTest :
     FunSpec({
         val jwtConfig = JwtConfig(
@@ -42,7 +74,7 @@ class ServersRoutesTest :
 
         lateinit var repos: TestRepositories
 
-        fun Route.configureServersTest(gateway: TestAgentGateway = TestAgentGateway()) {
+        fun Route.configureServersTest(gateway: TestAgentGateway = TestAgentGateway(), dnsProvider: DnsProvider? = null) {
             repos = TestRepositories()
             val serverRepository = repos.serverRepository
             val networkRepository = NetworkRepositoryImpl()
@@ -72,7 +104,7 @@ class ServersRoutesTest :
                 proxyPatchWriter = proxyPatchWriter
             )
             val exposureService = ServerExposureService(
-                dnsProvider = null,
+                dnsProvider = dnsProvider,
                 lifecycle = lifecycle,
                 serverRepository = serverRepository,
                 nodeRepository = nodeRepository,
@@ -228,6 +260,32 @@ class ServersRoutesTest :
         fun setExpiry(id: Uuid, value: kotlinx.datetime.LocalDateTime? = null) = transaction {
             Server.findById(id)
                 ?.let { it.expiresAt = value }
+        }
+
+        fun setDnsSettings(zoneId: String = "a".repeat(32), suffix: String = "example.com") = transaction {
+            SystemSettings.upsert {
+                it[SystemSettings.key] = "dns_zone_id"
+                it[SystemSettings.value] = zoneId
+            }
+            SystemSettings.upsert {
+                it[SystemSettings.key] = "dns_domain_suffix"
+                it[SystemSettings.value] = suffix
+            }
+        }
+
+        fun setExposure(
+            id: Uuid,
+            exposedExternally: Boolean,
+            publicSubdomain: String? = null,
+            dnsRecordId: String? = null,
+            dnsRecordName: String? = null
+        ) = transaction {
+            Server.findById(id)?.let {
+                it.exposedExternally = exposedExternally
+                it.publicSubdomain = publicSubdomain
+                it.dnsRecordId = dnsRecordId
+                it.dnsRecordName = dnsRecordName
+            }
         }
 
         // ── GET /servers ─────────────────────────────────────────────────────────
@@ -1338,6 +1396,97 @@ class ServersRoutesTest :
                     setBody("""{"exposed_externally":false}""")
                 }
                 resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("PATCH exposure returns 422 for a subdomain that is not a single DNS label") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "bad-sub")
+                val resp = client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true,"public_subdomain":"bad_sub!"}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("PATCH exposure returns 422 when the target hostname has a record CraftPanel did not create") {
+            testApplication {
+                val provider = FakeDnsProvider(existing = mapOf("taken.example.com" to "foreign-id"))
+                testApp { _ -> configureServersTest(dnsProvider = provider) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "expose-me")
+                setDnsSettings()
+                val resp = client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true,"public_subdomain":"taken"}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+                provider.created.size shouldBe 0
+            }
+        }
+
+        test("PATCH exposure renames the record when the target hostname is free") {
+            testApplication {
+                val provider = FakeDnsProvider()
+                testApp { _ -> configureServersTest(dnsProvider = provider) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "expose-me")
+                setDnsSettings()
+                setExposure(serverId, exposedExternally = true, publicSubdomain = "old", dnsRecordId = "rec-old", dnsRecordName = "old.example.com")
+                val resp = client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true,"public_subdomain":"new"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                provider.created.map { it.first } shouldBe listOf("new.example.com")
+                provider.deleted shouldBe listOf("rec-old")
+                transaction {
+                    val row = Servers.selectAll().where { Servers.id eq serverId }.first()
+                    row[Servers.dnsRecordName] shouldBe "new.example.com"
+                    row[Servers.dnsRecordId] shouldBe "rec-new.example.com"
+                }
+            }
+        }
+
+        test("PATCH exposure disabling keeps the record id when the DNS delete fails") {
+            testApplication {
+                val provider = FakeDnsProvider(failDelete = true)
+                testApp { _ -> configureServersTest(dnsProvider = provider) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "expose-me")
+                setDnsSettings()
+                setExposure(serverId, exposedExternally = true, publicSubdomain = "old", dnsRecordId = "rec-old", dnsRecordName = "old.example.com")
+                val resp = client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":false}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                transaction {
+                    val row = Servers.selectAll().where { Servers.id eq serverId }.first()
+                    row[Servers.exposedExternally] shouldBe false
+                    row[Servers.publicSubdomain] shouldBe null
+                    row[Servers.dnsRecordId] shouldBe "rec-old"
+                    row[Servers.dnsRecordName] shouldBe "old.example.com"
+                }
             }
         }
 

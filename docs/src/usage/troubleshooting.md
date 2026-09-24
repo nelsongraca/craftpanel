@@ -33,6 +33,14 @@ trailing slash).
 |----------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
 | `CF_API_TOKEN must be set when DNS_PROVIDER=cloudflare`              | Set `CF_API_TOKEN` on master, or unset `DNS_PROVIDER`.                                   |
 | `422 No DNS zone configured (set dns_zone_id and dns_domain_suffix in System Settings)` | Fill in **DNS Zone ID** and **DNS Domain Suffix** on the **Settings** page.      |
+| `502 DNS error: Authentication error` (Cloudflare code `10000`)      | The token can't read/write DNS in that zone: give it **Zone → DNS → Edit** and **Zone → Zone → Read**, scoped to the zone, and check the Zone ID matches. |
+| `502 DNS error: Cannot use the access token from location: <ip>` (Cloudflare code `9109`) | The token has **Client IP Address Filtering** that excludes master's egress IP. Add `<ip>` to the token's allowed IPs, or remove the filter. |
+| `422 A DNS record for <host> already exists and was not created by CraftPanel; refusing to overwrite it` | A record already exists at that name that this panel did not create (e.g. a CNAME to a tunnel). Rename/remove it, or pick a different subdomain. CraftPanel never overwrites records it doesn't own. |
+
+`dns_zone_id` and `dns_domain_suffix` are **System Settings** — set them on the **Settings** page
+(or via `PATCH /api/system/settings`), **not** via environment variables. Saving them runs a quick
+preflight against Cloudflare and returns `422` if the configured token can't read the zone, so a
+bad token/zone is caught at save time instead of when a server is exposed.
 
 Remember that `DNS_PROVIDER` and `CF_API_TOKEN` are **not** wired into the bundled compose file —
 add them to the `master` service yourself, then restart master. See

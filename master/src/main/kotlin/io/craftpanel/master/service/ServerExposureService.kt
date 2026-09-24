@@ -19,11 +19,15 @@ class ServerExposureService(
 
     private val log = LoggerFactory.getLogger(ServerExposureService::class.java)
 
-    fun updateExposure(id: Uuid, exposedExternally: Boolean, publicSubdomain: String?, customHostname: String?) {
+    suspend fun updateExposure(id: Uuid, exposedExternally: Boolean, publicSubdomain: String?, customHostname: String?) {
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        val subdomain = publicSubdomain?.trim()?.takeIf { it.isNotEmpty() }
 
-        if (exposedExternally && publicSubdomain != null) {
-            val existing = serverRepository.findBySubdomain(publicSubdomain)
+        if (exposedExternally && subdomain != null) {
+            if (!SUBDOMAIN_LABEL.matches(subdomain)) {
+                throw UnprocessableException("public_subdomain must be a single valid DNS label (e.g. survival)")
+            }
+            val existing = serverRepository.findBySubdomain(subdomain)
             if (existing != null && existing.id != id) throw UnprocessableException("Public subdomain already taken")
         }
 
@@ -43,7 +47,12 @@ class ServerExposureService(
         var newHostname: String? = null
         var newRecordId: String? = null
 
-        if (exposedExternally && publicSubdomain != null) {
+        // Whether the stored DNS record was actually removed (or there was nothing to remove). On a
+        // disable whose delete fails we keep the id so a later enable adopts the existing record
+        // instead of mistaking it for a foreign one.
+        var recordCleared = existingRecordId == null
+
+        if (exposedExternally && subdomain != null) {
             val provider = dnsProvider
             val dns = serverHostnames.resolveGlobalDns()
 
@@ -54,23 +63,42 @@ class ServerExposureService(
             }
 
             val fullHostname = if (dns != null) {
-                "$publicSubdomain.${dns.domainSuffix}"
+                "$subdomain.${dns.domainSuffix}"
             } else {
                 serverHostnames.resolveSuffix()
-                    ?.let { "$publicSubdomain.$it" }
+                    ?.let { "$subdomain.$it" }
             }
 
             newRecordId = if (provider != null && dns != null) {
                 val node = nodeRepository.findById(serverRow.nodeId)
                     ?: throw BadGatewayException("Node not found")
-                runCatching {
-                    if (existingRecordId != null) {
-                        provider.updateARecord(dns.zoneId, existingRecordId, node.publicIp)
-                        existingRecordId
-                    } else {
-                        provider.createARecord(dns.zoneId, fullHostname ?: publicSubdomain, node.publicIp)
+                if (node.publicIp.isBlank()) {
+                    throw UnprocessableException("Node has no public IP configured; cannot create a DNS record")
+                }
+                val target = fullHostname ?: subdomain
+                val nameChanged = serverRow.dnsRecordName != target
+
+                if (existingRecordId != null && !nameChanged) {
+                    // Our record, unchanged name — repoint it at this node's IP.
+                    provider.updateARecord(dns.zoneId, existingRecordId, node.publicIp)
+                    existingRecordId
+                } else {
+                    // First exposure or a rename. Never overwrite a record we did not create.
+                    val found = provider.findARecord(dns.zoneId, target)
+                    if (found != null && found.id != existingRecordId) {
+                        throw UnprocessableException(
+                            "A DNS record for $target already exists and was not created by CraftPanel; " +
+                                "refusing to overwrite it"
+                        )
                     }
-                }.getOrElse { ex -> throw BadGatewayException("DNS provider error: ${ex.message}") }
+                    val recordId = found?.id ?: provider.createARecord(dns.zoneId, target, node.publicIp)
+                    // Rename: drop our old record once the new one is in place.
+                    if (existingRecordId != null && existingRecordId != recordId) {
+                        runCatching { provider.deleteARecord(dns.zoneId, existingRecordId) }
+                            .onFailure { log.warn("Failed to delete old DNS record $existingRecordId during rename — continuing", it) }
+                    }
+                    recordId
+                }
             } else {
                 null
             }
@@ -78,34 +106,40 @@ class ServerExposureService(
             newHostname = fullHostname
         }
 
-        if (!exposedExternally && existingRecordId != null && dnsProvider != null) {
+        val deleteProvider = dnsProvider
+        if (!exposedExternally && existingRecordId != null && deleteProvider != null) {
             val dns = serverHostnames.resolveGlobalDns()
             if (dns != null) {
-                runCatching { dnsProvider!!.deleteARecord(dns.zoneId, existingRecordId) }
-                    .onFailure { log.warn("Failed to delete DNS record $existingRecordId — continuing", it) }
+                runCatching { deleteProvider.deleteARecord(dns.zoneId, existingRecordId) }
+                    .onSuccess { recordCleared = true }
+                    .onFailure { log.warn("Failed to delete DNS record $existingRecordId — keeping it so a later enable can reuse it", it) }
             }
         }
 
-        val resolvedPublicSubdomain = if (exposedExternally) publicSubdomain else null
+        val resolvedPublicSubdomain = if (exposedExternally) subdomain else null
 
         transaction {
             val e = Server.findById(id) ?: return@transaction
             e.exposedExternally = exposedExternally
             e.publicSubdomain = resolvedPublicSubdomain
             e.customHostname = resolvedCustomHostname
-            e.dnsRecordId = if (exposedExternally && publicSubdomain != null) {
-                newRecordId
-            } else if (!exposedExternally) {
-                null
-            } else {
-                existingRecordId
-            }
-            e.dnsRecordName = if (exposedExternally && publicSubdomain != null) {
-                newHostname
-            } else if (!exposedExternally) {
-                null
-            } else {
-                serverRow.dnsRecordName
+            when {
+                exposedExternally && subdomain != null -> {
+                    e.dnsRecordId = newRecordId
+                    e.dnsRecordName = newHostname
+                }
+
+                !exposedExternally -> {
+                    if (recordCleared) {
+                        e.dnsRecordId = null
+                        e.dnsRecordName = null
+                    }
+                }
+
+                else -> {
+                    e.dnsRecordId = existingRecordId
+                    e.dnsRecordName = serverRow.dnsRecordName
+                }
             }
         }
 
@@ -120,5 +154,10 @@ class ServerExposureService(
                 lifecycle.refreshRunningSpec(freshRow, publicHostname = serverHostnames.mcRouterLabel(freshRow))
             }
         }
+    }
+
+    private companion object {
+        /** A single RFC-1123 DNS label: the managed subdomain prefix (e.g. `survival`). */
+        val SUBDOMAIN_LABEL = Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
     }
 }

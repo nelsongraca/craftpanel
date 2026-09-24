@@ -133,7 +133,7 @@ class ServerService(
         return updated
     }
 
-    fun deleteServer(id: Uuid) {
+    suspend fun deleteServer(id: Uuid) {
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         // Guard on the synthesized status, not the reported one: a start request sets desired=RUNNING
         // before the agent has reported anything, so a "STARTING" server (reported STOPPED) must not

@@ -2,7 +2,9 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.schema.SystemSettings
 import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.service.repo.SettingsRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
@@ -36,11 +38,15 @@ data class PatchSettingsRequest(
     @SerialName("dns_zone_id") val dnsZoneId: String? = null
 )
 
-class SystemService(private val settingsRepository: SettingsRepository, private val settingsProvider: SettingsProvider) {
+class SystemService(
+    private val settingsRepository: SettingsRepository,
+    private val settingsProvider: SettingsProvider,
+    private val dnsProvider: DnsProvider? = null
+) {
 
     fun getSettings(): SystemSettingsResponse = loadSettings()
 
-    fun updateSettings(updatedBy: Uuid, req: PatchSettingsRequest): SystemSettingsResponse {
+    suspend fun updateSettings(updatedBy: Uuid, req: PatchSettingsRequest): SystemSettingsResponse {
         val portStart = req.defaultPortRangeStart
         val portEnd = req.defaultPortRangeEnd
         if (portStart != null && portEnd != null && portStart >= portEnd) {
@@ -78,6 +84,26 @@ class SystemService(private val settingsRepository: SettingsRepository, private 
         }
         if (req.consoleTailLines != null && req.consoleTailLines !in 1..5000) {
             throw UnprocessableException("console_tail_lines must be between 1 and 5000")
+        }
+
+        // Preflight DNS settings against the provider before persisting: a token that cannot read
+        // the zone would otherwise only surface when a server is exposed.
+        if (dnsProvider != null) {
+            val current = settingsProvider.current()
+            val changingZone = req.dnsZoneId != null && req.dnsZoneId != current.dnsZoneId
+            val changingSuffix = req.dnsDomainSuffix != null && req.dnsDomainSuffix != current.dnsDomainSuffix
+            if (changingZone || changingSuffix) {
+                val zoneId = (req.dnsZoneId ?: current.dnsZoneId)?.takeIf { it.isNotBlank() }
+                if (zoneId != null) {
+                    try {
+                        dnsProvider.verifyZone(zoneId)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        throw UnprocessableException("DNS settings rejected: ${e.message}")
+                    }
+                }
+            }
         }
 
         val now = Clock.System.now()

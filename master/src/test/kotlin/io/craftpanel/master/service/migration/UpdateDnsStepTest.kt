@@ -3,6 +3,7 @@ import io.craftpanel.master.*
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.dns.DnsRecord
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.migration.steps.UpdateDnsStep
@@ -152,11 +153,15 @@ class UpdateDnsStepTest :
                 val provider = object : DnsProvider {
                     override val type = "test"
 
-                    override fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int) = "rec"
+                    override suspend fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int) = "rec"
 
-                    override fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int) {}
+                    override suspend fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int) {}
 
-                    override fun deleteARecord(zoneId: String, recordId: String) {}
+                    override suspend fun deleteARecord(zoneId: String, recordId: String) {}
+
+                    override suspend fun findARecord(zoneId: String, hostname: String): DnsRecord? = null
+
+                    override suspend fun verifyZone(zoneId: String) {}
                 }
                 val coord = coordWith(provider, null)
                 val result = UpdateDnsStep().execute(plan, coord)
@@ -172,15 +177,19 @@ class UpdateDnsStepTest :
                 val provider = object : DnsProvider {
                     override val type = "test"
 
-                    override fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int) = "rec"
+                    override suspend fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int) = "rec"
 
-                    override fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int) {
+                    override suspend fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int) {
                         calledZone = zoneId
                         calledRecordId = recordId
                         calledIp = ip
                     }
 
-                    override fun deleteARecord(zoneId: String, recordId: String) {}
+                    override suspend fun deleteARecord(zoneId: String, recordId: String) {}
+
+                    override suspend fun findARecord(zoneId: String, hostname: String): DnsRecord? = null
+
+                    override suspend fun verifyZone(zoneId: String) {}
                 }
                 val coord = coordWith(provider, ServerHostnames.NetworkDns("zone-1", "example.com"))
                 val result = UpdateDnsStep().execute(plan, coord)
@@ -196,11 +205,15 @@ class UpdateDnsStepTest :
                 val provider = object : DnsProvider {
                     override val type = "test"
 
-                    override fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int) = "rec"
+                    override suspend fun createARecord(zoneId: String, hostname: String, ip: String, ttl: Int) = "rec"
 
-                    override fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int): Unit = throw RuntimeException("dns api down")
+                    override suspend fun updateARecord(zoneId: String, recordId: String, ip: String, ttl: Int): Unit = throw RuntimeException("dns api down")
 
-                    override fun deleteARecord(zoneId: String, recordId: String) {}
+                    override suspend fun deleteARecord(zoneId: String, recordId: String) {}
+
+                    override suspend fun findARecord(zoneId: String, hostname: String): DnsRecord? = null
+
+                    override suspend fun verifyZone(zoneId: String) {}
                 }
                 val coord = coordWith(provider, ServerHostnames.NetworkDns("zone-1", "example.com"))
                 val result = UpdateDnsStep().execute(plan, coord)

@@ -133,7 +133,7 @@ val appModule = module {
     single { UserService(userRepository = get()) }
     single { GroupService(groupRepository = get()) }
     single { AssignmentService(userRepository = get(), groupRepository = get(), serverRepository = get(), networkRepository = get()) }
-    single { SystemService(settingsRepository = get(), settingsProvider = get()) }
+    single { SystemService(settingsRepository = get(), settingsProvider = get(), dnsProvider = get<DnsProviderHolder>().provider) }
     single { BrandingService(settingsProvider = get()) }
     single { NodeService(gateway = get<AgentGateway>(), nodeRepository = get(), serverRepository = get(), nodeRegistrationService = get()) }
     single {

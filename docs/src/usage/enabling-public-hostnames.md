@@ -21,6 +21,12 @@ CraftPanel needs a token with permission to read the zone and create/update/dele
 3. Under **Zone Resources**, restrict to the specific zone you'll use (or `All zones` if you manage several)
 4. Create and copy the token. Cloudflare shows it only once.
 
+!!! warning "Client IP Address Filtering"
+    If you enable the token's **Client IP Address Filtering**, master's egress IP must be in the
+    allowlist — otherwise Cloudflare rejects every DNS call with
+    `9109 Cannot use the access token from location: <ip>` (surfaced as a `502`). Either add that IP
+    or leave IP filtering off and rely on the zone-scoped permissions above.
+
 ## Step 2 — Find your Zone ID
 
 Cloudflare dashboard → select your zone → **Overview** tab → right-hand sidebar shows **Zone ID** (a 32-character hex string like `023e105f4ecef8ad9ca31a8482d7aca9`).
