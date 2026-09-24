@@ -2,10 +2,11 @@ package craftpanel.fakeserver
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.ServerSocket
-import java.net.Socket
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.PushbackInputStream
+import java.net.ServerSocket
+import java.net.Socket
 
 /**
  * Handles Minecraft Java Edition server list ping (protocol 1.7+).
@@ -31,7 +32,9 @@ class TcpPingServer(private val config: Config) {
     private fun handleClient(socket: Socket) {
         try {
             socket.soTimeout = 5_000
-            val input = DataInputStream(socket.getInputStream())
+            val raw = PushbackInputStream(socket.getInputStream(), 64)
+            consumeProxyHeaderIfPresent(raw)
+            val input = DataInputStream(raw)
             val output = DataOutputStream(socket.getOutputStream())
 
             // Read the first packet — could be handshake (0x00) or legacy ping (0xFE)
@@ -46,6 +49,36 @@ class TcpPingServer(private val config: Config) {
             // Clients frequently drop mid-handshake — not an error
         } finally {
             runCatching { socket.close() }
+        }
+    }
+
+    /**
+     * Consumes a HAProxy PROXY protocol v1 header (`PROXY TCP4 <src> <dst> <sport> <dport>\r\n`) when
+     * the connection starts with one. mc-monitor's `--use-proxy` sends it before the Minecraft
+     * handshake (proxies with `proxy_protocol` enabled expect it), so this fixture must skip it to
+     * reach the handshake. A connection that does not start with `PROXY ` is left untouched.
+     */
+    private fun consumeProxyHeaderIfPresent(raw: PushbackInputStream) {
+        val prefix = ByteArray(6)
+        var read = 0
+        while (read < prefix.size) {
+            val b = raw.read()
+            if (b == -1) {
+                if (read > 0) raw.unread(prefix, 0, read)
+                return
+            }
+            prefix[read++] = b.toByte()
+        }
+        if (String(prefix, Charsets.US_ASCII) != "PROXY ") {
+            raw.unread(prefix, 0, prefix.size)
+            return
+        }
+        var prev = -1
+        while (true) {
+            val b = raw.read()
+            if (b == -1) return
+            if (prev == '\r'.code && b == '\n'.code) return
+            prev = b
         }
     }
 
@@ -82,8 +115,8 @@ class TcpPingServer(private val config: Config) {
             }
 
             // Read status request packet (should be length=1, id=0x00)
-            readVarInt(input)  // packet length
-            readVarInt(input)  // packet id — should be 0x00
+            readVarInt(input) // packet length
+            readVarInt(input) // packet id — should be 0x00
 
             // Send status response
             val json = buildStatusJson()
@@ -91,9 +124,9 @@ class TcpPingServer(private val config: Config) {
 
             // Packet: VarInt(length) + VarInt(0x00) + VarInt(jsonLength) + json
             val packetId = varIntBytes(0x00)
-            val jsonLen  = varIntBytes(jsonBytes.size)
-            val payload  = packetId + jsonLen + jsonBytes
-            val length   = varIntBytes(payload.size)
+            val jsonLen = varIntBytes(jsonBytes.size)
+            val payload = packetId + jsonLen + jsonBytes
+            val length = varIntBytes(payload.size)
 
             output.write(length + payload)
             output.flush()
@@ -104,9 +137,9 @@ class TcpPingServer(private val config: Config) {
                 readVarInt(input) // id (0x01)
                 val pingPayload = input.readLong()
 
-                val pongId      = varIntBytes(0x01)
+                val pongId = varIntBytes(0x01)
                 val pongPayload = longToBytes(pingPayload)
-                val pongPacket  = pongId + pongPayload
+                val pongPacket = pongId + pongPayload
                 output.write(varIntBytes(pongPacket.size) + pongPacket)
                 output.flush()
             }
