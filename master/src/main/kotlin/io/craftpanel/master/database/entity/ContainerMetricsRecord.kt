@@ -19,6 +19,9 @@ class ContainerMetricsRecord(id: EntityID<Uuid>) : UuidEntity(id) {
     var netOutBytes by ContainerMetrics.netOutBytes
     var blockInBytes by ContainerMetrics.blockInBytes
     var blockOutBytes by ContainerMetrics.blockOutBytes
+    var heapUsedBytes by ContainerMetrics.heapUsedBytes
+    var heapMaxBytes by ContainerMetrics.heapMaxBytes
+    var nonHeapUsedBytes by ContainerMetrics.nonHeapUsedBytes
 
     fun toContainerMetricsRow() = ContainerMetricsRow(
         id = id.value,
@@ -29,6 +32,9 @@ class ContainerMetricsRecord(id: EntityID<Uuid>) : UuidEntity(id) {
         netInBytes = netInBytes,
         netOutBytes = netOutBytes,
         blockInBytes = blockInBytes,
-        blockOutBytes = blockOutBytes
+        blockOutBytes = blockOutBytes,
+        heapUsedBytes = heapUsedBytes,
+        heapMaxBytes = heapMaxBytes,
+        nonHeapUsedBytes = nonHeapUsedBytes
     )
 }

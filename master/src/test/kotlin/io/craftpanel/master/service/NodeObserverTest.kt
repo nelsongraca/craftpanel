@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
+import io.craftpanel.master.database.schema.ContainerMetrics
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
@@ -13,6 +14,7 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.runTest
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -141,6 +143,75 @@ class NodeObserverTest :
                 delay(50.milliseconds)
 
                 dbRestartPending() shouldBe true
+                job.cancel()
+            }
+        }
+
+        // ── JVM metrics persistence ─────────────────────────────────────────
+
+        test("persists JVM heap fields from ContainerMetricsEvent") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(
+                    AgentEvent.ContainerMetricsEvent(
+                        serverId = serverId.toString(),
+                        cpuPercent = 10.0,
+                        ramUsedMb = 512,
+                        netInBytes = 1,
+                        netOutBytes = 2,
+                        blockInBytes = 3,
+                        blockOutBytes = 4,
+                        recordedAt = kotlin.time.Clock.System.now(),
+                        heapUsedBytes = 100_000_000,
+                        heapMaxBytes = 4_000_000_000,
+                        nonHeapUsedBytes = 50_000_000
+                    )
+                )
+                delay(50.milliseconds)
+
+                val row = transaction {
+                    ContainerMetrics.selectAll()
+                        .where { ContainerMetrics.serverId eq EntityID(serverId, Servers) }
+                        .first()
+                }
+                row[ContainerMetrics.heapUsedBytes] shouldBe 100_000_000
+                row[ContainerMetrics.heapMaxBytes] shouldBe 4_000_000_000
+                row[ContainerMetrics.nonHeapUsedBytes] shouldBe 50_000_000
+                job.cancel()
+            }
+        }
+
+        test("persists null JVM fields when the event carried none") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(
+                    AgentEvent.ContainerMetricsEvent(
+                        serverId = serverId.toString(),
+                        cpuPercent = 10.0,
+                        ramUsedMb = 512,
+                        netInBytes = 1,
+                        netOutBytes = 2,
+                        blockInBytes = 3,
+                        blockOutBytes = 4,
+                        recordedAt = kotlin.time.Clock.System.now()
+                    )
+                )
+                delay(50.milliseconds)
+
+                val row = transaction {
+                    ContainerMetrics.selectAll()
+                        .where { ContainerMetrics.serverId eq EntityID(serverId, Servers) }
+                        .first()
+                }
+                row[ContainerMetrics.heapUsedBytes] shouldBe null
+                row[ContainerMetrics.heapMaxBytes] shouldBe null
+                row[ContainerMetrics.nonHeapUsedBytes] shouldBe null
                 job.cancel()
             }
         }

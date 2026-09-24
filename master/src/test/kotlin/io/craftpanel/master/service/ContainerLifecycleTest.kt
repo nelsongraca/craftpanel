@@ -107,6 +107,7 @@ class ContainerLifecycleTest :
                         containerProtocol = r[Servers.containerProtocol],
                         disableHealthcheck = r[Servers.disableHealthcheck],
                         forceRedownload = r[Servers.forceRedownload],
+                        jvmMetricsEnabled = r[Servers.jvmMetricsEnabled],
                         dataDirName = r[Servers.dataDirName],
                         lastPlayerCount = r[Servers.lastPlayerCount],
                         lastPlayerNames = r[Servers.lastPlayerNames],
@@ -230,6 +231,18 @@ class ContainerLifecycleTest :
             cmd.image shouldBe "ghcr.io/quozul/picolimbo:latest"
             cmd.dataContainerPath shouldBe "/usr/src/app"
             cmd.containerUser shouldBe "1000:1000"
+        }
+
+        test("buildStartSpec - carries the JVM metrics toggle, defaulting to enabled") {
+            val server = serverRow()
+            lifecycle().buildStartSpec(server).jvmMetricsEnabled shouldBe true
+        }
+
+        test("buildStartSpec - carries a disabled JVM metrics toggle") {
+            transaction {
+                Servers.update({ Servers.id eq serverId }) { it[Servers.jvmMetricsEnabled] = false }
+            }
+            lifecycle().buildStartSpec(serverRow()).jvmMetricsEnabled shouldBe false
         }
 
         test("buildStartSpec - CUSTOM server type - injects CUSTOM_SERVER and forces VERSION=LATEST") {

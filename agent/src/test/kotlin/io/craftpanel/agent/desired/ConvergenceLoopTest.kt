@@ -846,6 +846,45 @@ class ConvergenceLoopTest :
             loop.cpuLimitMillicores("srv-1") shouldBe 1000
         }
 
+        // ── JVM metrics toggle lookup ─────────────────────────────────────────
+
+        test("jvmMetricsEnabled defaults to true for an unknown server") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            loop.jvmMetricsEnabled("srv-unknown") shouldBe true
+        }
+
+        test("jvmMetricsEnabled falls back to the desired spec when nothing is applied") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val store = DesiredStateStore()
+            val loop = newLoop(cm, out, store = store)
+
+            store.upsert("srv-1") {
+                it.copy(spec = startCmd().toBuilder().setJvmMetricsEnabled(false).build())
+            }
+
+            loop.jvmMetricsEnabled("srv-1") shouldBe false
+        }
+
+        test("jvmMetricsEnabled prefers the applied spec over the desired spec") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val store = DesiredStateStore()
+            val loop = newLoop(cm, out, store = store)
+
+            store.upsert("srv-1") {
+                it.copy(
+                    spec = startCmd().toBuilder().setJvmMetricsEnabled(true).build(),
+                    appliedSpec = startCmd().toBuilder().setJvmMetricsEnabled(false).build()
+                )
+            }
+
+            loop.jvmMetricsEnabled("srv-1") shouldBe false
+        }
+
         // ── handler routing ───────────────────────────────────────────────────
 
         test("DesiredStateHandler forwards envelopes to the loop converge path") {

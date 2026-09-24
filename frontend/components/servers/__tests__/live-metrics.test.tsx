@@ -94,6 +94,40 @@ describe('LiveMetricsStatCards', () => {
         )
         expect(screen.getByText('Running')).toBeInTheDocument()
     })
+
+    it('renders JVM Heap card with used/max when a sample is present', () => {
+        render(
+            <LiveMetricsStatCards
+                liveMetrics={{
+                    cpuPercent: 50,
+                    ramUsedMb: 1024,
+                    netInBytes: 1000,
+                    netOutBytes: 500,
+                    heapUsedBytes: 2 * 1024 * 1024,
+                    heapMaxBytes: 4 * 1024 * 1024,
+                    nonHeapUsedBytes: 256 * 1024,
+                }}
+                livePlayers={null}
+                server={makeServer()}
+                node={makeNode()}
+            />,
+        )
+        expect(screen.getByText('JVM Heap')).toBeInTheDocument()
+        // fmtBytes mock: bytes/1024 KB → "2048 KB / 4096 KB heap"
+        expect(screen.getByText(/2048 KB \/ 4096 KB heap/)).toBeInTheDocument()
+    })
+
+    it('shows JVM heap unavailable when no sample is present', () => {
+        render(
+            <LiveMetricsStatCards
+                liveMetrics={{cpuPercent: 50, ramUsedMb: 1024, netInBytes: 1000, netOutBytes: 500}}
+                livePlayers={null}
+                server={makeServer()}
+                node={makeNode()}
+            />,
+        )
+        expect(screen.getByText('JVM heap unavailable')).toBeInTheDocument()
+    })
 })
 
 describe('LiveMetricsCard', () => {
@@ -113,5 +147,25 @@ describe('LiveMetricsCard', () => {
     it('shows awaiting data when metrics are null', () => {
         render(<LiveMetricsCard liveMetrics={null} server={makeServer()}/>)
         expect(screen.getByText('awaiting data\u2026')).toBeInTheDocument()
+    })
+
+    it('renders JVM heap and non-heap rows', () => {
+        render(
+            <LiveMetricsCard
+                liveMetrics={{
+                    cpuPercent: 45.2,
+                    ramUsedMb: 1024,
+                    netInBytes: 2048,
+                    netOutBytes: 1024,
+                    heapUsedBytes: 2 * 1024 * 1024,
+                    heapMaxBytes: 4 * 1024 * 1024,
+                    nonHeapUsedBytes: 256 * 1024,
+                }}
+                server={makeServer({memory_mb: 2048})}
+            />,
+        )
+        expect(screen.getByText('JVM Heap')).toBeInTheDocument()
+        expect(screen.getByText('JVM Non-Heap')).toBeInTheDocument()
+        expect(screen.getByText(/2048 KB \/ 4096 KB/)).toBeInTheDocument()
     })
 })

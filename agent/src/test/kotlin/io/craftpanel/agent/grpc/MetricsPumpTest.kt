@@ -57,8 +57,7 @@ class MetricsPumpTest :
             mcRouterContainerName = ""
         )
 
-        fun pump(cpuLimit: (String) -> Int = { 0 }) =
-            MetricsPump(config(), containerManager, metricsCollector, routerSupervisor, out, cpuLimit)
+        fun pump(cpuLimit: (String) -> Int = { 0 }, jvmEnabled: (String) -> Boolean = { true }) = MetricsPump(config(), containerManager, metricsCollector, routerSupervisor, out, cpuLimit, jvmEnabled)
 
         fun drain(): List<AgentMessage> = generateSequence { channel.tryReceive().getOrNull() }.toList()
 
@@ -97,6 +96,61 @@ class MetricsPumpTest :
             msgs.any { it.hasContainerMetrics() && it.containerMetrics.cpuPercent == 10.0 } shouldBe true
             msgs.any { it.hasPlayerUpdate() && it.playerUpdate.playerCount == 3 } shouldBe true
             verify { metricsCollector.collectContainerMetrics("srv-1", "cid-1", 2048) }
+        }
+
+        test("tick attaches JVM stats when enabled") {
+            every { metricsCollector.collect() } returns nodeMetricsUpdate {}
+            every { containerManager.listRunningContainers() } returns
+                listOf(RunningContainer("srv-1", "cid-1", null))
+            every { metricsCollector.getMcRouterIp() } returns null
+            every { metricsCollector.collectContainerMetrics("srv-1", "cid-1", 0) } returns
+                containerMetricsUpdate { cpuPercent = 10.0 }
+            every { metricsCollector.collectJvmStats("cid-1") } returns
+                jvmStats {
+                    heapUsedBytes = 1_000_000
+                    heapMaxBytes = 4_000_000
+                    nonHeapUsedBytes = 250_000
+                }
+
+            runTest { pump(jvmEnabled = { true }).tick() }
+
+            val cm = drain().first { it.hasContainerMetrics() }.containerMetrics
+            cm.hasJvm() shouldBe true
+            cm.jvm.heapUsedBytes shouldBe 1_000_000
+            cm.jvm.heapMaxBytes shouldBe 4_000_000
+            cm.jvm.nonHeapUsedBytes shouldBe 250_000
+            verify(exactly = 1) { metricsCollector.collectJvmStats("cid-1") }
+        }
+
+        test("tick does not collect JVM stats when disabled") {
+            every { metricsCollector.collect() } returns nodeMetricsUpdate {}
+            every { containerManager.listRunningContainers() } returns
+                listOf(RunningContainer("srv-1", "cid-1", null))
+            every { metricsCollector.getMcRouterIp() } returns null
+            every { metricsCollector.collectContainerMetrics("srv-1", "cid-1", 0) } returns
+                containerMetricsUpdate { cpuPercent = 10.0 }
+
+            runTest { pump(jvmEnabled = { false }).tick() }
+
+            val cm = drain().first { it.hasContainerMetrics() }.containerMetrics
+            cm.hasJvm() shouldBe false
+            verify(exactly = 0) { metricsCollector.collectJvmStats(any()) }
+        }
+
+        test("tick emits container metrics without JVM when collection yields null") {
+            every { metricsCollector.collect() } returns nodeMetricsUpdate {}
+            every { containerManager.listRunningContainers() } returns
+                listOf(RunningContainer("srv-1", "cid-1", null))
+            every { metricsCollector.getMcRouterIp() } returns null
+            every { metricsCollector.collectContainerMetrics("srv-1", "cid-1", 0) } returns
+                containerMetricsUpdate { cpuPercent = 10.0 }
+            every { metricsCollector.collectJvmStats("cid-1") } returns null
+
+            runTest { pump(jvmEnabled = { true }).tick() }
+
+            val cm = drain().first { it.hasContainerMetrics() }.containerMetrics
+            cm.cpuPercent shouldBe 10.0
+            cm.hasJvm() shouldBe false
         }
 
         test("tick skips player counts when there is no routing host") {

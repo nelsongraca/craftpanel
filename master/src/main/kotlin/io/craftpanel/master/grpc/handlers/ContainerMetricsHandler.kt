@@ -16,6 +16,7 @@ class ContainerMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEv
         }
         val containerMetrics = msg.containerMetrics
         val recordedAt = recordedAtOrNow(containerMetrics.hasRecordedAt(), containerMetrics.recordedAt)
+        val jvm = containerMetrics.jvm.takeIf { containerMetrics.hasJvm() }
         val containerMetricEvent = AgentEvent.ContainerMetricsEvent(
             serverId = containerMetrics.serverId,
             cpuPercent = containerMetrics.cpuPercent,
@@ -24,7 +25,10 @@ class ContainerMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEv
             netOutBytes = containerMetrics.netOutBytes,
             blockInBytes = containerMetrics.blockInBytes,
             blockOutBytes = containerMetrics.blockOutBytes,
-            recordedAt = recordedAt
+            recordedAt = recordedAt,
+            heapUsedBytes = jvm?.heapUsedBytes,
+            heapMaxBytes = jvm?.heapMaxBytes,
+            nonHeapUsedBytes = jvm?.nonHeapUsedBytes
         )
         // Telemetry must never suspend the control-stream collector: a lagging subscriber (DB
         // persistence, WS fan-out) would otherwise delay console I/O sharing the same stream.

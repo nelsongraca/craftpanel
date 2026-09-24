@@ -33,6 +33,8 @@ data class ServerView(
     val containerProtocol: String = "TCP",
     val disableHealthcheck: Boolean = false,
     val forceRedownload: Boolean = false,
+    // Whether the agent collects JVM heap/non-heap metrics for this server. Default enabled.
+    val jvmMetricsEnabled: Boolean = true,
     // Admin override for the data directory name; null = use the server id.
     val dataDirName: String? = null,
     // UI-only marker: saved config the running container has not applied yet. Not used for convergence.

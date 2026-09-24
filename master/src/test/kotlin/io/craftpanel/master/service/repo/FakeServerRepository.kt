@@ -67,7 +67,10 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         val netInBytes: Long,
         val netOutBytes: Long,
         val blockInBytes: Long,
-        val blockOutBytes: Long
+        val blockOutBytes: Long,
+        val heapUsedBytes: Long? = null,
+        val heapMaxBytes: Long? = null,
+        val nonHeapUsedBytes: Long? = null
     )
 
     data class MutableServerJob(val id: Uuid, val serverId: Uuid, val type: String, val cronExpression: String, var enabled: Boolean = true, var lastFiredAt: String? = null)

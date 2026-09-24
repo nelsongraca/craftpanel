@@ -57,7 +57,10 @@ sealed class AgentEvent {
         val netOutBytes: Long,
         val blockInBytes: Long,
         val blockOutBytes: Long,
-        val recordedAt: Instant
+        val recordedAt: Instant,
+        val heapUsedBytes: Long? = null,
+        val heapMaxBytes: Long? = null,
+        val nonHeapUsedBytes: Long? = null
     ) : AgentEvent()
 
     data class PlayerUpdateEvent(val serverId: String, val playerCount: Int, val playerNames: List<String>, val recordedAt: Instant) : AgentEvent()

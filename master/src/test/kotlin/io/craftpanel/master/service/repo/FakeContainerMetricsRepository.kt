@@ -16,6 +16,8 @@ class FakeContainerMetricsRepository(private val state: FakeRepositories) : Cont
 
     override fun getLatestContainerMetricsForServers(serverIds: List<Uuid>): Map<Uuid, ContainerMetricsRow?> = serverIds.associateWith { getLatestContainerMetrics(it) }
 
-    private fun toRow(m: FakeServerRepository.MutableContainerMetrics) =
-        ContainerMetricsRow(Uuid.random(), m.serverId, m.recordedAt, m.cpuPercent, m.ramUsedMb, m.netInBytes, m.netOutBytes, m.blockInBytes, m.blockOutBytes)
+    private fun toRow(m: FakeServerRepository.MutableContainerMetrics) = ContainerMetricsRow(
+        Uuid.random(), m.serverId, m.recordedAt, m.cpuPercent, m.ramUsedMb, m.netInBytes, m.netOutBytes, m.blockInBytes, m.blockOutBytes,
+        m.heapUsedBytes, m.heapMaxBytes, m.nonHeapUsedBytes
+    )
 }

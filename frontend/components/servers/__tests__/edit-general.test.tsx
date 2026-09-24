@@ -106,12 +106,32 @@ describe('EditGeneral', () => {
         const user = userEvent.setup()
         render(<EditGeneral server={makeServer()} permissions={['*']} onSaved={vi.fn()}/>)
         await user.click(screen.getByTitle('Edit General Settings'))
-        await user.click(screen.getByRole('switch'))
+        // Two switches now render (Disabled, JVM Metrics); Disabled is first.
+        await user.click(screen.getAllByRole('switch')[0])
         await user.click(screen.getByText('Save'))
         expect(setServerDisabled).toHaveBeenCalled()
         const call = vi.mocked(setServerDisabled).mock.calls[0][0]
         expect(call.path).toEqual({id: 's1'})
         expect(call.body.disabled).toBe(true)
+    })
+
+    it('sends jvm_metrics_enabled when the JVM metrics toggle is turned off', async () => {
+        vi.mocked(updateServer).mockResolvedValue({data: {}, error: undefined, response: new Response()})
+        const user = userEvent.setup()
+        render(<EditGeneral server={makeServer({jvm_metrics_enabled: true})} permissions={['server.view']} onSaved={vi.fn()}/>)
+        await user.click(screen.getByTitle('Edit General Settings'))
+        await user.click(screen.getByRole('switch'))
+        await user.click(screen.getByText('Save'))
+        expect(updateServer).toHaveBeenCalled()
+        const call = vi.mocked(updateServer).mock.calls[0][0]
+        expect(call.body.jvm_metrics_enabled).toBe(false)
+    })
+
+    it('hides the JVM metrics toggle for Picolimbo servers', async () => {
+        const user = userEvent.setup()
+        render(<EditGeneral server={makeServer({server_type: 'PICOLIMBO'})} permissions={['*']} onSaved={vi.fn()}/>)
+        await user.click(screen.getByTitle('Edit General Settings'))
+        expect(screen.queryByText('JVM Metrics', {exact: true})).not.toBeInTheDocument()
     })
 
     it('calls updateServerExpiration when the expiry changes', async () => {

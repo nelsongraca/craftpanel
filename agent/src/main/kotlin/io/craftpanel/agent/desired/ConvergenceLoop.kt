@@ -148,6 +148,17 @@ class ConvergenceLoop(
     }
 
     /**
+     * Whether the agent should attach to this server's JVM and emit heap metrics. Read from the
+     * applied spec (the value the running container was created with); falls back to the desired
+     * spec before convergence. Defaults to true so a server with no known spec is still sampled.
+     */
+    fun jvmMetricsEnabled(serverId: String): Boolean {
+        val state = store.get(serverId)
+        val spec = state.appliedSpec ?: state.spec ?: return true
+        return spec.jvmMetricsEnabled
+    }
+
+    /**
      * Backstop sweep: re-converges every server whose intent is RUNNING but which is not currently
      * running. Recovers deaths the Docker event stream never delivered (agent/daemon restart, a
      * dropped stream) without waiting for a reconnect. Only RUNNING-intent servers are swept, so the

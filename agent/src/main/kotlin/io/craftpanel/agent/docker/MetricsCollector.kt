@@ -2,6 +2,7 @@ package io.craftpanel.agent.docker
 
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
+import com.github.dockerjava.api.model.Frame
 import com.github.dockerjava.api.model.Statistics
 import com.google.protobuf.timestamp
 import io.craftpanel.agent.mcstatus.McStatusClient
@@ -119,6 +120,76 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
             log.warn("Failed to collect container metrics for $containerId", it)
             null
         }
+    }
+
+    /**
+     * Samples the server's JVM heap (used/max) and non-heap usage from inside its container.
+     *
+     * Best-effort and nullable: returns null when the container is not running, is not a JVM
+     * server (e.g. PicoLimbo), or the JDK tooling is unavailable/fails. Never throws and never
+     * zeroes a sample — an absent value means "no data", so history is not polluted with fake dips.
+     *
+     * Reads syscalls-less via `jcmd GC.heap_info` (used + non-heap) and `jstat -gc` (heap max).
+     */
+    fun collectJvmStats(containerId: String): JvmStats? = runCatching {
+        val pid = containerPid(containerId) ?: return null
+
+        val heapInfo = execCapture(containerId, "jcmd", pid.toString(), "GC.heap_info")
+            ?.let { JvmStatsParser.parseHeapInfo(it) } ?: return null
+        val heapMax = execCapture(containerId, "jstat", "-gc", pid.toString())
+            ?.let { JvmStatsParser.parseJstatMax(it) } ?: return null
+
+        jvmStats {
+            heapUsedBytes = heapInfo.heapUsedBytes
+            heapMaxBytes = heapMax
+            nonHeapUsedBytes = heapInfo.nonHeapUsedBytes
+        }
+    }.getOrElse {
+        log.debug("Failed to collect JVM stats for $containerId: ${it.message}")
+        null
+    }
+
+    /**
+     * Container's main PID from `docker inspect`, or null when not running / unknown.
+     *
+     * ponytail: assumes container PID 1 is the JVM. True for the itzg images, whose entrypoint
+     * `exec`s java (the init script is replaced, not forked). If a future image wraps java in a
+     * non-execing supervisor this PID would be the wrapper, and `jcmd` would miss the JVM —
+     * upgrade path: parse `jcmd` with no pid (it lists attachable JVMs) and pick the MC one.
+     */
+    private fun containerPid(containerId: String): Int? = runCatching {
+        docker.inspectContainerCmd(containerId)
+            .exec().state?.pid
+            ?.takeIf { it > 0 }
+    }.getOrNull()
+
+    /**
+     * Runs a command in the container and captures stdout as text, or null on any failure/timeout.
+     * Detached-from-attach semantics: attach stdout+stderr, wait for completion with a bounded
+     * timeout so a hung exec can never stall the metrics tick.
+     */
+    private fun execCapture(containerId: String, vararg cmd: String): String? {
+        val execId = runCatching {
+            docker.execCreateCmd(containerId)
+                .withCmd(*cmd)
+                .withAttachStdout(true)
+                .withAttachStderr(true)
+                .exec().id
+        }.getOrNull() ?: return null
+
+        val latch = CountDownLatch(1)
+        val buf = StringBuilder()
+        docker.execStartCmd(execId)
+            .exec(object : ResultCallback.Adapter<Frame>() {
+                override fun onNext(frame: Frame) {
+                    buf.append(String(frame.payload, Charsets.UTF_8))
+                }
+
+                override fun onComplete() = latch.countDown()
+                override fun onError(t: Throwable) = latch.countDown()
+            })
+        if (!latch.await(5, TimeUnit.SECONDS)) return null
+        return buf.toString()
     }
 
     /**

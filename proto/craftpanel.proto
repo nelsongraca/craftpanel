@@ -363,6 +363,10 @@ message StartContainerCommand {
   // Hard CPU cap in millicores (cores * 1000), applied as Docker `--cpus` (CFS quota).
   // 0 = unlimited (omit the limit). Part of the spec so a change forces a recreate.
   int32 cpu_limit_millicores = 20;
+  // Whether the agent should attach to this server's JVM and emit heap/non-heap metrics.
+  // Per-server, default true. Part of the spec so a change forces a recreate (the agent
+  // reads it back from the applied spec, mirroring cpu_limit_millicores).
+  bool jvm_metrics_enabled = 21;
 }
 
 message ExtraPortBinding {
@@ -762,6 +766,18 @@ message ContainerMetricsUpdate {
   // Counters reset when the container restarts — same reset-detection as net I/O.
   int64  block_in_bytes = 7;
   int64  block_out_bytes = 8;
+  // JVM heap/non-heap sample. Absent when this server has JVM metrics disabled, is not
+  // a JVM server (e.g. PicoLimbo), or the JVM is not attachable this tick. Never zeroed.
+  JvmStats jvm = 9;
+}
+
+// JVM memory sampled from inside the server container (jcmd/jstat over docker exec).
+// `heap_used_bytes` vs `heap_max_bytes` is the primary "actual RAM usage" signal; the
+// container's cgroup figure in ContainerMetricsUpdate.ram_used_mb approximates the rest.
+message JvmStats {
+  int64 heap_used_bytes = 1;
+  int64 heap_max_bytes = 2;
+  int64 non_heap_used_bytes = 3;
 }
 
 message ServerStatusUpdate {

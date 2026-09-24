@@ -32,6 +32,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
     const [mcVersion, setMcVersion] = useState("");
     const [expiresAt, setExpiresAt] = useState<string>(""); // datetime-local string
     const [disabled, setDisabled] = useState(false);
+    const [jvmMetricsEnabled, setJvmMetricsEnabled] = useState(true);
     const [dataDirName, setDataDirName] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
         setMcVersion(server.mc_version);
         setExpiresAt(server.expires_at ? server.expires_at.slice(0, 16) : "");
         setDisabled(server.disabled ?? false);
+        setJvmMetricsEnabled(server.jvm_metrics_enabled ?? true);
         setDataDirName(server.data_dir_name ?? "");
         setError(null);
         setEditing(true);
@@ -73,6 +75,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
             if (description !== (server.description ?? "")) body.description = description || "";
             if (networkId !== (server.network_id ?? "")) body.network_id = networkId || "";
             if (mcVersion !== server.mc_version) body.mc_version = mcVersion;
+            if (jvmMetricsEnabled !== (server.jvm_metrics_enabled ?? true)) body.jvm_metrics_enabled = jvmMetricsEnabled;
 
             // Update general fields via PATCH /servers/{id}
             const {error: updateErr} = await updateServer({path: {id: server.id}, body: body as Parameters<typeof updateServer>[0]["body"]});
@@ -230,6 +233,22 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                             fieldSize="sm"
                             surface="bg"
                         />
+                        <p className="text-xs text-text-muted mt-1">Requires restart to take effect.</p>
+                    </EditFieldRow>
+                )}
+                {!isPicolimbo && (
+                    <EditFieldRow label="JVM Metrics">
+                        <div className="flex items-center gap-3">
+                            <Switch
+                                checked={jvmMetricsEnabled}
+                                onCheckedChange={setJvmMetricsEnabled}
+                            />
+                            <span className="text-xs text-text-muted">
+                                    {jvmMetricsEnabled
+                                        ? "Collect JVM heap and non-heap usage for this server."
+                                        : "JVM memory metrics are not collected for this server."}
+                                </span>
+                        </div>
                         <p className="text-xs text-text-muted mt-1">Requires restart to take effect.</p>
                     </EditFieldRow>
                 )}

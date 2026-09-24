@@ -74,7 +74,10 @@ class DashboardEventFilter(
                     event.netOutBytes,
                     event.blockInBytes,
                     event.blockOutBytes,
-                    event.recordedAt.toString()
+                    event.recordedAt.toString(),
+                    event.heapUsedBytes,
+                    event.heapMaxBytes,
+                    event.nonHeapUsedBytes
                 )
             )
         }
@@ -189,7 +192,10 @@ class DashboardEventFilter(
                         it.netOutBytes,
                         it.blockInBytes,
                         it.blockOutBytes,
-                        it.recordedAt
+                        it.recordedAt,
+                        it.heapUsedBytes,
+                        it.heapMaxBytes,
+                        it.nonHeapUsedBytes
                     )
                 }
             )

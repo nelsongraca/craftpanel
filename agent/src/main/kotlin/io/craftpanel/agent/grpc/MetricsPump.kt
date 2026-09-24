@@ -32,6 +32,7 @@ class MetricsPump(
     private val routerSupervisor: RouterSupervisor,
     private val out: AgentOutbound,
     private val cpuLimitMillicores: (String) -> Int,
+    private val jvmMetricsEnabled: (String) -> Boolean = { true }
 ) {
 
     private val log = LoggerFactory.getLogger(MetricsPump::class.java)
@@ -66,12 +67,21 @@ class MetricsPump(
             containers.map { container ->
                 async(Dispatchers.IO) {
                     statsSemaphore.withPermit {
-                        metricsCollector.collectContainerMetrics(
+                        val base = metricsCollector.collectContainerMetrics(
                             container.serverId,
                             container.containerId,
                             cpuLimitMillicores(container.serverId)
                         )
-                            ?.let { cm -> out.sendTelemetry { containerMetrics = cm } }
+                        if (base != null) {
+                            val withJvm = if (jvmMetricsEnabled(container.serverId)) {
+                                metricsCollector.collectJvmStats(container.containerId)
+                                    ?.let { base.toBuilder().setJvm(it).build() }
+                                    ?: base
+                            } else {
+                                base
+                            }
+                            out.sendTelemetry { containerMetrics = withJvm }
+                        }
 
                         val routingHost = container.routingHost
                         if (routerIp != null && !routingHost.isNullOrBlank()) {

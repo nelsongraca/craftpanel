@@ -20,7 +20,15 @@ import {OverviewTab} from "@/components/servers/overview-tab";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {isCustomType, isModLoaderType, isPicolimboType, isProxyType} from "@/lib/server-types";
 
-type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
+type LiveMetrics = {
+    cpuPercent: number;
+    ramUsedMb: number;
+    netInBytes: number;
+    netOutBytes: number;
+    heapUsedBytes?: number | null;
+    heapMaxBytes?: number | null;
+    nonHeapUsedBytes?: number | null;
+};
 type LivePlayers = { count: number; list: string[] };
 
 const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Ports", "Migration"] as const;
@@ -96,12 +104,18 @@ export default function ServerDetailPage() {
             const ram = last(data.series.ram_used_mb);
             const netIn = last(data.series.net_in_bytes);
             const netOut = last(data.series.net_out_bytes);
+            const heapUsed = last(data.series.heap_used_bytes ?? []);
+            const heapMax = last(data.series.heap_max_bytes ?? []);
+            const nonHeap = last(data.series.non_heap_used_bytes ?? []);
             if (cpu == null && ram == null && netIn == null && netOut == null) return;
             setLiveMetrics({
                 cpuPercent: cpu ?? 0,
                 ramUsedMb: ram ?? 0,
                 netInBytes: netIn ?? 0,
                 netOutBytes: netOut ?? 0,
+                heapUsedBytes: heapUsed ?? null,
+                heapMaxBytes: heapMax ?? null,
+                nonHeapUsedBytes: nonHeap ?? null,
             });
         });
     }, [id]);
@@ -145,6 +159,9 @@ export default function ServerDetailPage() {
                     ramUsedMb: mine.metrics.ram_used_mb,
                     netInBytes: mine.metrics.net_in_bytes,
                     netOutBytes: mine.metrics.net_out_bytes,
+                    heapUsedBytes: mine.metrics.heap_used_bytes ?? null,
+                    heapMaxBytes: mine.metrics.heap_max_bytes ?? null,
+                    nonHeapUsedBytes: mine.metrics.non_heap_used_bytes ?? null,
                 });
             }
         });
@@ -155,6 +172,9 @@ export default function ServerDetailPage() {
                 ramUsedMb: payload.ram_used_mb,
                 netInBytes: payload.net_in_bytes,
                 netOutBytes: payload.net_out_bytes,
+                heapUsedBytes: payload.heap_used_bytes ?? null,
+                heapMaxBytes: payload.heap_max_bytes ?? null,
+                nonHeapUsedBytes: payload.non_heap_used_bytes ?? null,
             });
         });
         const unsubStatus = subscribe("server.status", (payload) => {

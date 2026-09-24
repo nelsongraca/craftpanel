@@ -11,7 +11,15 @@ import {timeAgo} from "@/lib/utils/format";
 import type {Network, Node, Server} from "@/lib/types";
 import {isCustomType, isProxyType} from "@/lib/server-types";
 
-type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
+type LiveMetrics = {
+    cpuPercent: number;
+    ramUsedMb: number;
+    netInBytes: number;
+    netOutBytes: number;
+    heapUsedBytes?: number | null;
+    heapMaxBytes?: number | null;
+    nonHeapUsedBytes?: number | null;
+};
 type LivePlayers = { count: number; list: string[] };
 
 export interface OverviewTabProps {

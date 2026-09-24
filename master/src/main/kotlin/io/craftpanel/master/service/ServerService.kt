@@ -44,7 +44,8 @@ class ServerService(
         containerListenPort: Int? = null,
         containerProtocol: String? = null,
         disableHealthcheck: Boolean? = null,
-        forceRedownload: Boolean? = null
+        forceRedownload: Boolean? = null,
+        jvmMetricsEnabled: Boolean? = null
     ) {
         val newNetworkId: Uuid? = networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
@@ -53,7 +54,7 @@ class ServerService(
         // container stale until the next start/restart, so flag a pending restart for the UI.
         val specChanged = networkId != null || mcVersion != null || itzgImageTag != null ||
             customServerJar != null || containerListenPort != null || containerProtocol != null ||
-            disableHealthcheck != null || forceRedownload != null
+            disableHealthcheck != null || forceRedownload != null || jvmMetricsEnabled != null
 
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val serverType = serverRow.serverType
@@ -90,6 +91,7 @@ class ServerService(
             if (containerProtocol != null) e.containerProtocol = validateContainerProtocol(containerProtocol)
             if (disableHealthcheck != null) e.disableHealthcheck = disableHealthcheck
             if (forceRedownload != null) e.forceRedownload = forceRedownload
+            if (jvmMetricsEnabled != null) e.jvmMetricsEnabled = jvmMetricsEnabled
             if (specChanged) e.restartPending = true
         }
     }

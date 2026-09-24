@@ -82,7 +82,8 @@ fun Route.serversRoutes(
                         containerListenPort = req.containerListenPort,
                         containerProtocol = req.containerProtocol,
                         disableHealthcheck = req.disableHealthcheck,
-                        forceRedownload = req.forceRedownload
+                        forceRedownload = req.forceRedownload,
+                        jvmMetricsEnabled = req.jvmMetricsEnabled
                     )
                 )
                 call.respond(HttpStatusCode.Created, row.toResponse(serverHostnames, false))
@@ -162,7 +163,8 @@ fun Route.serversRoutes(
                     containerListenPort = body.containerListenPort,
                     containerProtocol = body.containerProtocol,
                     disableHealthcheck = body.disableHealthcheck,
-                    forceRedownload = body.forceRedownload
+                    forceRedownload = body.forceRedownload,
+                    jvmMetricsEnabled = body.jvmMetricsEnabled
                 )
                 call.respond(HttpStatusCode.NoContent)
             }

@@ -58,6 +58,10 @@ object Servers : UuidTable("servers") {
     val disableHealthcheck = bool("disable_healthcheck").default(false)
     val forceRedownload = bool("force_redownload").default(false)
 
+    // Whether the agent attaches to this server's JVM and emits heap/non-heap metrics.
+    // Default enabled; disabling stops the extra `docker exec` per poll for this server.
+    val jvmMetricsEnabled = bool("jvm_metrics_enabled").default(true)
+
     // Admin override (server.dir_override) for the `servers/<name>` data directory segment.
     // NULL = derive from the server id. Unique per node is enforced in the service, not here.
     val dataDirName = varchar("data_dir_name", 100).nullable()

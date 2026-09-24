@@ -20,7 +20,12 @@ data class ContainerMetricsSeries(
     @SerialName("cpu_percent") val cpuPercent: List<ContainerMetricsPoint>,
     @SerialName("ram_used_mb") val ramUsedMb: List<ContainerMetricsPoint>,
     @SerialName("net_in_bytes") val netInBytes: List<ContainerMetricsPointLong>,
-    @SerialName("net_out_bytes") val netOutBytes: List<ContainerMetricsPointLong>
+    @SerialName("net_out_bytes") val netOutBytes: List<ContainerMetricsPointLong>,
+    // JVM heap/non-heap series. Rows with no JVM sample are omitted, so these lists are sparser
+    // than the others (and empty when JVM metrics are disabled for the server).
+    @SerialName("heap_used_bytes") val heapUsedBytes: List<ContainerMetricsPointLong> = emptyList(),
+    @SerialName("heap_max_bytes") val heapMaxBytes: List<ContainerMetricsPointLong> = emptyList(),
+    @SerialName("non_heap_used_bytes") val nonHeapUsedBytes: List<ContainerMetricsPointLong> = emptyList()
 )
 
 class ServerQueryService(
@@ -61,7 +66,10 @@ class ServerQueryService(
                 cpuPercent = rows.map { ContainerMetricsPoint(it.recordedAt, it.cpuPercent) },
                 ramUsedMb = rows.map { ContainerMetricsPoint(it.recordedAt, it.ramUsedMb.toDouble()) },
                 netInBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netInBytes) },
-                netOutBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netOutBytes) }
+                netOutBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netOutBytes) },
+                heapUsedBytes = rows.mapNotNull { it.heapUsedBytes?.let { v -> ContainerMetricsPointLong(it.recordedAt, v) } },
+                heapMaxBytes = rows.mapNotNull { it.heapMaxBytes?.let { v -> ContainerMetricsPointLong(it.recordedAt, v) } },
+                nonHeapUsedBytes = rows.mapNotNull { it.nonHeapUsedBytes?.let { v -> ContainerMetricsPointLong(it.recordedAt, v) } }
             )
         )
     }
