@@ -82,13 +82,7 @@ val agentModule = module {
         )
     }
     single { RouterSupervisor(get(), get<AgentConfig>().mcRouterEnabled) }
-    single {
-        MetricsCollector(
-            get<DockerClient>(),
-            get<AgentConfig>().craftpanelNetwork,
-            if (get<AgentConfig>().mcRouterEnabled) get<McRouterProvisioner>().containerName else ""
-        )
-    }
+    single { MetricsCollector(get()) }
     single {
         RsyncMigrator(
             get<DockerClient>(),
@@ -136,7 +130,8 @@ val agentModule = module {
                 metricsCollector = get(),
                 routerSupervisor = get(),
                 out = get(),
-                cpuLimitMillicores = get<ConvergenceLoop>()::cpuLimitMillicores
+                cpuLimitMillicores = get<ConvergenceLoop>()::cpuLimitMillicores,
+                playerCountProbe = get<ConvergenceLoop>()::playerCountProbe
             )
         }
         scoped { ContainerEventWatcher(get()) }

@@ -48,10 +48,7 @@ class DockerContainerManager(
                 val serverId = container.labels["craftpanel.server.id"]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                 RunningContainer(
                     serverId = serverId,
-                    containerId = container.id,
-                    routingHost = container.labels["mc-router.host"]
-                        ?.split(",")
-                        ?.firstOrNull { it.isNotBlank() }
+                    containerId = container.id
                 )
             }
     }

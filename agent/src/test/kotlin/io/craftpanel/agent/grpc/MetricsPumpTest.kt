@@ -3,6 +3,7 @@ package io.craftpanel.agent.grpc
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.PlayerCountProbe
 import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.docker.RunningContainer
 import io.craftpanel.proto.*
@@ -57,8 +58,7 @@ class MetricsPumpTest :
             mcRouterContainerName = ""
         )
 
-        fun pump(cpuLimit: (String) -> Int = { 0 }) =
-            MetricsPump(config(), containerManager, metricsCollector, routerSupervisor, out, cpuLimit)
+        fun pump(cpuLimit: (String) -> Int = { 0 }, probe: (String) -> PlayerCountProbe? = { null }) = MetricsPump(config(), containerManager, metricsCollector, routerSupervisor, out, cpuLimit, probe)
 
         fun drain(): List<AgentMessage> = generateSequence { channel.tryReceive().getOrNull() }.toList()
 
@@ -84,14 +84,13 @@ class MetricsPumpTest :
             every { metricsCollector.collect() } returns nodeMetricsUpdate {}
             every { routerSupervisor.isRunning } returns false
             every { containerManager.listRunningContainers() } returns
-                listOf(RunningContainer("srv-1", "cid-1", "srv-1.example.com"))
-            every { metricsCollector.getMcRouterIp() } returns "10.0.0.5"
+                listOf(RunningContainer("srv-1", "cid-1"))
             every { metricsCollector.collectContainerMetrics("srv-1", "cid-1", 2048) } returns
                 containerMetricsUpdate { cpuPercent = 10.0 }
-            every { metricsCollector.collectPlayerCount("srv-1", "10.0.0.5", "srv-1.example.com") } returns
+            every { metricsCollector.collectPlayerCount("srv-1", "cid-1", 25565, false) } returns
                 playerUpdate { playerCount = 3 }
 
-            runTest { pump(cpuLimit = { 2048 }).tick() }
+            runTest { pump(cpuLimit = { 2048 }, probe = { PlayerCountProbe(25565, false) }).tick() }
 
             val msgs = drain()
             msgs.any { it.hasContainerMetrics() && it.containerMetrics.cpuPercent == 10.0 } shouldBe true
@@ -99,15 +98,14 @@ class MetricsPumpTest :
             verify { metricsCollector.collectContainerMetrics("srv-1", "cid-1", 2048) }
         }
 
-        test("tick skips player counts when there is no routing host") {
+        test("tick skips player counts when the server cannot be probed") {
             every { metricsCollector.collect() } returns nodeMetricsUpdate {}
             every { containerManager.listRunningContainers() } returns
-                listOf(RunningContainer("srv-1", "cid-1", null))
-            every { metricsCollector.getMcRouterIp() } returns "10.0.0.5"
+                listOf(RunningContainer("srv-1", "cid-1"))
 
-            runTest { pump().tick() }
+            runTest { pump(probe = { null }).tick() }
 
-            verify(exactly = 0) { metricsCollector.collectPlayerCount(any(), any(), any()) }
+            verify(exactly = 0) { metricsCollector.collectPlayerCount(any(), any(), any(), any()) }
         }
 
         test("run swallows a failing tick and keeps looping") {

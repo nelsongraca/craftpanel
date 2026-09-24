@@ -2,18 +2,25 @@ package io.craftpanel.agent.docker
 
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
+import com.github.dockerjava.api.model.Frame
 import com.github.dockerjava.api.model.Statistics
 import com.google.protobuf.timestamp
-import io.craftpanel.agent.mcstatus.McStatusClient
 import io.craftpanel.proto.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
 import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-open class MetricsCollector(private val docker: DockerClient, private val craftpanelNetwork: String = "", var mcRouterContainerName: String = "") {
+open class MetricsCollector(private val docker: DockerClient) {
 
     private val log = LoggerFactory.getLogger(MetricsCollector::class.java)
 
@@ -122,41 +129,66 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
     }
 
     /**
-     * Pings the MC server for its player list. [routerIp] and [routingHost] are resolved once per
-     * metrics cycle by the caller (see [getMcRouterIp] and [RunningContainer.routingHost]) so this
-     * does not issue a Docker inspect per server.
+     * Probes the container for its player list by running the image's bundled `mc-monitor` inside
+     * it: `mc-monitor status --json --host localhost --port <internalListenPort>`. Network-independent
+     * — the probe runs in the container's own namespace and never involves mc-router or the Docker
+     * network layout. [useProxy] adds `--use-proxy` for proxies whose listener expects the HAProxy
+     * PROXY protocol.
      */
-    fun collectPlayerCount(serverId: String, routerIp: String, routingHost: String): PlayerUpdate? {
-        return runCatching {
-            val result = McStatusClient.ping(routerIp, serverAddress = routingHost) ?: return null
-            val now = Instant.now()
-            playerUpdate {
-                this.serverId = serverId
-                playerCount = result.playerCount
-                playerNames.addAll(result.playerNames)
-                recordedAt = timestamp {
-                    seconds = now.epochSecond
-                    nanos = now.nano
-                }
+    fun collectPlayerCount(serverId: String, containerId: String, internalListenPort: Int, useProxy: Boolean): PlayerUpdate? {
+        val args = buildList {
+            add("mc-monitor")
+            add("status")
+            add("--json")
+            add("--host")
+            add("localhost")
+            add("--port")
+            add(internalListenPort.toString())
+            add("--timeout")
+            add("3s")
+            if (useProxy) add("--use-proxy")
+        }
+        val text = execCapture(containerId, args) ?: return null
+        val status = parseMcMonitorStatus(text) ?: return null
+        val now = Instant.now()
+        return playerUpdate {
+            this.serverId = serverId
+            playerCount = status.count
+            playerNames.addAll(status.names)
+            recordedAt = timestamp {
+                seconds = now.epochSecond
+                nanos = now.nano
             }
-        }.getOrElse {
-            log.warn("Failed to collect player count for server $serverId: ${it.message}")
-            null
         }
     }
 
-    fun getMcRouterIp(): String? {
-        if (mcRouterContainerName.isEmpty()) return null
-        val networks = runCatching {
-            docker.inspectContainerCmd(mcRouterContainerName)
-                .exec().networkSettings?.networks
-        }.getOrNull() ?: return null
-        val net = if (craftpanelNetwork.isNotEmpty()) {
-            networks[craftpanelNetwork] ?: networks.values.firstOrNull()
-        } else {
-            networks.values.firstOrNull()
-        }
-        return net?.ipAddress?.takeIf { it.isNotBlank() }
+    /** Runs [args] inside [containerId] and returns stdout, or null on failure/timeout. */
+    private fun execCapture(containerId: String, args: List<String>, timeoutSeconds: Long = 5): String? = runCatching {
+        val execId = docker.execCreateCmd(containerId)
+            .withAttachStdout(true)
+            .withCmd(*args.toTypedArray())
+            .exec().id
+        val out = ByteArrayOutputStream()
+        val latch = CountDownLatch(1)
+        docker.execStartCmd(execId)
+            .exec(object : ResultCallback.Adapter<Frame>() {
+                override fun onNext(frame: Frame) {
+                    out.write(frame.payload)
+                }
+
+                override fun onComplete() {
+                    latch.countDown()
+                }
+
+                override fun onError(t: Throwable) {
+                    latch.countDown()
+                }
+            })
+        if (!latch.await(timeoutSeconds, TimeUnit.SECONDS)) return null
+        out.toString(Charsets.UTF_8.name())
+    }.getOrElse {
+        log.debug("mc-monitor exec failed for $containerId: ${it.message}")
+        null
     }
 
     fun collectCapacity(): Pair<Int, Int> {
@@ -279,6 +311,30 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
                 )
         }
 }
+
+/** Resolved per-server input for a player-count probe: the internal port and PROXY-protocol flag. */
+data class PlayerCountProbe(val internalListenPort: Int, val useProxyProtocol: Boolean)
+
+/** Player count + sample parsed from `mc-monitor status --json`. */
+internal data class PlayerStatus(val count: Int, val names: List<String>)
+
+/**
+ * Parses `mc-monitor status --json` → `server_info.players`. The sample key is capitalised
+ * (`Sample`) because mc-monitor re-marshals the Go `Players.Sample` field, which has no json tag;
+ * the raw server response uses lowercase `sample`, so both are accepted. A null/absent sample means
+ * "no names". Returns null when the payload is not a valid status response.
+ */
+internal fun parseMcMonitorStatus(json: String): PlayerStatus? = runCatching {
+    val players = Json.parseToJsonElement(json).jsonObject
+        .get("server_info")?.jsonObject
+        ?.get("players")?.jsonObject ?: return null
+    val online = players["online"]?.jsonPrimitive?.intOrNull ?: return null
+    val sample = players["Sample"] ?: players["sample"]
+    val names = (sample as? JsonArray)
+        ?.mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.contentOrNull }
+        ?: emptyList()
+    PlayerStatus(online, names)
+}.getOrNull()
 
 /**
  * Normalizes host-core CPU consumption to a 0–100 percentage of what the container is allowed to use.

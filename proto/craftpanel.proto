@@ -363,6 +363,10 @@ message StartContainerCommand {
   // Hard CPU cap in millicores (cores * 1000), applied as Docker `--cpus` (CFS quota).
   // 0 = unlimited (omit the limit). Part of the spec so a change forces a recreate.
   int32 cpu_limit_millicores = 20;
+  // The server's PROXY-protocol listener setting (Velocity `advanced.haproxy-protocol` /
+  // BungeeCord `listeners[0].proxy_protocol`). The agent reads it to add `--use-proxy` when
+  // probing the container for player counts. Master-owned; never user-editable.
+  bool proxy_protocol = 21;
 }
 
 message ExtraPortBinding {

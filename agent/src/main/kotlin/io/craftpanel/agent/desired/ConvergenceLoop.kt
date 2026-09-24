@@ -1,5 +1,6 @@
 package io.craftpanel.agent.desired
 
+import io.craftpanel.agent.docker.PlayerCountProbe
 import io.craftpanel.agent.docker.SpecDiff
 import io.craftpanel.agent.docker.WatcherGate
 import io.craftpanel.agent.grpc.AgentOutbound
@@ -145,6 +146,21 @@ class ConvergenceLoop(
     fun cpuLimitMillicores(serverId: String): Int {
         val state = store.get(serverId)
         return state.appliedSpec?.cpuLimitMillicores ?: state.spec?.cpuLimitMillicores ?: 0
+    }
+
+    /**
+     * Input for the player-count probe, or null when the server cannot be probed: mc-monitor speaks
+     * the Java TCP status protocol, so UDP servers are skipped, as are servers with no known spec.
+     * Prefers the applied spec so the port/flag match the running container.
+     */
+    fun playerCountProbe(serverId: String): PlayerCountProbe? {
+        val state = store.get(serverId)
+        val spec = state.appliedSpec ?: state.spec ?: return null
+        if (spec.containerProtocol.equals("UDP", ignoreCase = true)) return null
+        return PlayerCountProbe(
+            internalListenPort = spec.internalListenPort,
+            useProxyProtocol = spec.proxyProtocol
+        )
     }
 
     /**

@@ -3,6 +3,7 @@ package io.craftpanel.agent.grpc
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.PlayerCountProbe
 import io.craftpanel.agent.docker.RouterSupervisor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -21,9 +22,9 @@ import kotlin.time.Duration.Companion.seconds
  * by [AgentConfig.metricsCollectionConcurrency]) so a node with many servers refreshes each server
  * at roughly the poll interval rather than the sum of every call.
  *
- * The interval is applied AFTER a tick completes, not as a fixed wall-clock cadence: the
- * player-count pings share mc-router with the data path, so a tick that ran long must not
- * immediately start the next one and multiply that load.
+ * The interval is applied AFTER a tick completes, not as a fixed wall-clock cadence: each server's
+ * probe (Docker stats plus an `mc-monitor` exec) is real work on the node, so a tick that ran long
+ * must not immediately start the next one and multiply that load.
  */
 class MetricsPump(
     private val config: AgentConfig,
@@ -32,6 +33,8 @@ class MetricsPump(
     private val routerSupervisor: RouterSupervisor,
     private val out: AgentOutbound,
     private val cpuLimitMillicores: (String) -> Int,
+    /** Per-server player-count probe input, or null when the server cannot be probed. */
+    private val playerCountProbe: (String) -> PlayerCountProbe? = { null }
 ) {
 
     private val log = LoggerFactory.getLogger(MetricsPump::class.java)
@@ -61,7 +64,6 @@ class MetricsPump(
         }
 
         val containers = containerManager.listRunningContainers()
-        val routerIp = metricsCollector.getMcRouterIp()
         coroutineScope {
             containers.map { container ->
                 async(Dispatchers.IO) {
@@ -73,9 +75,14 @@ class MetricsPump(
                         )
                             ?.let { cm -> out.sendTelemetry { containerMetrics = cm } }
 
-                        val routingHost = container.routingHost
-                        if (routerIp != null && !routingHost.isNullOrBlank()) {
-                            metricsCollector.collectPlayerCount(container.serverId, routerIp, routingHost)
+                        val probe = playerCountProbe(container.serverId)
+                        if (probe != null) {
+                            metricsCollector.collectPlayerCount(
+                                container.serverId,
+                                container.containerId,
+                                probe.internalListenPort,
+                                probe.useProxyProtocol
+                            )
                                 ?.let { pu -> out.sendTelemetry { playerUpdate = pu } }
                         }
                     }

@@ -30,7 +30,7 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
 
     enum class State { CREATED, RUNNING, STOPPED }
 
-    class Entry(val serverId: String, var state: State, val networks: MutableSet<String> = mutableSetOf(), val routingHost: String? = null)
+    class Entry(val serverId: String, var state: State, val networks: MutableSet<String> = mutableSetOf())
 
     val gate = WatcherGate()
     val calls = CopyOnWriteArrayList<String>()
@@ -72,8 +72,7 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
         createdCommands.add(cmd)
         containers[cmd.containerName] = Entry(
             serverId = cmd.serverId,
-            state = State.CREATED,
-            routingHost = cmd.publicHostname.takeIf { it.isNotEmpty() && cmd.containerProtocol.uppercase() != "UDP" }
+            state = State.CREATED
         ).also {
             if (cmd.dockerNetwork.isNotEmpty()) it.networks.add(cmd.dockerNetwork)
         }
@@ -141,7 +140,7 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
         calls.add("listRunningContainers")
         return containers.entries
             .filter { it.value.state == State.RUNNING }
-            .map { RunningContainer(it.value.serverId, idOf(it.key), it.value.routingHost) }
+            .map { RunningContainer(it.value.serverId, idOf(it.key)) }
     }
 
     override fun listContainers(): List<ContainerState> {

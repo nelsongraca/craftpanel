@@ -36,10 +36,8 @@ data class PortBindingSnapshot(val containerPort: Int, val protocol: String, val
 
 /**
  * Minimal identity of a running managed container, taken from a single Docker list call.
- * [routingHost] is the first non-blank entry of the container's `mc-router.host` label, used as
- * the ping target for player-count collection without a second inspect round-trip.
  */
-data class RunningContainer(val serverId: String, val containerId: String, val routingHost: String?)
+data class RunningContainer(val serverId: String, val containerId: String)
 
 /**
  * Container operations against the node's Docker daemon, with death-gating built in:

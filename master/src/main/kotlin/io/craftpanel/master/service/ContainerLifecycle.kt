@@ -126,6 +126,7 @@ class ContainerLifecycle(
             hostPort = server.hostPort
             memoryMb = server.memoryMb
             cpuLimitMillicores = server.cpuLimitMillicores
+            proxyProtocol = server.proxyProtocol
             dockerNetwork = server.networkId
                 ?.let { names.sharedNetwork(it.toString()) }
                 ?: names.standaloneNetwork(id.toString())
