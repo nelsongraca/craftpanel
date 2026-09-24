@@ -142,7 +142,7 @@ class McRouterRoutingTest : BaseSystemTest() {
                 helper.awaitStatus(serverIdC, ServerStatus.HEALTHY)
 
                 // Managed subdomain still routes
-                awaitRoutedMotd(hostnameC) shouldContain motdC
+                awaitRoutedMotdAfterRecreate(hostnameC) shouldContain motdC
 
                 // Custom hostname no longer routes — mc-router drops the route when the container
                 // is recreated without the customHostnameC label.
@@ -234,6 +234,48 @@ class McRouterRoutingTest : BaseSystemTest() {
         System.err.println("[mcrouter-diag] last ping error for '$hostname': ${lastError?.javaClass?.simpleName}: ${lastError?.message}")
         dumpRouterDiagnostics(hostname)
         error("Hostname '$hostname' never routed through mc-router within ${timeoutMs}ms")
+    }
+
+    /**
+     * Like [awaitRoutedMotd] but tolerant of mc-router's event-stream discovery missing the route
+     * update that follows a container recreate. mc-router learns backends from Docker events and has
+     * no periodic re-list, so an event dropped under CI load leaves a stale route that never heals
+     * on its own. If the hostname doesn't route within a shortened window, restart the router —
+     * startup performs a full container listing, forcing the route table back in sync. Only invoked
+     * for the post-recreate assertion, so the happy path never restarts shared infrastructure, and a
+     * genuinely broken router still fails (rediscovery cannot route a hostname no container carries).
+     */
+    private suspend fun awaitRoutedMotdAfterRecreate(hostname: String): String {
+        val first = runCatching { awaitRoutedMotd(hostname, timeoutMs = 40_000) }
+        return first.getOrElse {
+            System.err.println("[mcrouter-diag] '$hostname' not routed after recreate — restarting mc-router to force rediscovery")
+            restartRouter()
+            awaitRoutedMotd(hostname, timeoutMs = 60_000)
+        }
+    }
+
+    /** Restarts the shared mc-router container and waits for it to be running again. */
+    private suspend fun restartRouter() = withContext(Dispatchers.IO) {
+        val docker = SharedStack.dockerClient
+        val routerName = SharedStack.mcRouterContainerName
+        runCatching {
+            docker.restartContainerCmd(routerName)
+                .withTimeout(10)
+                .exec()
+        }.onFailure { System.err.println("[mcrouter-diag] router restart failed: ${it.message}") }
+
+        val deadline = System.currentTimeMillis() + 30_000
+        while (System.currentTimeMillis() < deadline) {
+            val running = runCatching {
+                docker.inspectContainerCmd(routerName)
+                    .exec()
+                    .state?.running == true
+            }.getOrDefault(false)
+            if (running) break
+            delay(500.milliseconds)
+        }
+        // Fresh route table repopulates from the initial listing a beat after startup.
+        delay(1_500.milliseconds)
     }
 
     /** On a routing timeout, dump the mc-router container's logs + attached networks so the
