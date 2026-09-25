@@ -1,6 +1,8 @@
 import {describe, it, expect, vi, beforeEach} from "vitest";
-import {render, screen, waitFor} from "@testing-library/react";
+import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const wsHandlers = vi.hoisted(() => ({} as Record<string, (payload: unknown) => void>));
 
 vi.mock("@/lib/generated/sdk.gen", () => ({
     getServer: vi.fn(),
@@ -21,7 +23,12 @@ vi.mock("@/lib/auth-context", () => ({
 }));
 
 vi.mock("@/lib/ws-context", () => ({
-    useWs: vi.fn(() => ({subscribe: vi.fn(() => () => {})})),
+    useWs: vi.fn(() => ({
+        subscribe: (type: string, cb: (payload: unknown) => void) => {
+            wsHandlers[type] = cb;
+            return () => {};
+        },
+    })),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -112,6 +119,7 @@ async function renderDetail(
 describe("ServerDetailPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        Object.keys(wsHandlers).forEach((key) => delete wsHandlers[key]);
     });
 
     describe("Expired server", () => {
@@ -255,6 +263,40 @@ describe("ServerDetailPage", () => {
             await user.click(screen.getByRole("button"));
 
             expect(screen.queryByText("Export")).not.toBeInTheDocument();
+        });
+    });
+
+    describe("Live JVM heap", () => {
+        it("retains the last heap sample on metrics ticks that carry none", async () => {
+            await renderDetail({status: "HEALTHY"});
+
+            act(() => {
+                wsHandlers["server.metrics"]({
+                    server_id: "s1",
+                    cpu_percent: 10,
+                    ram_used_mb: 512,
+                    net_in_bytes: 1,
+                    net_out_bytes: 2,
+                    heap_used_bytes: 2_097_152,
+                    heap_max_bytes: 4_194_304,
+                    non_heap_used_bytes: 40_960,
+                });
+            });
+
+            expect(await screen.findByText("2.0 MB / 4.0 MB heap")).toBeInTheDocument();
+
+            act(() => {
+                wsHandlers["server.metrics"]({
+                    server_id: "s1",
+                    cpu_percent: 11,
+                    ram_used_mb: 513,
+                    net_in_bytes: 3,
+                    net_out_bytes: 4,
+                });
+            });
+
+            expect(screen.getByText("2.0 MB / 4.0 MB heap")).toBeInTheDocument();
+            expect(screen.queryByText("JVM heap unavailable")).not.toBeInTheDocument();
         });
     });
 });

@@ -166,28 +166,32 @@ export default function ServerDetailPage() {
         const unsubSnapshot = subscribe("snapshot", (payload) => {
             const mine = payload.servers?.find((s) => s.id === id);
             if (mine?.metrics) {
-                setLiveMetrics({
+                // JVM heap is sampled on a slower cadence than container metrics, so a sample
+                // without heap is not "no data" — keep the last known value so the card does not
+                // flicker between samples. Cleared explicitly on STOPPED (see status handler).
+                setLiveMetrics((prev) => ({
                     cpuPercent: mine.metrics.cpu_percent,
                     ramUsedMb: mine.metrics.ram_used_mb,
                     netInBytes: mine.metrics.net_in_bytes,
                     netOutBytes: mine.metrics.net_out_bytes,
-                    heapUsedBytes: mine.metrics.heap_used_bytes ?? null,
-                    heapMaxBytes: mine.metrics.heap_max_bytes ?? null,
-                    nonHeapUsedBytes: mine.metrics.non_heap_used_bytes ?? null,
-                });
+                    heapUsedBytes: mine.metrics.heap_used_bytes ?? prev?.heapUsedBytes ?? null,
+                    heapMaxBytes: mine.metrics.heap_max_bytes ?? prev?.heapMaxBytes ?? null,
+                    nonHeapUsedBytes: mine.metrics.non_heap_used_bytes ?? prev?.nonHeapUsedBytes ?? null,
+                }));
             }
         });
         const unsubMetrics = subscribe("server.metrics", (payload) => {
             if (payload.server_id !== id) return;
-            setLiveMetrics({
+            // See snapshot handler: retain the last heap sample on ticks that carry none.
+            setLiveMetrics((prev) => ({
                 cpuPercent: payload.cpu_percent,
                 ramUsedMb: payload.ram_used_mb,
                 netInBytes: payload.net_in_bytes,
                 netOutBytes: payload.net_out_bytes,
-                heapUsedBytes: payload.heap_used_bytes ?? null,
-                heapMaxBytes: payload.heap_max_bytes ?? null,
-                nonHeapUsedBytes: payload.non_heap_used_bytes ?? null,
-            });
+                heapUsedBytes: payload.heap_used_bytes ?? prev?.heapUsedBytes ?? null,
+                heapMaxBytes: payload.heap_max_bytes ?? prev?.heapMaxBytes ?? null,
+                nonHeapUsedBytes: payload.non_heap_used_bytes ?? prev?.nonHeapUsedBytes ?? null,
+            }));
         });
         const unsubStatus = subscribe("server.status", (payload) => {
             if (payload.server_id !== id) return;
