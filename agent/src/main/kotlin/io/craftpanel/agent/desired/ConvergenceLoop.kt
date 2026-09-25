@@ -1,5 +1,6 @@
 package io.craftpanel.agent.desired
 
+import io.craftpanel.agent.docker.PlayerCountProbe
 import io.craftpanel.agent.docker.SpecDiff
 import io.craftpanel.agent.docker.WatcherGate
 import io.craftpanel.agent.grpc.AgentOutbound
@@ -99,6 +100,12 @@ class ConvergenceLoop(
                     forceRestart = env.forceRestart,
                     force = env.force,
                     noRestart = env.noRestart,
+                    jvmMetricsEnabled = if (env.hasJvmMetrics()) env.jvmMetrics.enabled else state.jvmMetricsEnabled,
+                    jvmMetricsPollIntervalSeconds = if (env.hasJvmMetrics()) {
+                        env.jvmMetrics.pollIntervalSeconds
+                    } else {
+                        state.jvmMetricsPollIntervalSeconds
+                    },
                     restartCount = if (userStart) 0 else state.restartCount,
                     windowStartEpochMillis = if (userStart) null else state.windowStartEpochMillis
                 )
@@ -148,14 +155,37 @@ class ConvergenceLoop(
     }
 
     /**
-     * Whether the agent should attach to this server's JVM and emit heap metrics. Read from the
-     * applied spec (the value the running container was created with); falls back to the desired
-     * spec before convergence. Defaults to true so a server with no known spec is still sampled.
+     * Input for the player-count probe, or null when the server cannot be probed: mc-monitor speaks
+     * the Java TCP status protocol, so UDP servers are skipped, as are servers with no known spec.
+     * Prefers the applied spec so the port/flag match the running container.
      */
-    fun jvmMetricsEnabled(serverId: String): Boolean {
+    fun playerCountProbe(serverId: String): PlayerCountProbe? {
         val state = store.get(serverId)
-        val spec = state.appliedSpec ?: state.spec ?: return true
-        return spec.jvmMetricsEnabled
+        val spec = state.appliedSpec ?: state.spec ?: return null
+        if (spec.containerProtocol.equals("UDP", ignoreCase = true)) return null
+        return PlayerCountProbe(
+            internalListenPort = spec.internalListenPort,
+            useProxyProtocol = spec.proxyProtocol
+        )
+    }
+
+    /**
+     * JVM-metrics policy for this server, or null when this agent does not own it. Ownership is
+     * "master has pushed a desired state for this server to this node": a container visible in the
+     * Docker daemon but absent from the store belongs to another node (two agents sharing one daemon,
+     * as the system tests do) and must not be sampled — the per-server toggle was addressed to its
+     * real owner.
+     *
+     * Read live from the desired state (not the applied spec), so toggling it or retuning the interval
+     * takes effect on the next tick without recreating the container.
+     */
+    fun jvmMetricsPolicy(serverId: String): JvmMetricsPolicy? {
+        if (!store.contains(serverId)) return null
+        val state = store.get(serverId)
+        return JvmMetricsPolicy(
+            enabled = state.jvmMetricsEnabled,
+            pollIntervalSeconds = state.jvmMetricsPollIntervalSeconds
+        )
     }
 
     /**

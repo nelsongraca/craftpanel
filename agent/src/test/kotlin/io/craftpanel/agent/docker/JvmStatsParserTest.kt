@@ -41,6 +41,33 @@ class JvmStatsParserTest :
             parsed.nonHeapUsedBytes shouldBe 8192L * 1024
         }
 
+        test("parseHeapInfo sums Serial GC's DefNew/Tenured labels (JDK 25 jcmd format)") {
+            val output = """
+                Connected to remote JVM
+                JVM response code = 0
+                DefNew     total 2432K, used 1268K [0x00000000f8000000, 0x00000000f82a0000, 0x00000000faaa0000)
+                 eden space 2176K,  49% used [0x00000000f8000000, 0x00000000f810f778, 0x00000000f8220000)
+                 from space 256K,  71% used [0x00000000f8260000, 0x00000000f828dbd0, 0x00000000f82a0000)
+                 to   space 256K,   0% used [0x00000000f8220000, 0x00000000f8220000, 0x00000000f8260000)
+                Tenured    total 5504K, used 2330K [0x00000000faaa0000, 0x00000000fb000000, 0x0000000100000000)
+                 the space 5504K,  42% used [0x00000000faaa0000, 0x00000000faccb7c0, 0x00000000faccb7c0, 0x00000000fb000000)
+                Connected to remote JVM
+                JVM response code = 0
+                Metaspace        used 3320K, committed 3456K, reserved 1114112K
+                 class space     used 231K, committed 320K, reserved 1048576K
+            """.trimIndent()
+
+            val parsed = JvmStatsParser.parseHeapInfo(output)!!
+            parsed.heapUsedBytes shouldBe (1268L + 2330L) * 1024
+            parsed.nonHeapUsedBytes shouldBe 3320L * 1024
+        }
+
+        test("parseHeapInfo parses Parallel GC's PSYoungGen/ParOldGen labels") {
+            val output = " PSYoungGen      total 1536K, used 512K [0x0, 0x1)\n" +
+                " ParOldGen       total 4096K, used 1024K [0x1, 0x2)"
+            JvmStatsParser.parseHeapInfo(output)!!.heapUsedBytes shouldBe (512L + 1024L) * 1024
+        }
+
         test("parseHeapInfo returns null when no heap line is present") {
             JvmStatsParser.parseHeapInfo("command not found: jcmd") shouldBe null
         }
@@ -52,43 +79,47 @@ class JvmStatsParserTest :
             parsed.nonHeapUsedBytes shouldBe 0L
         }
 
-        // ── parseJstatMax ───────────────────────────────────────────────────
+        // ── parseMaxHeapSize (jattach printflag MaxHeapSize) ─────────────────
 
-        test("parseJstatMax sums the heap capacity columns by header name") {
-            val header = " S0C    S1C    S0U    S1U      EC       EU        OC         OU       MC     MU    CCSC   CCSU   YGC     YGCT    FGC    FGCT     CGC    CGCT     GCT"
-            val data = " 1024.0 1024.0 512.0  0.0   524288.0 262144.0 1048576.0  524288.0  40960.0 39936.0 5120.0 4864.0     10    0.200   0      0.000    2      0.010     0.210"
-
-            // (1024 + 1024 + 524288 + 1048576) KB
-            JvmStatsParser.parseJstatMax("$header\n$data") shouldBe (1024L + 1024L + 524288L + 1048576L) * 1024
+        test("parseMaxHeapSize reads the -XX:MaxHeapSize value in bytes") {
+            JvmStatsParser.parseMaxHeapSize("-XX:MaxHeapSize=4294967296") shouldBe 4294967296L
         }
 
-        test("parseJstatMax only reads the first data row, ignoring the totals row") {
-            val header = "S0C S1C EC OC"
-            val data = "100.0 100.0 1000.0 2000.0"
-            val totals = "999999.0 999999.0 999999.0 999999.0"
-            JvmStatsParser.parseJstatMax("$header\n$data\n$totals") shouldBe (100L + 100L + 1000L + 2000L) * 1024
+        test("parseMaxHeapSize accepts surrounding whitespace and extra lines") {
+            val output = """
+                Attaching to process 1
+                -XX:MaxHeapSize=2147483648
+            """.trimIndent()
+            JvmStatsParser.parseMaxHeapSize(output) shouldBe 2147483648L
         }
 
-        test("parseJstatMax returns null on empty output") {
-            JvmStatsParser.parseJstatMax("") shouldBe null
+        test("parseMaxHeapSize returns null on empty output") {
+            JvmStatsParser.parseMaxHeapSize("") shouldBe null
         }
 
-        test("parseJstatMax returns null when header and data widths differ") {
-            JvmStatsParser.parseJstatMax("S0C S1C EC OC\n1.0 2.0") shouldBe null
+        test("parseMaxHeapSize returns null when the flag is absent") {
+            JvmStatsParser.parseMaxHeapSize("command not found: jattach") shouldBe null
         }
 
-        test("parseJstatMax returns null when no capacity columns are present") {
-            JvmStatsParser.parseJstatMax("YGC YGCT\n10 0.2") shouldBe null
+        test("parseMaxHeapSize returns null for a non-positive value") {
+            JvmStatsParser.parseMaxHeapSize("-XX:MaxHeapSize=0") shouldBe null
         }
 
-        test("parseJstatMax returns null when all capacities are zero") {
-            JvmStatsParser.parseJstatMax("S0C S1C EC OC\n0.0 0.0 0.0 0.0") shouldBe null
+        test("MAX_HEAP_MARKER splits the probe output into heap and max sections") {
+            val output = " garbage-first heap   total 1048576K, used 524288K [0x0, 0x1)\n" +
+                JvmStatsParser.MAX_HEAP_MARKER + "\n-XX:MaxHeapSize=4294967296"
+            JvmStatsParser.parseHeapInfo(output.substringBefore(JvmStatsParser.MAX_HEAP_MARKER))!!
+                .heapUsedBytes shouldBe 524288L * 1024
+            JvmStatsParser.parseMaxHeapSize(
+                output.substringAfter(JvmStatsParser.MAX_HEAP_MARKER, "")
+            ) shouldBe 4294967296L
         }
 
-        test("parseJstatMax ignores permanent-generation columns (non-heap)") {
-            // Includes PC/PU which must NOT be counted toward the heap max.
-            val header = "S0C S1C EC OC PC PU"
-            val data = "0.0 0.0 1024.0 2048.0 5120.0 4864.0"
-            JvmStatsParser.parseJstatMax("$header\n$data") shouldBe (1024L + 2048L) * 1024
+        test("JATTACH_PROBE_SCRIPT emits the marker and both jattach invocations") {
+            JvmStatsParser.JATTACH_PROBE_SCRIPT.contains("jattach") shouldBe true
+            JvmStatsParser.JATTACH_PROBE_SCRIPT.contains(JvmStatsParser.MAX_HEAP_MARKER) shouldBe true
+            JvmStatsParser.JATTACH_PROBE_SCRIPT.contains("GC.heap_info") shouldBe true
+            JvmStatsParser.JATTACH_PROBE_SCRIPT.contains("VM.metaspace") shouldBe true
+            JvmStatsParser.JATTACH_PROBE_SCRIPT.contains("MaxHeapSize") shouldBe true
         }
     })

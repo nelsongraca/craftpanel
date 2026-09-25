@@ -5,16 +5,22 @@ import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Frame
 import com.github.dockerjava.api.model.Statistics
 import com.google.protobuf.timestamp
-import io.craftpanel.agent.mcstatus.McStatusClient
 import io.craftpanel.proto.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
 import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-open class MetricsCollector(private val docker: DockerClient, private val craftpanelNetwork: String = "", var mcRouterContainerName: String = "") {
+open class MetricsCollector(private val docker: DockerClient) {
 
     private val log = LoggerFactory.getLogger(MetricsCollector::class.java)
 
@@ -125,109 +131,110 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
     /**
      * Samples the server's JVM heap (used/max) and non-heap usage from inside its container.
      *
-     * Best-effort and nullable: returns null when the container is not running, is not a JVM
-     * server (e.g. PicoLimbo), or the JDK tooling is unavailable/fails. Never throws and never
-     * zeroes a sample — an absent value means "no data", so history is not polluted with fake dips.
+     * Uses the `jattach` utility bundled in the itzg images (installed via apk/apt). jattach speaks
+     * the JVM dynamic-attach mechanism over a UNIX socket inside the container, so no network port
+     * is involved — it works on the isolated server network and needs only a JRE, not a JDK.
      *
-     * Reads syscalls-less via `jcmd GC.heap_info` (used + non-heap) and `jstat -gc` (heap max).
+     * Best-effort and nullable: returns null when the container is not running, has no JVM (e.g.
+     * PicoLimbo), or is not attachable (non-HotSpot runtime, attach disabled). Never throws and never
+     * zeroes a sample — an absent value means "no data", so history is not polluted with fake dips.
      */
     fun collectJvmStats(containerId: String): JvmStats? = runCatching {
-        val pid = containerPid(containerId) ?: return null
-
-        val heapInfo = execCapture(containerId, "jcmd", pid.toString(), "GC.heap_info")
-            ?.let { JvmStatsParser.parseHeapInfo(it) } ?: return null
-        val heapMax = execCapture(containerId, "jstat", "-gc", pid.toString())
-            ?.let { JvmStatsParser.parseJstatMax(it) } ?: return null
-
+        // One exec per sample: resolve the in-container JVM pid, then read heap usage and the -Xmx
+        // ceiling in the same shell. The marker separates the two outputs for the parser.
+        val output = execCapture(containerId, listOf("sh", "-c", JvmStatsParser.JATTACH_PROBE_SCRIPT))
+        if (output.isNullOrBlank()) {
+            // No JVM in the container (e.g. PicoLimbo) or the probe produced nothing — not an error.
+            log.debug("JVM probe returned no output for $containerId")
+            return null
+        }
+        val heap = JvmStatsParser.parseHeapInfo(output.substringBefore(JvmStatsParser.MAX_HEAP_MARKER))
+        if (heap == null) {
+            log.warn("Unrecognised JVM heap format for $containerId: {}", output.take(200))
+            return null
+        }
+        val heapMax = JvmStatsParser.parseMaxHeapSize(output.substringAfter(JvmStatsParser.MAX_HEAP_MARKER, ""))
+        if (heapMax == null) {
+            log.warn("JVM probe could not parse MaxHeapSize for $containerId: {}", output.take(200))
+            return null
+        }
+        log.debug(
+            "JVM sample for $containerId: heapUsed={} heapMax={} nonHeap={}",
+            heap.heapUsedBytes,
+            heapMax,
+            heap.nonHeapUsedBytes
+        )
         jvmStats {
-            heapUsedBytes = heapInfo.heapUsedBytes
+            heapUsedBytes = heap.heapUsedBytes
             heapMaxBytes = heapMax
-            nonHeapUsedBytes = heapInfo.nonHeapUsedBytes
+            nonHeapUsedBytes = heap.nonHeapUsedBytes
         }
     }.getOrElse {
-        log.debug("Failed to collect JVM stats for $containerId: ${it.message}")
+        log.warn("Failed to collect JVM stats for $containerId: ${it.message}")
         null
     }
 
     /**
-     * Container's main PID from `docker inspect`, or null when not running / unknown.
-     *
-     * ponytail: assumes container PID 1 is the JVM. True for the itzg images, whose entrypoint
-     * `exec`s java (the init script is replaced, not forked). If a future image wraps java in a
-     * non-execing supervisor this PID would be the wrapper, and `jcmd` would miss the JVM —
-     * upgrade path: parse `jcmd` with no pid (it lists attachable JVMs) and pick the MC one.
+     * Probes the container for its player list by running the image's bundled `mc-monitor` inside
+     * it: `mc-monitor status --json --host localhost --port <internalListenPort>`. Network-independent
+     * — the probe runs in the container's own namespace and never involves mc-router or the Docker
+     * network layout. [useProxy] adds `--use-proxy` for proxies whose listener expects the HAProxy
+     * PROXY protocol.
      */
-    private fun containerPid(containerId: String): Int? = runCatching {
-        docker.inspectContainerCmd(containerId)
-            .exec().state?.pid
-            ?.takeIf { it > 0 }
-    }.getOrNull()
+    fun collectPlayerCount(serverId: String, containerId: String, internalListenPort: Int, useProxy: Boolean): PlayerUpdate? {
+        val args = buildList {
+            add("mc-monitor")
+            add("status")
+            add("--json")
+            add("--host")
+            add("localhost")
+            add("--port")
+            add(internalListenPort.toString())
+            add("--timeout")
+            add("3s")
+            if (useProxy) add("--use-proxy")
+        }
+        val text = execCapture(containerId, args) ?: return null
+        val status = parseMcMonitorStatus(text) ?: return null
+        val now = Instant.now()
+        return playerUpdate {
+            this.serverId = serverId
+            playerCount = status.count
+            playerNames.addAll(status.names)
+            recordedAt = timestamp {
+                seconds = now.epochSecond
+                nanos = now.nano
+            }
+        }
+    }
 
-    /**
-     * Runs a command in the container and captures stdout as text, or null on any failure/timeout.
-     * Detached-from-attach semantics: attach stdout+stderr, wait for completion with a bounded
-     * timeout so a hung exec can never stall the metrics tick.
-     */
-    private fun execCapture(containerId: String, vararg cmd: String): String? {
-        val execId = runCatching {
-            docker.execCreateCmd(containerId)
-                .withCmd(*cmd)
-                .withAttachStdout(true)
-                .withAttachStderr(true)
-                .exec().id
-        }.getOrNull() ?: return null
-
+    /** Runs [args] inside [containerId] and returns stdout, or null on failure/timeout. */
+    private fun execCapture(containerId: String, args: List<String>, timeoutSeconds: Long = 5): String? = runCatching {
+        val execId = docker.execCreateCmd(containerId)
+            .withAttachStdout(true)
+            .withCmd(*args.toTypedArray())
+            .exec().id
+        val out = ByteArrayOutputStream()
         val latch = CountDownLatch(1)
-        val buf = StringBuilder()
         docker.execStartCmd(execId)
             .exec(object : ResultCallback.Adapter<Frame>() {
                 override fun onNext(frame: Frame) {
-                    buf.append(String(frame.payload, Charsets.UTF_8))
+                    out.write(frame.payload)
                 }
 
-                override fun onComplete() = latch.countDown()
-                override fun onError(t: Throwable) = latch.countDown()
+                override fun onComplete() {
+                    latch.countDown()
+                }
+
+                override fun onError(t: Throwable) {
+                    latch.countDown()
+                }
             })
-        if (!latch.await(5, TimeUnit.SECONDS)) return null
-        return buf.toString()
-    }
-
-    /**
-     * Pings the MC server for its player list. [routerIp] and [routingHost] are resolved once per
-     * metrics cycle by the caller (see [getMcRouterIp] and [RunningContainer.routingHost]) so this
-     * does not issue a Docker inspect per server.
-     */
-    fun collectPlayerCount(serverId: String, routerIp: String, routingHost: String): PlayerUpdate? {
-        return runCatching {
-            val result = McStatusClient.ping(routerIp, serverAddress = routingHost) ?: return null
-            val now = Instant.now()
-            playerUpdate {
-                this.serverId = serverId
-                playerCount = result.playerCount
-                playerNames.addAll(result.playerNames)
-                recordedAt = timestamp {
-                    seconds = now.epochSecond
-                    nanos = now.nano
-                }
-            }
-        }.getOrElse {
-            log.warn("Failed to collect player count for server $serverId: ${it.message}")
-            null
-        }
-    }
-
-    fun getMcRouterIp(): String? {
-        if (mcRouterContainerName.isEmpty()) return null
-        val networks = runCatching {
-            docker.inspectContainerCmd(mcRouterContainerName)
-                .exec().networkSettings?.networks
-        }.getOrNull() ?: return null
-        val net = if (craftpanelNetwork.isNotEmpty()) {
-            networks[craftpanelNetwork] ?: networks.values.firstOrNull()
-        } else {
-            networks.values.firstOrNull()
-        }
-        return net?.ipAddress?.takeIf { it.isNotBlank() }
+        if (!latch.await(timeoutSeconds, TimeUnit.SECONDS)) return null
+        out.toString(Charsets.UTF_8.name())
+    }.getOrElse {
+        log.debug("container exec failed for $containerId: ${it.message}")
+        null
     }
 
     fun collectCapacity(): Pair<Int, Int> {
@@ -350,6 +357,30 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
                 )
         }
 }
+
+/** Resolved per-server input for a player-count probe: the internal port and PROXY-protocol flag. */
+data class PlayerCountProbe(val internalListenPort: Int, val useProxyProtocol: Boolean)
+
+/** Player count + sample parsed from `mc-monitor status --json`. */
+internal data class PlayerStatus(val count: Int, val names: List<String>)
+
+/**
+ * Parses `mc-monitor status --json` → `server_info.players`. The sample key is capitalised
+ * (`Sample`) because mc-monitor re-marshals the Go `Players.Sample` field, which has no json tag;
+ * the raw server response uses lowercase `sample`, so both are accepted. A null/absent sample means
+ * "no names". Returns null when the payload is not a valid status response.
+ */
+internal fun parseMcMonitorStatus(json: String): PlayerStatus? = runCatching {
+    val players = Json.parseToJsonElement(json).jsonObject
+        .get("server_info")?.jsonObject
+        ?.get("players")?.jsonObject ?: return null
+    val online = players["online"]?.jsonPrimitive?.intOrNull ?: return null
+    val sample = players["Sample"] ?: players["sample"]
+    val names = (sample as? JsonArray)
+        ?.mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.contentOrNull }
+        ?: emptyList()
+    PlayerStatus(online, names)
+}.getOrNull()
 
 /**
  * Normalizes host-core CPU consumption to a 0–100 percentage of what the container is allowed to use.

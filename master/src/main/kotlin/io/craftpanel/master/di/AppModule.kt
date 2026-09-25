@@ -178,7 +178,8 @@ val appModule = module {
             extraPortRepository = get(),
             imagesProvider = { settingsProvider.images() },
             containerNamePrefix = get(named("containerPrefix")),
-            restartBudgetProvider = budgetProvider
+            restartBudgetProvider = budgetProvider,
+            jvmMetricsPollIntervalProvider = { settingsProvider.current().jvmMetricsPollIntervalSeconds }
         )
     }
     single {

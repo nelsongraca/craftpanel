@@ -116,6 +116,7 @@ The UI combines both — showing the server's live status alongside a migration 
 | `container_protocol` | VARCHAR(4)           | `TCP` or `UDP`. `UDP` produces UDP host-port bindings only and skips mc-router labels (mc-router is TCP-only)                                                    |
 | `disable_healthcheck` | BOOLEAN             | When `true`, itzg runs with `DISABLE_HEALTHCHECK=true`; default `false`                                                                                           |
 | `force_redownload`   | BOOLEAN              | When `true`, itzg re-downloads the server jar on each start (`FORCE_REDOWNLOAD=true`); default `false`                                                           |
+| `jvm_metrics_enabled` | BOOLEAN             | Whether the agent samples this server's JVM heap via `jattach`; default `true`. Carried in the desired-state envelope (not the container spec), so toggling it never recreates the server |
 | `node_id`            | UUID                 | FK → `nodes`, RESTRICT — server must be migrated before node decommission                                                                                        |
 | `network_id`         | UUID                 | FK → `server_networks`, SET NULL — nullable                                                                                                                      |
 | `desired_status`     | VARCHAR(10)          | Master's intent: `RUNNING` or `STOPPED`; `NULL` = unset. Drives the read-time status synthesis                                                                   |
@@ -136,7 +137,7 @@ The UI combines both — showing the server's live status alongside a migration 
 
     The mc-router label `mc-router.host` is always the **comma-joined** list of all available hostnames (`[managedHostname, customHostname]`, nulls filtered). Both hostnames can route simultaneously.
 
-| `last_player_count`       | INT                  | Last observed player count from Minecraft query protocol; refreshed every 60 s; `NULL` when unknown                                                   |
+| `last_player_count`       | INT                  | Last observed player count from the agent's `mc-monitor` probe; refreshed every metrics poll (default 5 s); `NULL` when unknown                        |
 | `last_player_names`       | VARCHAR(1000)        | Comma-separated string of online player names; `NULL` when unknown                                                                                    |
 | `last_player_update`      | TIMESTAMPTZ          | Timestamp of the most recent player data refresh; `NULL` if never polled                                                                              |
 | `last_seen_at`       | TIMESTAMPTZ          | Timestamp of last successful health check from agent                                                                                                             |
@@ -185,6 +186,9 @@ Per-container resource snapshots sourced from the Docker Stats API, collected by
 | `net_out_bytes`   | BIGINT       | Bytes sent since last snapshot                                  |
 | `block_in_bytes`  | BIGINT       | Cumulative bytes read from block devices since container start  |
 | `block_out_bytes` | BIGINT       | Cumulative bytes written to block devices since container start |
+| `heap_used_bytes` | BIGINT       | JVM heap in use, from the `jattach` probe; `NULL` when no sample this tick (JVM metrics disabled, non-JVM server, or not attachable) |
+| `heap_max_bytes`  | BIGINT       | JVM heap ceiling (effective `-Xmx`); `NULL` when no sample      |
+| `non_heap_used_bytes` | BIGINT   | JVM non-heap (metaspace) in use; `NULL` when no sample          |
 
 **Index:** `(server_id, recorded_at DESC)`
 

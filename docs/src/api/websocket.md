@@ -104,7 +104,7 @@ Fired when a server's runtime status changes.
 
 #### `server.players`
 
-Fired when the player count or player list changes. Refreshed every 60 seconds by master from the Minecraft query protocol.
+Fired when the player count or player list changes. Refreshed every metrics poll (`METRICS_POLL_INTERVAL_SECONDS`, default 5 s) from the agent's `mc-monitor` probe inside the container.
 
 ```json
 {

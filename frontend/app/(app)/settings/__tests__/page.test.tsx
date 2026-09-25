@@ -42,6 +42,7 @@ const defaultSettings = {
         default_port_range_end: 25575,
         restart_max_attempts: 3,
         restart_window_seconds: 300,
+        jvm_metrics_poll_interval_seconds: 45,
         rate_limit_login_per_minute: 20,
         rate_limit_refresh_per_minute: 10,
         image_minecraft: "itzg/minecraft-server",

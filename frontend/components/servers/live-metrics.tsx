@@ -15,7 +15,7 @@ type LiveMetrics = {
     heapMaxBytes?: number | null;
     nonHeapUsedBytes?: number | null;
 };
-type LivePlayers = { count: number; list: string[] };
+type LivePlayers = {count: number; list: string[]};
 
 function cpuColorOf(liveMetrics: LiveMetrics | null): string {
     if (liveMetrics && liveMetrics.cpuPercent > 85) return "text-error";
@@ -25,11 +25,11 @@ function cpuColorOf(liveMetrics: LiveMetrics | null): string {
 
 /** Full-width summary strip: the four at-a-glance stat cards. */
 export function LiveMetricsStatCards({
-                                         liveMetrics,
-                                         livePlayers,
-                                         server,
-                                         node,
-                                     }: {
+    liveMetrics,
+    livePlayers,
+    server,
+    node,
+}: {
     liveMetrics: LiveMetrics | null;
     livePlayers: LivePlayers | null;
     server: Server;
@@ -39,23 +39,23 @@ export function LiveMetricsStatCards({
     const cpuColor = cpuColorOf(liveMetrics);
 
     return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             <StatCard label="Players Online">
                 {livePlayers ? (
                     <>
-                        <p className="font-mono text-[20px] text-text-primary leading-none">{livePlayers.count}</p>
+                        <p className="font-mono text-[20px] leading-none text-text-primary">{livePlayers.count}</p>
                         <p className="font-mono text-xs text-text-muted">online now</p>
                     </>
                 ) : (
                     <>
-                        <p className="font-mono text-[20px] text-text-muted leading-none">{"-"}</p>
+                        <p className="font-mono text-[20px] leading-none text-text-muted">{"-"}</p>
                         <p className="text-xs text-text-muted">awaiting data</p>
                     </>
                 )}
             </StatCard>
 
             <StatCard label="RAM Usage">
-                <RamBarInline usedMb={liveMetrics?.ramUsedMb ?? null} totalMb={server.memory_mb}/>
+                <RamBarInline usedMb={liveMetrics?.ramUsedMb ?? null} totalMb={server.memory_mb} />
             </StatCard>
 
             <StatCard label="JVM Heap">
@@ -75,7 +75,7 @@ export function LiveMetricsStatCards({
                     </>
                 ) : (
                     <>
-                        <p className="font-mono text-[20px] text-text-muted leading-none">{"-"}%</p>
+                        <p className="font-mono text-[20px] leading-none text-text-muted">{"-"}%</p>
                         <p className="font-mono text-xs text-text-muted">{fmtCpuLimit(server.cpu_limit_millicores)}</p>
                     </>
                 )}
@@ -83,14 +83,12 @@ export function LiveMetricsStatCards({
 
             <StatCard label="Status">
                 <span
-                    className={`self-start text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
+                    className={`self-start rounded px-2 py-0.5 font-heading text-xs font-bold tracking-wider uppercase ${serverStatusClass(sStatus)}`}
                 >
                     {serverStatusLabel(sStatus)}
                 </span>
                 {node?.last_seen_at && (
-                    <p className="text-xs text-text-muted">
-                        last seen {timeAgo(node.last_seen_at)}
-                    </p>
+                    <p className="text-xs text-text-muted">last seen {timeAgo(node.last_seen_at)}</p>
                 )}
             </StatCard>
         </div>
@@ -98,23 +96,15 @@ export function LiveMetricsStatCards({
 }
 
 /** The detailed live-metrics card (CPU/RAM/network), placed in the info column. */
-export function LiveMetricsCard({
-                                    liveMetrics,
-                                    server,
-                                }: {
-    liveMetrics: LiveMetrics | null;
-    server: Server;
-}) {
+export function LiveMetricsCard({liveMetrics, server}: {liveMetrics: LiveMetrics | null; server: Server}) {
     const cpuColor = cpuColorOf(liveMetrics);
 
     return (
-        <div className="bg-surface border border-border rounded p-4">
-            <div className="flex items-center justify-between mb-4">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
-                    Live Metrics
-                </p>
+        <div className="rounded border border-border bg-surface p-4">
+            <div className="mb-4 flex items-center justify-between">
+                <p className="font-heading text-xs font-bold tracking-widest text-text-muted uppercase">Live Metrics</p>
                 {!liveMetrics && (
-                    <span className="text-xs font-heading text-text-muted italic">awaiting data{"\u2026"}</span>
+                    <span className="font-heading text-xs text-text-muted italic">awaiting data{"\u2026"}</span>
                 )}
             </div>
             <div className="space-y-3">
@@ -126,23 +116,23 @@ export function LiveMetricsCard({
                     },
                     {
                         label: "RAM",
-                        value: liveMetrics
-                            ? `${fmtMb(liveMetrics.ramUsedMb)} / ${fmtMb(server.memory_mb)}`
-                            : "-",
+                        value: liveMetrics ? `${fmtMb(liveMetrics.ramUsedMb)} / ${fmtMb(server.memory_mb)}` : "-",
                         color: "text-text-primary",
                     },
                     {
                         label: "JVM Heap",
-                        value: liveMetrics && liveMetrics.heapUsedBytes != null && liveMetrics.heapMaxBytes != null
-                            ? `${fmtBytes(liveMetrics.heapUsedBytes)} / ${fmtBytes(liveMetrics.heapMaxBytes)}`
-                            : "-",
+                        value:
+                            liveMetrics && liveMetrics.heapUsedBytes != null && liveMetrics.heapMaxBytes != null
+                                ? `${fmtBytes(liveMetrics.heapUsedBytes)} / ${fmtBytes(liveMetrics.heapMaxBytes)}`
+                                : "-",
                         color: "text-text-primary",
                     },
                     {
                         label: "JVM Non-Heap",
-                        value: liveMetrics && liveMetrics.nonHeapUsedBytes != null
-                            ? fmtBytes(liveMetrics.nonHeapUsedBytes)
-                            : "-",
+                        value:
+                            liveMetrics && liveMetrics.nonHeapUsedBytes != null
+                                ? fmtBytes(liveMetrics.nonHeapUsedBytes)
+                                : "-",
                         color: "text-text-primary",
                     },
                     {
@@ -157,7 +147,7 @@ export function LiveMetricsCard({
                     },
                 ].map(({label, value, color}) => (
                     <div key={label} className="flex items-center justify-between">
-                        <span className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
+                        <span className="font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
                             {label}
                         </span>
                         <span className={`font-mono text-xs ${liveMetrics ? color : "text-text-muted"}`}>{value}</span>

@@ -19,6 +19,7 @@ type FormState = {
     default_port_range_end: string;
     restart_max_attempts: string;
     restart_window_seconds: string;
+    jvm_metrics_poll_interval_seconds: string;
     rate_limit_login_per_minute: string;
     rate_limit_refresh_per_minute: string;
     image_minecraft: string;
@@ -37,6 +38,7 @@ function toForm(s: Settings): FormState {
         default_port_range_end: String(s.default_port_range_end),
         restart_max_attempts: String(s.restart_max_attempts),
         restart_window_seconds: String(s.restart_window_seconds),
+        jvm_metrics_poll_interval_seconds: String(s.jvm_metrics_poll_interval_seconds),
         rate_limit_login_per_minute: String(s.rate_limit_login_per_minute),
         rate_limit_refresh_per_minute: String(s.rate_limit_refresh_per_minute),
         image_minecraft: s.image_minecraft,
@@ -119,6 +121,7 @@ export default function SettingsPage() {
             default_port_range_end: parseInt(form.default_port_range_end, 10) || undefined,
             restart_max_attempts: parseInt(form.restart_max_attempts, 10),
             restart_window_seconds: parseInt(form.restart_window_seconds, 10) || undefined,
+            jvm_metrics_poll_interval_seconds: parseInt(form.jvm_metrics_poll_interval_seconds, 10) || undefined,
             rate_limit_login_per_minute: parseInt(form.rate_limit_login_per_minute, 10) || undefined,
             rate_limit_refresh_per_minute: parseInt(form.rate_limit_refresh_per_minute, 10) || undefined,
             image_minecraft: form.image_minecraft || undefined,
@@ -325,6 +328,27 @@ export default function SettingsPage() {
                                 />
                                 <p className="mt-1 text-xs text-text-muted">
                                     Rolling window for counting consecutive crashes. Takes effect on master restart.
+                                </p>
+                            </Field>
+                        </section>
+
+                        {/* ── JVM Metrics ─────────────────────────────────────── */}
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
+                                JVM Metrics
+                            </h2>
+                            <Field label="JVM Metrics Poll Interval (seconds)">
+                                <TextField
+                                    type="number"
+                                    min={1}
+                                    value={form.jvm_metrics_poll_interval_seconds}
+                                    onChange={(e) => set("jvm_metrics_poll_interval_seconds", e.target.value)}
+                                    required
+                                />
+                                <p className="mt-1 text-xs text-text-muted">
+                                    How often each running server&apos;s JVM heap is sampled. Applied live via the
+                                    agent; servers with JVM metrics disabled are skipped. A low interval adds an extra
+                                    probe (and a brief JVM safepoint) more often.
                                 </p>
                             </Field>
                         </section>

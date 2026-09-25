@@ -96,12 +96,14 @@ class ContainerOperator(
                 .build()
             val dockerNetwork = spec.dockerNetwork
             if (dockerNetwork.isNotEmpty()) {
-                withContext(Dispatchers.IO) { networkManager.ensureNetwork(dockerNetwork) }
+                withContext(Dispatchers.IO) {
+                    networkManager.ensureNetwork(dockerNetwork)
+                    // Attach mc-router to the network before the container exists, so the routing
+                    // label is reachable the moment the container is up.
+                    networkManager.attachToNetwork(dockerNetwork)
+                }
             }
             withContext(Dispatchers.IO) { containerManager.createContainer(specWithMount) }
-            if (dockerNetwork.isNotEmpty()) {
-                withContext(Dispatchers.IO) { networkManager.attachToNetwork(dockerNetwork) }
-            }
         }
         runCatching {
             val canonicalRoot = serverDataRoot(config.dataBasePath, spec.serverId)

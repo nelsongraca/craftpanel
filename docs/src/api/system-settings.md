@@ -23,6 +23,7 @@ see [Configuration & Secrets](../tech-stack/configuration.md).
     "default_backup_max_count": 10,
     "default_port_range_start": 25570,
     "default_port_range_end": 26070,
+    "jvm_metrics_poll_interval_seconds": 30,
     "dns_domain_suffix": "mc.example.com",
     "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9"
   },
@@ -50,7 +51,7 @@ Partial update — only provided keys are changed. Omitted keys are unchanged.
 
 **Response `200`:** full settings object after update.
 
-**Errors:** `422` if `default_port_range_start` is greater than or equal to `default_port_range_end`. `422` if `metric_retention_days` or `default_backup_max_count` are less than `1`.
+**Errors:** `422` if `default_port_range_start` is greater than or equal to `default_port_range_end`. `422` if `metric_retention_days`, `default_backup_max_count` or `jvm_metrics_poll_interval_seconds` are less than `1`.
 
 ### Available settings
 
@@ -60,5 +61,6 @@ Partial update — only provided keys are changed. Omitted keys are unchanged.
 | `default_backup_max_count` | integer | `10`    | Default backup retention limit for newly created servers                                              |
 | `default_port_range_start` | integer | `25570` | Default start of the host port range applied to new nodes                                             |
 | `default_port_range_end`   | integer | `26070` | Default end of the host port range applied to new nodes                                               |
+| `jvm_metrics_poll_interval_seconds` | integer | `30` | How often the agent samples each running server's JVM heap. Applied live; no master restart |
 | `dns_domain_suffix`        | string  | `null`  | Global parent domain for managed subdomains, e.g. `mc.example.com`                                    |
 | `dns_zone_id`              | string  | `null`  | Global Cloudflare zone ID. Both this and `dns_domain_suffix` are required to expose servers publicly  |

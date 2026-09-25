@@ -24,6 +24,8 @@ class ContainerLifecycle(
     private val imagesProvider: () -> ImagesConfig = { ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy") },
     private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
     private val restartBudgetProvider: () -> Pair<Int, Long> = { 5 to 600L },
+    /** Global JVM-metrics poll interval (seconds), resolved per use so a settings change is live. */
+    private val jvmMetricsPollIntervalProvider: () -> Int = { 30 },
     private val stopTimeout: Duration = 45.seconds,
     private val startTimeout: Duration = 30.seconds,
     private val removeTimeout: Duration = 10.seconds
@@ -126,7 +128,7 @@ class ContainerLifecycle(
             hostPort = server.hostPort
             memoryMb = server.memoryMb
             cpuLimitMillicores = server.cpuLimitMillicores
-            jvmMetricsEnabled = server.jvmMetricsEnabled
+            proxyProtocol = server.proxyProtocol
             dockerNetwork = server.networkId
                 ?.let { names.sharedNetwork(it.toString()) }
                 ?: names.standaloneNetwork(id.toString())
@@ -156,6 +158,10 @@ class ContainerLifecycle(
                 this.restartBudget = restartBudget {
                     this.maxAttempts = maxAttempts
                     this.windowSeconds = windowSeconds
+                }
+                this.jvmMetrics = jvmMetricsPolicy {
+                    this.enabled = server.jvmMetricsEnabled
+                    this.pollIntervalSeconds = jvmMetricsPollIntervalProvider()
                 }
             }
         }

@@ -23,21 +23,12 @@ class ContainerManagerTest :
         // count/absence verifications (exactly 0, exactly N) stay order-independent.
         beforeTest { clearMocks(docker) }
 
-        fun fakeContainer(
-            name: String,
-            state: String,
-            status: String,
-            id: String = "container-id",
-            serverId: String? = "server-id",
-            stopCommand: String? = null,
-            routingHost: String? = null
-        ): Container {
+        fun fakeContainer(name: String, state: String, status: String, id: String = "container-id", serverId: String? = "server-id", stopCommand: String? = null): Container {
             val labelsJson = buildString {
                 append("{")
                 if (serverId != null) {
                     append(""""craftpanel.managed":"true","craftpanel.server.id":"$serverId"""")
                     if (stopCommand != null) append(""","craftpanel.stop.command":"$stopCommand"""")
-                    if (routingHost != null) append(""","mc-router.host":"$routingHost"""")
                 }
                 append("}")
             }
@@ -164,47 +155,6 @@ class ContainerManagerTest :
         test("listRunningContainerIds returns empty list when no containers") {
             stubListRunning(emptyList())
             manager.listRunningContainerIds().size shouldBe 0
-        }
-
-        test("listRunningContainers carries the mc-router.host label as routingHost") {
-            stubListRunning(
-                listOf(
-                    fakeContainer(
-                        name = "/craftpanel-mc",
-                        state = "running",
-                        status = "Up",
-                        serverId = "srv-1",
-                        routingHost = "play.example.com"
-                    )
-                )
-            )
-
-            manager.listRunningContainers()
-                .single().routingHost shouldBe "play.example.com"
-        }
-
-        test("listRunningContainers takes the first entry of a comma-separated mc-router.host label") {
-            stubListRunning(
-                listOf(
-                    fakeContainer(
-                        name = "/craftpanel-mc",
-                        state = "running",
-                        status = "Up",
-                        serverId = "srv-1",
-                        routingHost = "primary.example.com,secondary.example.com"
-                    )
-                )
-            )
-
-            manager.listRunningContainers()
-                .single().routingHost shouldBe "primary.example.com"
-        }
-
-        test("listRunningContainers routingHost is null when the label is absent") {
-            stubListRunning(listOf(fakeContainer(name = "/craftpanel-mc", state = "running", status = "Up", serverId = "srv-1")))
-
-            manager.listRunningContainers()
-                .single().routingHost shouldBe null
         }
 
         // createContainer

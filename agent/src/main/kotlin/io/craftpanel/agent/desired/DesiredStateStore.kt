@@ -30,6 +30,10 @@ data class DesiredState(
     val force: Boolean,
     /** Sticky: suppress crash-restart while desired=RUNNING. */
     val noRestart: Boolean,
+    /** Whether to sample this server's JVM heap (per-server; from the envelope). */
+    val jvmMetricsEnabled: Boolean = true,
+    /** How often to sample the JVM heap (global system setting; from the envelope). */
+    val jvmMetricsPollIntervalSeconds: Int = DEFAULT_JVM_METRICS_POLL_INTERVAL_SECONDS
 ) {
     companion object {
         fun unset(serverId: String) = DesiredState(
@@ -42,7 +46,7 @@ data class DesiredState(
             windowStartEpochMillis = null,
             forceRestart = false,
             force = false,
-            noRestart = false,
+            noRestart = false
         )
     }
 }
@@ -64,6 +68,9 @@ class DesiredStateStore {
     }
 
     fun get(serverId: String): DesiredState = states[serverId] ?: DesiredState.unset(serverId)
+
+    /** True when this agent has a desired state for [serverId] — i.e. master assigned it to this node. */
+    fun contains(serverId: String): Boolean = states.containsKey(serverId)
 
     fun all(): List<DesiredState> = states.values.toList()
 

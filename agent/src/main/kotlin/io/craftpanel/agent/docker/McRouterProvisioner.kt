@@ -1,12 +1,12 @@
 package io.craftpanel.agent.docker
 
-import io.craftpanel.common.DockerLabels
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.InspectContainerResponse
 import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.exception.NotModifiedException
 import com.github.dockerjava.api.model.*
+import io.craftpanel.common.DockerLabels
 import org.slf4j.LoggerFactory
 
 class McRouterProvisioner(private val docker: DockerClient, private val image: String, private val updateOnStart: Boolean, private val networkName: String = "", containerNameOverride: String = "") {
@@ -16,7 +16,12 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
     // One per host, shared by all co-located agents. Override via MCROUTER_CONTAINER_NAME.
     val containerName: String = containerNameOverride.ifBlank { "craftpanel-mc-router" }
 
-    fun ensureRunning() {
+    /**
+     * Ensures the router container exists and is running. Returns true when the router was created,
+     * recreated, or reused from another agent (the caller must then reconcile its network
+     * attachments); false when an existing, healthy router was left as-is.
+     */
+    fun ensureRunning(): Boolean {
         val existing = runCatching {
             docker.inspectContainerCmd(containerName)
                 .exec()
@@ -57,7 +62,7 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
             } else if (existing.state?.running == true) {
                 log.debug("mc-router already running")
                 connectToNetwork(existing.id)
-                return
+                return false
             } else {
                 log.info("mc-router container exists but not running — starting")
                 runCatching {
@@ -66,7 +71,7 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
                 }
                     .onFailure { if (it !is NotModifiedException) throw it }
                 connectToNetwork(existing.id)
-                return
+                return false
             }
         }
 
@@ -125,7 +130,7 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
             if (container.state?.running == true) {
                 log.info("mc-router already running (lost create race)")
                 connectToNetwork(container.id)
-                return
+                return true
             }
             // Exists but not yet started — start it (idempotent) and reuse.
             runCatching {
@@ -135,7 +140,7 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
                 .onFailure { if (it !is NotModifiedException) throw it }
             log.info("mc-router reused after losing create race")
             connectToNetwork(container.id)
-            return
+            return true
         }
         runCatching {
             docker.startContainerCmd(id)
@@ -144,7 +149,7 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
             if (e is NotModifiedException) {
                 connectToNetwork(id)
                 log.info("mc-router already started (NotModified on start)")
-                return
+                return true
             }
             // Port 25565 may be bound by another mc-router on the same host (co-located agents).
             // Find it and reuse rather than failing — both agents share one host port.
@@ -155,13 +160,14 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
                 if (existing != null) {
                     log.info("mc-router port conflict — reusing existing router ${existing.id}")
                     connectToNetwork(existing.id)
-                    return
+                    return true
                 }
             }
             throw e
         }
         connectToNetwork(id)
         log.info("mc-router provisioned and started")
+        return true
     }
 
     private fun findExistingRouterOnPort(port: Int): InspectContainerResponse? = runCatching {

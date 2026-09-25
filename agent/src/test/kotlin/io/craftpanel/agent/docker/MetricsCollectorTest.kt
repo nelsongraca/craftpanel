@@ -74,4 +74,29 @@ class MetricsCollectorTest :
         test("host core count below one does not divide by zero") {
             normalizeCpuPercent(coresUsed = 0.0, hostCores = 0, cpuLimitMillicores = 0) shouldBe 0.0
         }
+
+        // ── parseMcMonitorStatus ─────────────────────────────────────────────
+
+        test("parseMcMonitorStatus reads count and capital-Sample names") {
+            val json =
+                """{"host":"localhost","port":25565,"server_info":{"version":{"name":"1.21.4","protocol":769},"players":{"max":20,"online":2,"Sample":[{"name":"Steve","id":"x"},{"name":"Alex","id":"y"}]},"description":{"text":"hi"},"favicon":""}}"""
+            val status = parseMcMonitorStatus(json)
+            status?.count shouldBe 2
+            status?.names shouldBe listOf("Steve", "Alex")
+        }
+
+        test("parseMcMonitorStatus accepts a lowercase sample key") {
+            val json = """{"server_info":{"players":{"online":1,"sample":[{"name":"Steve","id":"x"}]}}}"""
+            parseMcMonitorStatus(json)?.names shouldBe listOf("Steve")
+        }
+
+        test("parseMcMonitorStatus treats empty and null samples as no names") {
+            parseMcMonitorStatus("""{"server_info":{"players":{"online":0,"Sample":[]}}}""")?.names shouldBe emptyList()
+            parseMcMonitorStatus("""{"server_info":{"players":{"online":0,"Sample":null}}}""")?.names shouldBe emptyList()
+        }
+
+        test("parseMcMonitorStatus returns null on non-status payloads") {
+            parseMcMonitorStatus("not json") shouldBe null
+            parseMcMonitorStatus("""{"host":"localhost"}""") shouldBe null
+        }
     })

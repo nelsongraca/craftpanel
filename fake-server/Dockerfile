@@ -15,7 +15,7 @@ RUN apk add --no-cache curl && \
 
 FROM eclipse-temurin:25-jre-alpine
 
-RUN apk add --no-cache su-exec && \
+RUN apk add --no-cache su-exec jattach && \
     addgroup -g 1000 minecraft && \
     adduser -u 1000 -G minecraft -S minecraft
 

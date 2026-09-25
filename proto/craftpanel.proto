@@ -363,10 +363,10 @@ message StartContainerCommand {
   // Hard CPU cap in millicores (cores * 1000), applied as Docker `--cpus` (CFS quota).
   // 0 = unlimited (omit the limit). Part of the spec so a change forces a recreate.
   int32 cpu_limit_millicores = 20;
-  // Whether the agent should attach to this server's JVM and emit heap/non-heap metrics.
-  // Per-server, default true. Part of the spec so a change forces a recreate (the agent
-  // reads it back from the applied spec, mirroring cpu_limit_millicores).
-  bool jvm_metrics_enabled = 21;
+  // The server's PROXY-protocol listener setting (Velocity `advanced.haproxy-protocol` /
+  // BungeeCord `listeners[0].proxy_protocol`). The agent reads it to add `--use-proxy` when
+  // probing the container for player counts. Master-owned; never user-editable.
+  bool proxy_protocol = 21;
 }
 
 message ExtraPortBinding {
@@ -484,6 +484,18 @@ message ServerDesiredState {
   // Budget for autonomous crash-restarts (see RestartBudget). Read by the agent on every
   // envelope; a changed budget takes effect immediately.
   RestartBudget restart_budget = 7;
+
+  // JVM heap-metrics policy. Carried on the envelope (not in `spec`) deliberately: toggling or
+  // retuning it must NOT force a recreate, and the agent applies a changed policy immediately.
+  JvmMetricsPolicy jvm_metrics = 8;
+}
+
+// Whether and how often the agent samples a server's JVM heap from inside its container.
+// `enabled` is per-server (servers.jvm_metrics_enabled); `poll_interval_seconds` is a global
+// system setting. Both are read by the agent from the desired-state envelope.
+message JvmMetricsPolicy {
+  bool  enabled = 1;
+  int32 poll_interval_seconds = 2;
 }
 
 message PrepareRsyncReceiveCommand {

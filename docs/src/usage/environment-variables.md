@@ -110,7 +110,7 @@ registration protocol and data-path rules.
 | `HOST_DATA_PATH`                    | No             | value of `DATA_PATH`             | Path **on the host** Docker uses as the bind-mount source. Must be absolute and exist.                          |
 | `SERVERS_BY_NAME_PATH`              | No             | `$DATA_PATH/servers-by-name`     | Root of the human-readable `servers-by-name/<name>` symlink overlay.                                           |
 | `BACKUPS_BY_SERVER_PATH`            | No             | `$DATA_PATH/backups-by-server`   | Root of the `backups-by-server/<name>/<timestamp>.tar.gz` symlink overlay.                                     |
-| `CRAFTPANEL_NETWORK`                | No             | `craftpanel`                     | Docker network shared by the agent, mc-router, and server containers. Must exist before the agent starts.      |
+| `CRAFTPANEL_NETWORK`                | No             | `craftpanel`                     | Docker network shared by the agent, mc-router, and rsync utility containers. Game server containers are **not** on it. Must exist before the agent starts. |
 | `CRAFTPANEL_CONTAINER_PREFIX`       | No             | `craftpanel`                     | Prefix applied to all container/network names this agent creates. Change only for multiple isolated stacks on one daemon. |
 | `NODE_HOSTNAME`                     | No             | auto-detected                    | Overrides the hostname reported to master (useful when the container hostname is an ephemeral ID).             |
 | `NODE_PRIVATE_IP`                   | No             | auto-discovered                  | Overrides the private IP reported to master.                                                                   |

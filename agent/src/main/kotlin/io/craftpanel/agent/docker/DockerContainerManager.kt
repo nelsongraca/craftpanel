@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit
 class DockerContainerManager(
     private val docker: DockerClient,
     private val gate: WatcherGate,
-    private val craftpanelNetwork: String = "",
     private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
     private val pullMaxImageAgeHours: Long = 24
 ) : ContainerManager {
@@ -43,15 +42,17 @@ class DockerContainerManager(
         return docker.listContainersCmd()
             .withShowAll(false)
             .exec()
+            // Own containers only: the label alone would also match another agent's containers when
+            // two agents share a Docker daemon (as the multi-node system tests do), which would make
+            // this agent emit duplicate metrics — and, for JVM metrics, sample a server whose
+            // per-server toggle was addressed to the other node.
+            .filter { it.names.any { n -> names.isManagedContainerName(n.trimStart('/')) } }
             .filter { it.labels.containsKey("craftpanel.server.id") }
             .mapNotNull { container ->
                 val serverId = container.labels["craftpanel.server.id"]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                 RunningContainer(
                     serverId = serverId,
-                    containerId = container.id,
-                    routingHost = container.labels["mc-router.host"]
-                        ?.split(",")
-                        ?.firstOrNull { it.isNotBlank() }
+                    containerId = container.id
                 )
             }
     }
@@ -130,13 +131,13 @@ class DockerContainerManager(
                         // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
                         // `mc-router.host` is the routing hostname; `mc-router.port` is the
                         // container-internal Minecraft port; `mc-router.network` tells mc-router
-                        // which Docker network to dial the backend on (the shared craftpanel
-                        // network both mc-router and this container are attached to). UDP
-                        // backends cannot be proxied by mc-router, so skip the labels.
+                        // which Docker network to dial the backend on (the container's own server
+                        // network, which mc-router is attached to). UDP backends cannot be proxied
+                        // by mc-router, so skip the labels.
                         put("mc-router.host", cmd.publicHostname)
                         put("mc-router.port", cmd.internalListenPort.toString())
-                        if (craftpanelNetwork.isNotEmpty()) {
-                            put("mc-router.network", craftpanelNetwork)
+                        if (cmd.dockerNetwork.isNotEmpty()) {
+                            put("mc-router.network", cmd.dockerNetwork)
                         }
                     }
                     if (cmd.stopCommand.isNotEmpty()) {
@@ -155,9 +156,6 @@ class DockerContainerManager(
             }
             .exec()
 
-        if (craftpanelNetwork.isNotEmpty()) {
-            docker.connectIfAbsent(craftpanelNetwork, response.id)
-        }
         log.info("Created container ${cmd.containerName} (server ${cmd.serverId})")
         return response.id
     }
@@ -380,7 +378,8 @@ class DockerContainerManager(
             labels = config?.labels.orEmpty(),
             networkMode = hostConfig?.networkMode ?: "",
             hostname = config?.hostName ?: "",
-            running = info.state?.running ?: false
+            running = info.state?.running ?: false,
+            networks = info.networkSettings?.networks?.keys.orEmpty()
         )
     }.getOrNull()
 

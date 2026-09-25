@@ -846,43 +846,73 @@ class ConvergenceLoopTest :
             loop.cpuLimitMillicores("srv-1") shouldBe 1000
         }
 
-        // ── JVM metrics toggle lookup ─────────────────────────────────────────
+        // ── JVM metrics policy lookup ─────────────────────────────────────────
 
-        test("jvmMetricsEnabled defaults to true for an unknown server") {
+        test("jvmMetricsPolicy is null for a server this agent does not own") {
             val cm = FakeContainerManager()
             val (_, out) = newOutbound()
             val loop = newLoop(cm, out)
 
-            loop.jvmMetricsEnabled("srv-unknown") shouldBe true
+            loop.jvmMetricsPolicy("srv-unknown") shouldBe null
         }
 
-        test("jvmMetricsEnabled falls back to the desired spec when nothing is applied") {
+        test("jvmMetricsPolicy is read live from the desired-state envelope") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(
+                    desiredRunning(spec = startCmd()).toBuilder()
+                        .setJvmMetrics(
+                            jvmMetricsPolicy {
+                                enabled = false
+                                pollIntervalSeconds = 45
+                            }
+                        )
+                        .build()
+                ).join()
+            }
+
+            loop.jvmMetricsPolicy("srv-1") shouldBe JvmMetricsPolicy(enabled = false, pollIntervalSeconds = 45)
+        }
+
+        test("changing the JVM policy does not alter the container spec (no recreate)") {
             val cm = FakeContainerManager()
             val (_, out) = newOutbound()
             val store = DesiredStateStore()
             val loop = newLoop(cm, out, store = store)
 
-            store.upsert("srv-1") {
-                it.copy(spec = startCmd().toBuilder().setJvmMetricsEnabled(false).build())
+            runBlocking {
+                loop.applyDesired(
+                    desiredRunning(spec = startCmd()).toBuilder()
+                        .setJvmMetrics(
+                            jvmMetricsPolicy {
+                                enabled = true
+                                pollIntervalSeconds = 30
+                            }
+                        )
+                        .build()
+                ).join()
+            }
+            val specBefore = store.get("srv-1").spec
+
+            runBlocking {
+                loop.applyDesired(
+                    desiredRunning(spec = startCmd()).toBuilder()
+                        .setJvmMetrics(
+                            jvmMetricsPolicy {
+                                enabled = false
+                                pollIntervalSeconds = 60
+                            }
+                        )
+                        .build()
+                ).join()
             }
 
-            loop.jvmMetricsEnabled("srv-1") shouldBe false
-        }
-
-        test("jvmMetricsEnabled prefers the applied spec over the desired spec") {
-            val cm = FakeContainerManager()
-            val (_, out) = newOutbound()
-            val store = DesiredStateStore()
-            val loop = newLoop(cm, out, store = store)
-
-            store.upsert("srv-1") {
-                it.copy(
-                    spec = startCmd().toBuilder().setJvmMetricsEnabled(true).build(),
-                    appliedSpec = startCmd().toBuilder().setJvmMetricsEnabled(false).build()
-                )
-            }
-
-            loop.jvmMetricsEnabled("srv-1") shouldBe false
+            // The policy lives on the envelope, not the spec, so the spec is untouched.
+            store.get("srv-1").spec shouldBe specBefore
+            loop.jvmMetricsPolicy("srv-1") shouldBe JvmMetricsPolicy(enabled = false, pollIntervalSeconds = 60)
         }
 
         // ── handler routing ───────────────────────────────────────────────────

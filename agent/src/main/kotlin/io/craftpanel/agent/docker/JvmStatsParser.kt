@@ -1,133 +1,119 @@
 package io.craftpanel.agent.docker
 
 /**
- * Parsed JVM memory figures, in bytes. `max` is the heap ceiling (`-Xmx` effective value), so
- * [heapUsedBytes] / [heapMaxBytes] is the primary "how much of its RAM is the JVM really using"
- * signal — the container's cgroup figure approximates the off-heap remainder.
- */
-data class ParsedJvmStats(val heapUsedBytes: Long, val heapMaxBytes: Long, val nonHeapUsedBytes: Long)
-
-/**
- * Pure parsers for the jcmd/jstat output used to sample a server's JVM from inside its container.
+ * Pure parsers for the `jattach` output used to sample a server's JVM from inside its container.
  * Kept separate from the Docker exec plumbing so they are testable against captured fixtures.
+ *
+ * `jattach` is bundled in the itzg images and is the JRE-compatible equivalent of the JDK's
+ * jcmd/jstat, so the agent never needs a JDK inside the game container.
  */
 object JvmStatsParser {
 
+    /** Separates the `GC.heap_info` block from the `printflag MaxHeapSize` block in probe output. */
+    const val MAX_HEAP_MARKER = "===CRAFTPANEL_MAXHEAP==="
+
     /**
-     * Parses `jcmd <pid> GC.heap_info`. The layout differs by collector:
+     * Shell run inside the container by the probe: resolve the (in-container) JVM pid, then print
+     * `GC.heap_info`, `VM.metaspace` (the heap block no longer carries Metaspace on recent JDKs), and
+     * the `MaxHeapSize` flag, separated by [MAX_HEAP_MARKER].
+     *
+     * PID discovery scans `/proc`, which works on both the Debian-based itzg images and the Alpine
+     * fake-server regardless of whether `pgrep` is installed. The process name is `java` on HotSpot.
+     */
+    val JATTACH_PROBE_SCRIPT: String = """
+        P=""
+        for d in /proc/[0-9]*; do
+          if [ "$(cat "${'$'}d/comm" 2>/dev/null)" = java ]; then P="${'$'}{d#/proc/}"; break; fi
+        done
+        if [ -n "${'$'}P" ]; then
+          jattach "${'$'}P" jcmd GC.heap_info
+          jattach "${'$'}P" jcmd VM.metaspace
+          echo "$MAX_HEAP_MARKER"
+          jattach "${'$'}P" printflag MaxHeapSize
+        fi
+    """.trimIndent()
+
+    /**
+     * Parses the `GC.heap_info` block of the probe output. The layout differs by collector:
      *
      * G1 (the itzg default on modern JDKs, from Aikar flags):
      * ```
-     *  garbage-first heap   total 1048576K, used 524288K [0x..., 0x...)
+     *  garbage-first heap   total 1048576K, committed 524288K, used 123456K [0x..., 0x...)
      *   region size 1024K, 512 young (524288K), 0 survivors (0K)
      *  Metaspace       used 40960K, committed 41984K, reserved 1114112K
      * ```
      *
-     * Serial/Parallel/CMS use generation lines instead:
+     * Serial/Parallel/CMS use generation labels instead — note the labels differ from the classic
+     * `-verbose:gc` names, and `jcmd` reports them as single tokens (JDK 25 shown):
      * ```
-     *  def new generation   total 157248K, used 12345K [...]
-     *  eden space 139776K,  8% used [...]
-     *  tenured generation   total 349568K, used 200000K [...]
-     *  Metaspace       used 40960K, committed 41984K, reserved 1114112K
+     *  DefNew     total 2432K, used 1268K [...]
+     *   eden space 2176K,  49% used [...]
+     *  Tenured    total 5504K, used 2330K [...]
+     * ```
+     * ```
+     *  PSYoungGen      total 1536K, used 512K [...]
+     *  ParOldGen       total 4096K, used 1024K [...]
      * ```
      *
-     * `used` totals are summed across the heap regions; `total` (the live heap size, not the max)
-     * is deliberately NOT used as `max` — `max` is read from `jstat -gc` instead. Returns null when
-     * no heap line is present (not a JVM / unrecognised format).
+     * Rather than enumerate every collector's labels, a heap-region line is recognised as one that
+     * carries both a `total` and a `used <n>[KMG]` figure; sub-space lines show only a `% used` and
+     * are ignored. `used` is summed across the regions. The heap ceiling is read separately from
+     * [parseMaxHeapSize]. Returns null when no heap-region line is present (not a JVM / unknown format).
      */
     fun parseHeapInfo(output: String): HeapInfo? {
         val lines = output.lineSequence()
             .map { it.trim() }
             .toList()
 
-        var heapUsedKb: Long? = null
-        var nonHeapUsedKb: Long? = null
+        var heapUsedBytes: Long? = null
+        var nonHeapUsedBytes: Long? = null
 
-        // G1: "garbage-first heap total <n>K, used <n>K [...]"
         for (line in lines) {
-            if (line.startsWith("garbage-first heap") || line.startsWith("garbage first heap")) {
-                usedKb(line)?.let { heapUsedKb = it }
+            // Region summary: "garbage-first heap total ... used ...", "DefNew total ... used ...",
+            // "PSYoungGen total ... used ...", "par new generation total ... used ...".
+            if (line.contains("total", ignoreCase = true)) {
+                usedBytes(line)?.let { heapUsedBytes = (heapUsedBytes ?: 0L) + it }
             }
-            // Parallel/Shenandoah: "parallel heap" — same total/used shape.
-            if (line.startsWith("parallel heap")) {
-                usedKb(line)?.let { heapUsedKb = it }
-            }
-            // Serial/CMS generation lines carrying total+used.
-            for (prefix in GENERATION_PREFIXES) {
-                if (line.startsWith(prefix) && line.contains(" used ")) {
-                    val used = usedKb(line) ?: continue
-                    heapUsedKb = (heapUsedKb ?: 0L) + used
-                }
-            }
-        }
-
-        // Metaspace (non-heap) — present in most formats.
-        for (line in lines) {
+            // Metaspace (non-heap). Recent JDKs omit it from `GC.heap_info`, so the probe also runs
+            // `VM.metaspace`; both emit the same `Metaspace used <n>K` line this matches.
             if (line.startsWith("Metaspace")) {
-                usedKb(line)?.let { nonHeapUsedKb = it }
+                usedBytes(line)?.let { nonHeapUsedBytes = it }
             }
         }
 
-        val used = heapUsedKb ?: return null
+        val used = heapUsedBytes ?: return null
         return HeapInfo(
-            heapUsedBytes = used * 1024,
-            nonHeapUsedBytes = (nonHeapUsedKb ?: 0L) * 1024
+            heapUsedBytes = used,
+            nonHeapUsedBytes = nonHeapUsedBytes ?: 0L
         )
     }
 
     /**
-     * Parses `jstat -gc <pid>` and returns the heap max in bytes.
-     *
-     * The header is a column of names; the data line is the values in the same order. jstat reports
-     * capacities in KB. Heap max = sum of the generation capacities that make it up:
-     * G1 uses only `S0C S1C EC OC`; the generational collectors add `S0C S1C EC OC` too (the
-     * `PC/PU` permanent/metaspace pair is non-heap and excluded). Because different JDKs emit
-     * different column sets, the parser locates the columns by header name rather than by index.
-     *
-     * Returns null when the output is empty/malformed or no capacity columns are found.
+     * Parses `jattach <pid> printflag MaxHeapSize` and returns the heap ceiling (the effective
+     * `-Xmx`) in bytes. jattach/jinfo print it as `-XX:MaxHeapSize=<bytes>`; a bare numeric value is
+     * also accepted. Returns null when no positive value is present.
      */
-    fun parseJstatMax(output: String): Long? {
-        val lines = output.lineSequence()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .toList()
-        if (lines.size < 2) return null
-
-        val header = lines[0].split(WHITESPACE)
-        val data = lines[1].split(WHITESPACE)
-        if (header.size != data.size) return null
-
-        val byName = header.zip(data)
-            .toMap()
-        val maxKb = HEAP_CAPACITY_COLUMNS.sumOf { col ->
-            byName[col]?.toDoubleOrNull() ?: 0.0
-        }
-        return if (maxKb > 0.0) (maxKb * 1024).toLong() else null
+    fun parseMaxHeapSize(output: String): Long? {
+        val match = MAX_HEAP_SIZE.find(output) ?: return null
+        return match.groupValues[1].toLongOrNull()?.takeIf { it > 0 }
     }
 
     /** Heap-region `used` totals from `GC.heap_info`, plus non-heap metaspace. */
     data class HeapInfo(val heapUsedBytes: Long, val nonHeapUsedBytes: Long)
 
-    /** Extracts the `used <n>K` figure from a heap-info line. */
-    private fun usedKb(line: String): Long? {
-        val idx = line.indexOf("used ")
-        if (idx < 0) return null
-        val rest = line.substring(idx + "used ".length)
-        val token = rest.takeWhile { it.isDigit() }.takeIf { it.isNotEmpty() } ?: return null
-        return token.toLongOrNull()
+    /** Extracts the `used <n>[KMG]` figure from a heap-info line, in bytes. */
+    private fun usedBytes(line: String): Long? {
+        val match = USED.find(line) ?: return null
+        val value = match.groupValues[1].toLongOrNull() ?: return null
+        val multiplier = when (match.groupValues[2].uppercase()) {
+            "M" -> 1024L * 1024
+            "G" -> 1024L * 1024 * 1024
+            else -> 1024L
+        }
+        return value * multiplier
     }
 
-    private val GENERATION_PREFIXES = listOf(
-        "def new generation",
-        "tenured generation",
-        "new generation",
-        "young generation",
-        "old generation"
-    )
+    private val USED = Regex("used (\\d+)([KMGkmg]?)")
 
-    // Capacity columns that add up to the heap ceiling. `PC`/`PU` (permanent) are non-heap and
-    // intentionally excluded.
-    private val HEAP_CAPACITY_COLUMNS = listOf("S0C", "S1C", "EC", "OC")
-
-    private val WHITESPACE = Regex("\\s+")
+    private val MAX_HEAP_SIZE = Regex("MaxHeapSize=(\\d+)")
 }
