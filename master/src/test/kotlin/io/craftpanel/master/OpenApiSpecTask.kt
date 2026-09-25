@@ -3,8 +3,8 @@ package io.craftpanel.master
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.di.DnsProviderHolder
 import io.craftpanel.master.di.appModule
+import io.craftpanel.master.dns.DnsProviderResolver
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.*
 import io.github.smiley4.ktoropenapi.OpenApi
@@ -71,7 +71,7 @@ class OpenApiSpecTask :
                                 single { stubAppConfig }
                                 single(named("appScope")) { this@application as CoroutineScope }
                                 single(named("containerPrefix")) { "craftpanel" }
-                                single { DnsProviderHolder(null) }
+                                single { DnsProviderResolver(get(), get()) }
                                 single { GrpcServer(get(), get(), get()) }
                             },
                             appModule

@@ -2,9 +2,11 @@ package io.craftpanel.agent
 
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.config.RuntimeSettingsStore
 import io.craftpanel.agent.di.agentModule
 import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.ConnectionManager
+import io.craftpanel.agent.runtime.AgentRuntime
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
@@ -49,8 +51,20 @@ fun main(): Unit = runBlocking {
     }
     log.info("Docker network: ${config.craftpanelNetwork}")
 
+    // Last accepted runtime settings survive a master outage (and an agent restart during one).
+    koin.get<RuntimeSettingsStore>()
+        .load()
+
     // Process-scoped: the router supervisor is created once and reused across reconnects.
-    launch { koin.get<RouterSupervisor>().run() }
+    launch {
+        koin.get<RouterSupervisor>()
+            .run()
+    }
+
+    // Convergence, reconcile sweep, metrics pump and the Docker event watcher outlive the control
+    // stream, so crash-restart keeps working while master is unreachable.
+    koin.get<AgentRuntime>()
+        .start()
 
     ConnectionManager(koin, config).run(this)
 }

@@ -104,7 +104,7 @@ Fired when a server's runtime status changes.
 
 #### `server.players`
 
-Fired when the player count or player list changes. Refreshed every metrics poll (`METRICS_POLL_INTERVAL_SECONDS`, default 5 s) from the agent's `mc-monitor` probe inside the container.
+Fired when the player count or player list changes. Refreshed every metrics poll (`metrics_poll_interval_seconds` system setting, default 5 s) from the agent's `mc-monitor` probe inside the container.
 
 ```json
 {

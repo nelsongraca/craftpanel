@@ -40,8 +40,7 @@ class MigrationHandlerTest :
             systemReservedCpuMillicores = 0,
             craftpanelNetwork = "craftpanel",
             containerNamePrefix = "craftpanel",
-            privateIpOverride = "192.0.2.10",
-            metricsPollIntervalSeconds = 5
+            privateIpOverride = "192.0.2.10"
         )
 
         afterSpec { root.toFile().deleteRecursively() }

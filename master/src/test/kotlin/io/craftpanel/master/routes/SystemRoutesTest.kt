@@ -3,6 +3,7 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.dns.DnsRecord
@@ -46,7 +47,9 @@ class SystemRoutesTest :
                 SystemService(
                     settingsRepository = SettingsRepositoryImpl(),
                     settingsProvider = SettingsProvider(SettingsRepositoryImpl()),
-                    dnsProvider = dnsProvider
+                    // The factory seam stands in for the resolver-backed provider in these tests.
+                    dnsProviderFactory = { dnsProvider },
+                    cipher = SecretCipher(ByteArray(32) { 0x42 })
                 ),
                 BrandingService(settingsProvider = SettingsProvider(SettingsRepositoryImpl()))
             )

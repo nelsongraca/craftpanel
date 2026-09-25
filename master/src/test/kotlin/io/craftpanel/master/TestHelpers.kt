@@ -10,13 +10,16 @@ import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataOpContext
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
+import io.craftpanel.master.service.AgentRuntimeSettingsService
 import io.craftpanel.master.service.NodeRegistrationService
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.PortAllocator
+import io.craftpanel.master.service.SettingsProvider
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.PortRepository
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.impl.PortRepositoryImpl
+import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.ConcurrentHashMap
 
@@ -66,6 +69,11 @@ fun createTestControlServiceImpl(
         playerUpdateHandler = playerUpdateHandler,
         backupHandler = backupHandler,
         migrationHandler = migrationHandler,
-        dataOpResponseHandler = dataOpResponseHandler
+        dataOpResponseHandler = dataOpResponseHandler,
+        agentRuntimeSettingsService = AgentRuntimeSettingsService(
+            SettingsProvider(SettingsRepositoryImpl()),
+            nodeRepository,
+            agentGateway
+        )
     )
 }

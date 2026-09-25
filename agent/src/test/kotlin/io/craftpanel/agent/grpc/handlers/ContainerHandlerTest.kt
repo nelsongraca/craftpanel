@@ -39,7 +39,6 @@ class ContainerHandlerTest :
             systemReservedCpuMillicores = 0,
             craftpanelNetwork = "craftpanel",
             containerNamePrefix = "craftpanel",
-            metricsPollIntervalSeconds = 60,
             masterHttpPort = 80,
             privateIpOverride = "",
             mcRouterContainerName = ""

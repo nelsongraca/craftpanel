@@ -4,7 +4,7 @@ CraftPanel master is configured through a layered system: a bundled HOCON config
 
 ## Precedence
 
-For secrets (`JWT_SECRET`, `DATABASE_PASSWORD`, `CF_API_TOKEN`, `NODE_BOOTSTRAP_TOKEN`, `FORWARDING_KEY`):
+For secrets (`JWT_SECRET`, `DATABASE_PASSWORD`, `NODE_BOOTSTRAP_TOKEN`, `FORWARDING_KEY`):
 
 ```
 Secret file (_FILE env var)  ← highest priority
@@ -29,7 +29,6 @@ Each `application.conf` value can be overridden by its environment variable. Exa
 | `database.url`      | `DATABASE_URL`       |
 | `database.password` | `DATABASE_PASSWORD`  |
 | `jwt.secret`        | `JWT_SECRET`         |
-| `dns.api_key`       | `CF_API_TOKEN`       |
 | `http.port`         | `HTTP_PORT`          |
 
 ## Secrets (`_FILE` pattern)
@@ -50,7 +49,6 @@ Supported `_FILE` variables:
 |-------------------------------|------------------------------------------------|
 | `DATABASE_PASSWORD_FILE`      | PostgreSQL password                            |
 | `JWT_SECRET_FILE`             | JWT signing key                                |
-| `CF_API_TOKEN_FILE`           | DNS provider (Cloudflare) API key              |
 | `NODE_BOOTSTRAP_TOKEN_FILE`   | Node registration bootstrap token (master and agent both read it) |
 | `FORWARDING_KEY_FILE`         | AES-256 key encrypting the stored Velocity/BungeeCord forwarding secret — see [Forwarding key](#forwarding-key) |
 
@@ -69,8 +67,6 @@ Supported `_FILE` variables:
 | `grpc.tlsCertPath`     | `GRPC_TLS_CERT`                   | No       | —                       | BYOC: path to server cert (overrides auto-gen)                                          |
 | `grpc.tlsKeyPath`      | `GRPC_TLS_KEY`                    | No       | —                       | BYOC: path to private key (required with GRPC_TLS_CERT)                                 |
 | `jwt.secret`           | `JWT_SECRET`                      | Yes      | —                       | JWT signing key (min 32 bytes)                                                          |
-| `dns.provider`         | `DNS_PROVIDER`                    | No       | `none`                  | DNS provider identifier, e.g. `cloudflare`                                              |
-| `dns.cloudflare.apiToken` | `CF_API_TOKEN`                 | No       | —                       | Cloudflare API token (required when `dns.provider=cloudflare`)                          |
 | `cors.publicUrls`      | `PUBLIC_URLS`                     | No\*     | —                       | Comma-separated full URLs of every origin the browser calls the API from, e.g. `https://craftpanel.example.com`. \*Required outside `app.profile=dev` — with no value and a non-`dev` profile, CORS allows **no** origins and every browser request is rejected with `403`. In the bundled `docker-compose.yml`, this is set automatically from `DOMAIN`. |
 | `auth.secureCookies`   | `AUTH_SECURE_COOKIES`             | No       | `true`                  | Set `Secure` flag on auth cookies (disable in dev behind plain HTTP)                    |
 | `auth.cookieDomain`    | `AUTH_COOKIE_DOMAIN`              | No       | —                       | Shared parent domain for the refresh-token cookie (e.g. `.example.com`), only needed for a split-subdomain deploy — see [Split-subdomain deploy](../usage/deployment.md#split-subdomain-deploy-optional) |
@@ -117,15 +113,21 @@ These values are stored in the `system_settings` database table and can be chang
 | `default_backup_max_count`    | `10`                     | Default maximum number of backups to keep per server                                          |
 | `default_port_range_start`    | `25570`                  | Lower bound of the host-port pool for new servers                                             |
 | `default_port_range_end`      | `26070`                  | Upper bound of the host-port pool for new servers                                             |
-| `restart_max_attempts`        | `5`                      | Max consecutive crash-restarts before leaving a server UNHEALTHY (0 disables). **Restart required.** |
-| `restart_window_seconds`      | `600`                    | Rolling window (s) for counting crashes; a gap longer than this resets the counter. **Restart required.** |
+| `restart_max_attempts`        | `5`                      | Max consecutive crash-restarts before leaving a server UNHEALTHY (0 disables). Pushed to agents live. |
+| `restart_window_seconds`      | `600`                    | Rolling window (s) for counting crashes; a gap longer than this resets the counter. Pushed to agents live. |
+| `jvm_metrics_poll_interval_seconds` | `30`               | How often each running server's JVM heap is sampled (s). Pushed to agents live.               |
+| `metrics_poll_interval_seconds` | `5`                    | Agent node/container metrics polling cadence (s). Pushed to agents live.                      |
+| `metrics_collection_concurrency` | `8`                   | Max server containers an agent samples in parallel per metrics tick. Pushed to agents live.   |
+| `agent_reconcile_interval_seconds` | `30`               | Agent convergence backstop sweep cadence (s); `0` disables the sweep. Pushed to agents live.  |
+| `dns_provider`                | `none`                   | DNS provider: `none` or `cloudflare`. See [Enabling Public Hostnames](../usage/enabling-public-hostnames.md). |
+| `cf_api_token`                | _(empty, write-only)_    | Cloudflare API token, required when `dns_provider=cloudflare`. Stored encrypted at rest; the API only ever returns `cf_api_token_set` (boolean). |
 | `rate_limit_login_per_minute` | `10`                     | Max login attempts per client per minute. **Restart required.**                               |
 | `rate_limit_refresh_per_minute` | `30`                   | Max token-refresh calls per client per minute. **Restart required.**                          |
 | `image_minecraft`             | `itzg/minecraft-server`  | Base Docker image for Minecraft servers. **Restart required.**                                |
 | `image_proxy`                 | `itzg/mc-proxy`          | Base Docker image for proxy servers (BungeeCord/Velocity/Waterfall). **Restart required.**    |
 
 !!! warning
-Never store secrets in the config file in production. Use environment variables or the `_FILE` secret pattern instead.
+Never store deployment secrets (database credentials, the forwarding key) in the config file or the settings table in production. The Cloudflare API token is the one secret stored in the settings table, encrypted at rest with `FORWARDING_KEY`.
 
 ## Initial admin user
 
@@ -190,10 +192,12 @@ The agent process (one per node) reads its own environment variables, separate f
 | `containerNamePrefix`          | `CRAFTPANEL_CONTAINER_PREFIX`       | No             | `craftpanel`                  | Prefix applied to all container names this agent creates                                                                                      |
 | `privateIpOverride`            | `NODE_PRIVATE_IP`                   | No             | —                              | Overrides the private IP the agent reports to master                                                                                          |
 | `publicIpOverride`             | `NODE_PUBLIC_IP`                    | No             | —                              | Overrides the public IP the agent reports to master; takes priority over `PUBLIC_IP_URL`                                                      |
-| `metricsPollIntervalSeconds`   | `METRICS_POLL_INTERVAL_SECONDS`     | No             | `5`                            | Polling interval for container metrics                                                                                                        |
-| `metricsCollectionConcurrency` | `METRICS_COLLECTION_CONCURRENCY`    | No             | `8`                            | Max server containers collected in parallel per metrics tick                                                                                  |
-| `reconcileIntervalSeconds`     | `AGENT_RECONCILE_INTERVAL_SECONDS`  | No             | `30`                          | Cadence of the convergence backstop sweep; `0` disables it                                                                                    |
 | `pullMaxImageAgeHours`         | `PULL_MAX_IMAGE_AGE_HOURS`          | No             | `24`                           | Max age of a locally-cached image before a fresh pull is attempted                                                                             |
+
+!!! note "Removed agent tuning keys"
+    `metricsPollIntervalSeconds`, `metricsCollectionConcurrency` and `reconcileIntervalSeconds` were
+    removed from the agent config. They are install-wide *System Settings* now, pushed by master —
+    see [Runtime settings](#runtime-settings-db-backed-editable-in-the-ui).
 
 ## Frontend configuration
 

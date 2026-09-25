@@ -107,7 +107,7 @@ class ServersRoutesTest :
                 ) { _, _, _ -> }
             )
             val exposureService = ServerExposureService(
-                dnsProvider = dnsProvider,
+                dnsProvider = { dnsProvider },
                 lifecycle = lifecycle,
                 serverRepository = serverRepository,
                 nodeRepository = nodeRepository,

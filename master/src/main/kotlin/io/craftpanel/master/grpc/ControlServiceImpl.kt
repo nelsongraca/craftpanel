@@ -2,6 +2,7 @@ package io.craftpanel.master.grpc
 
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.grpc.handlers.*
+import io.craftpanel.master.service.AgentRuntimeSettingsService
 import io.craftpanel.master.service.NodeMetadata as NodeMetadataDto
 import io.craftpanel.master.service.NodeNotActiveException
 import io.craftpanel.master.service.NodeRegistrationService
@@ -35,7 +36,9 @@ class ControlServiceImpl(
     private val playerUpdateHandler: PlayerUpdateHandler,
     private val backupHandler: BackupHandler,
     private val migrationHandler: MigrationHandler,
-    private val dataOpResponseHandler: DataOpResponseHandler
+    private val dataOpResponseHandler: DataOpResponseHandler,
+    // Install-wide agent runtime tuning included in register/identify responses.
+    private val agentRuntimeSettingsService: AgentRuntimeSettingsService
 ) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
@@ -47,6 +50,7 @@ class ControlServiceImpl(
         return registerNodeResponse {
             nodeKey = registered.rawKey
             nodeId = registered.nodeId.toString()
+            runtimeSettings = agentRuntimeSettingsService.snapshot()
         }
     }
 
@@ -54,11 +58,12 @@ class ControlServiceImpl(
         val identified = nodeRegistrationService.identify(request.nodeKey, request.metadata.toDto())
         return identifyNodeResponse {
             status = when (identified.status) {
-                NodeStatus.ACTIVE -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
+                NodeStatus.ACTIVE  -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
                 NodeStatus.PENDING -> IdentifyNodeResponse.IdentifyStatus.PENDING
-                else -> IdentifyNodeResponse.IdentifyStatus.REJECTED
+                else               -> IdentifyNodeResponse.IdentifyStatus.REJECTED
             }
             nodeId = identified.nodeId?.toString() ?: ""
+            runtimeSettings = agentRuntimeSettingsService.snapshot()
         }
     }
 
@@ -90,7 +95,8 @@ class ControlServiceImpl(
                         log.error("Node ${msg.nodeId}: control-stream message handling failed (${msg.payloadCase})", e)
                     }
             }
-        } finally {
+        }
+        finally {
             watchdogJob.cancel()
             connectedNodeId.get()
                 ?.let { teardown(it, outChannel, watchdogFired.get()) }
@@ -115,7 +121,8 @@ class ControlServiceImpl(
     private fun authenticate(nodeId: String, outChannel: SendChannel<MasterMessage>) {
         try {
             nodeRegistrationService.requireActive(Uuid.parse(nodeId))
-        } catch (e: NodeNotActiveException) {
+        }
+        catch (e: NodeNotActiveException) {
             throw StatusException(Status.PERMISSION_DENIED.withDescription(e.message))
         }
         registry.register(nodeId, outChannel)
@@ -123,32 +130,32 @@ class ControlServiceImpl(
 
     private suspend fun dispatch(msg: AgentMessage, lastMetricsAt: AtomicReference<Instant>, lastEmittedHealth: AtomicReference<NodeHealth?>) {
         when {
-            msg.hasNodeState() -> {
+            msg.hasNodeState()        -> {
                 nodeStateHandler.handle(msg, msg.nodeId)
                 registry.rebuildSymlinks(msg.nodeId)
             }
 
-            msg.hasNodeMetrics() -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
+            msg.hasNodeMetrics()      -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
 
             msg.hasContainerMetrics() -> containerMetricsHandler.handle(msg)
 
-            msg.hasServerStatus() -> serverStatusHandler.handle(msg)
+            msg.hasServerStatus()     -> serverStatusHandler.handle(msg)
 
-            msg.hasPlayerUpdate() -> playerUpdateHandler.handle(msg)
+            msg.hasPlayerUpdate()     -> playerUpdateHandler.handle(msg)
 
-            msg.hasBackupProgress() -> backupHandler.handleBackupProgress(msg)
+            msg.hasBackupProgress()   -> backupHandler.handleBackupProgress(msg)
 
-            msg.hasBackupComplete() -> backupHandler.handleBackupComplete(msg)
+            msg.hasBackupComplete()   -> backupHandler.handleBackupComplete(msg)
 
-            msg.hasRsyncReady() -> migrationHandler.handleRsyncReady(msg)
+            msg.hasRsyncReady()       -> migrationHandler.handleRsyncReady(msg)
 
-            msg.hasRsyncProgress() -> migrationHandler.handleRsyncProgress(msg)
+            msg.hasRsyncProgress()    -> migrationHandler.handleRsyncProgress(msg)
 
-            msg.hasRsyncComplete() -> migrationHandler.handleRsyncComplete(msg)
+            msg.hasRsyncComplete()    -> migrationHandler.handleRsyncComplete(msg)
 
             // Console output + every unary file/console response type: DataOpResponseHandler owns
             // the correlation switch, so dispatch forwards the whole family in one branch.
-            else -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            else                      -> dataOpResponseHandler.handle(msg, msg.nodeId)
         }
     }
 
@@ -165,9 +172,11 @@ class ControlServiceImpl(
             log.warn("Node $nodeId: control stream disconnected — marking unreachable")
             nodeStateReconciler.markNodeUnreachable(nodeId)
             registry.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
-        } else if (wasOwner && registry.isConnected(nodeId)) {
+        }
+        else if (wasOwner && registry.isConnected(nodeId)) {
             log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
-        } else if (!wasOwner) {
+        }
+        else if (!wasOwner) {
             log.debug("Node $nodeId: stream finally skipped — not owner (superseded by newer connection)")
         }
     }
@@ -180,7 +189,8 @@ class ControlServiceImpl(
             if (k.startsWith(prefix)) {
                 v.completeExceptionally(Exception("Node $nodeId disconnected"))
                 true
-            } else {
+            }
+            else {
                 false
             }
         }
@@ -188,7 +198,8 @@ class ControlServiceImpl(
             if (k.startsWith(prefix)) {
                 v.close(Exception("Node $nodeId disconnected"))
                 true
-            } else {
+            }
+            else {
                 false
             }
         }

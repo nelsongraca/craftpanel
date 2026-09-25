@@ -13,6 +13,8 @@ class NodeStateHandler(
     // service reaches ContainerLifecycle → AgentGateway → ControlServiceImpl, and ControlServiceImpl
     // owns this handler — a direct dependency would be a construction cycle.
     private val pushDesiredStates: suspend (String) -> Unit,
+    // Sibling seam: the install-wide runtime settings are (re)pushed on the same reconnect path.
+    private val pushRuntimeSettings: suspend (String) -> Unit = {},
 ) {
 
     private val log = LoggerFactory.getLogger(NodeStateHandler::class.java)
@@ -29,12 +31,15 @@ class NodeStateHandler(
                 if (result != null) {
                     log.debug("Node $nodeId: reconcileNodeState ok — emitting health=${result.name}")
                     agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, result))
-                } else {
+                }
+                else {
                     log.debug("Node $nodeId: reconcileNodeState ok but node is PENDING — skipping health emit")
                 }
                 // After reconciliation, re-push desired-state envelopes so the agent re-acquires
                 // master's intent (handles reboot / reconnect).
                 pushDesiredStates(nodeId)
+                // Same reconnect path for the install-wide agent runtime tuning snapshot.
+                pushRuntimeSettings(nodeId)
             }
             .onFailure { e -> log.error("Node $nodeId: reconcileNodeState failed — ${e.message}", e) }
     }

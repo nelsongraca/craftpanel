@@ -43,8 +43,7 @@ class AgentModuleTest :
             systemReservedCpuMillicores = 0,
             craftpanelNetwork = "craftpanel",
             containerNamePrefix = "craftpanel",
-            privateIpOverride = "",
-            metricsPollIntervalSeconds = 60
+            privateIpOverride = ""
         )
 
         test("per-connection scope resolves the whole control-stream graph") {

@@ -9,6 +9,7 @@ import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.routes.dto.*
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.craftpanel.proto.ErrorCode
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -55,7 +56,12 @@ class DataServiceProxyTest :
                 playerUpdateHandler = playerUpdateHandler,
                 backupHandler = backupHandler,
                 migrationHandler = migrationHandler,
-                dataOpResponseHandler = dataOpResponseHandler
+                dataOpResponseHandler = dataOpResponseHandler,
+                agentRuntimeSettingsService = AgentRuntimeSettingsService(
+                    SettingsProvider(SettingsRepositoryImpl()),
+                    nodeRepository,
+                    registry
+                )
             )
             val agentDataOps = AgentDataOps(
                 dataOpContext,

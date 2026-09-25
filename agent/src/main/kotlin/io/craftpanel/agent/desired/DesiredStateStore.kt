@@ -1,6 +1,5 @@
 package io.craftpanel.agent.desired
 
-import io.craftpanel.proto.RestartBudget
 import io.craftpanel.proto.ServerDesiredState
 import io.craftpanel.proto.StartContainerCommand
 import java.util.concurrent.ConcurrentHashMap
@@ -16,8 +15,6 @@ data class DesiredState(
     val desired: ServerDesiredState.Desired,
     /** Full runtime spec the agent converges to; null until the first push with a spec. */
     val spec: StartContainerCommand?,
-    /** Restart budget; null if never sent — treated as unlimited (no cap). */
-    val budget: RestartBudget?,
     /** Spec the current container was created/started with — drives the recreate-if-diff decision. */
     val appliedSpec: StartContainerCommand?,
     /** Consecutive crash-restarts within the current window. */
@@ -30,17 +27,17 @@ data class DesiredState(
     val force: Boolean,
     /** Sticky: suppress crash-restart while desired=RUNNING. */
     val noRestart: Boolean,
-    /** Whether to sample this server's JVM heap (per-server; from the envelope). */
-    val jvmMetricsEnabled: Boolean = true,
-    /** How often to sample the JVM heap (global system setting; from the envelope). */
-    val jvmMetricsPollIntervalSeconds: Int = DEFAULT_JVM_METRICS_POLL_INTERVAL_SECONDS
+    /** Whether to sample this server's JVM heap (per-server; from the envelope). The poll interval
+     *  itself is install-wide and read live from [io.craftpanel.agent.config.RuntimeSettingsStore]. */
+    val jvmMetricsEnabled: Boolean = true
 ) {
+
     companion object {
+
         fun unset(serverId: String) = DesiredState(
             serverId = serverId,
             desired = ServerDesiredState.Desired.DESIRED_UNSPECIFIED,
             spec = null,
-            budget = null,
             appliedSpec = null,
             restartCount = 0,
             windowStartEpochMillis = null,

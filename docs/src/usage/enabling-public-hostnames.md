@@ -33,28 +33,15 @@ Cloudflare dashboard → select your zone → **Overview** tab → right-hand si
 
 Master validates this format strictly (`^[a-f0-9]{32}$`); copy it exactly.
 
-## Step 3 — Configure master environment
+## Step 3 — Set the DNS provider and token in Settings
 
-Add these to master's environment:
+Go to **Settings** in the panel UI → **DNS (Cloudflare)** section:
 
-```bash
-DNS_PROVIDER=cloudflare
-CF_API_TOKEN=<the token from Step 1>
-```
+1. Set **DNS Provider** to `Cloudflare`
+2. Paste the token from Step 1 into **Cloudflare API Token**
+3. Save
 
-!!! note
-    These two variables are **not** wired into the bundled `docker-compose.yml`'s `master` service —
-    add them yourself, then restart master. Both are documented in
-    [Environment Variables, Ports & Volumes](environment-variables.md#master-container-variables).
-
-For production deployments that mount secrets rather than inline env vars, use the `_FILE` variant pointing at a file containing the token:
-
-```bash
-DNS_PROVIDER=cloudflare
-CF_API_TOKEN_FILE=/run/secrets/cf_api_token
-```
-
-Restart master so the `DnsProviderFactory` picks up the new provider. With `DNS_PROVIDER=cloudflare` set and `CF_API_TOKEN` blank, master fails to start with `"CF_API_TOKEN must be set when DNS_PROVIDER=cloudflare"`.
+The token is stored encrypted in the database and is never shown again — the field only reports whether one is configured. Saving verifies the credentials against the zone before persisting: a rejected token returns `422` instead of silently breaking DNS management.
 
 ## Step 4 — Configure the global DNS settings
 
@@ -79,7 +66,7 @@ The zone's parent domain (`example.com`) and its NS delegation must already be l
 
 ## Step 6 — Expose a server
 
-With the env vars on master (Step 3) and the global DNS settings saved (Step 4), the exposure toggle now works. On a server's detail page:
+With the provider/token (Step 3) and the global DNS settings saved (Step 4), the exposure toggle works. On a server's detail page:
 
 1. Toggle **expose externally** on
 2. Enter a subdomain (e.g. `survival`) — master validates uniqueness
@@ -92,7 +79,7 @@ Disabling exposure deletes the A record automatically. Deleting the server also 
 ## Notes & limits
 
 - **TTL is 60 seconds** and is hardcoded as the default in `DnsProvider.createARecord`. There is no panel-side setting to change it today; you can lower Cloudflare's "Minimum TTL" zone override if you need faster propagation, but the API record itself is created at 60s.
-- **DNS is global, not per-network** — one zone ID and one domain suffix for the whole install, matching the single global `CF_API_TOKEN`.
+- **DNS is global, not per-network** — one zone ID and one domain suffix for the whole install, matching the single global `cf_api_token` setting.
 - **Other DNS providers** (Route53, etc.) — the `DnsProvider` interface is ready, but only Cloudflare is implemented.
 
 ## Next steps

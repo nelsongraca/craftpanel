@@ -49,8 +49,11 @@ These are the values the bundled `docker-compose.yml` reads from the `.env` file
 | `ADMIN_RESET_PASSWORD`  | No       | `false`                      | Set `true` (with a new `ADMIN_PASSWORD`) to force-reset the admin password on the next master restart.         |
 | `HOST_DATA_PATH`        | No       | `/opt/craftpanel/data`       | Host directory where server data lives. Must exist before the agent starts and must be a bind-mount.          |
 | `IMAGE_VERSION`         | No       | `latest`                     | Image tag to deploy for `master`, `frontend`, and `agent`. See [Upgrading](upgrading.md).                     |
-| `DNS_PROVIDER`          | No       | `none`                       | DNS provider identifier, e.g. `cloudflare`. **Not wired into the bundled compose file** — add it to the `master` service manually. See [Enabling Public Hostnames](enabling-public-hostnames.md). |
-| `CF_API_TOKEN`          | No       | —                            | Cloudflare API token, required when `DNS_PROVIDER=cloudflare`. **Not wired into the bundled compose file** — add it to the `master` service manually. |
+
+The DNS provider and Cloudflare token are **database settings now** — configure them in
+*System Settings* (see [System Settings](../data-model/system-settings.md)); the `DNS_PROVIDER` and
+`CF_API_TOKEN` environment variables were removed. On the first start after upgrading, master
+migrates values still set via the old env vars into the database automatically.
 
 \* The bundled compose file marks `ADMIN_EMAIL` and `ADMIN_PASSWORD` as required (`:?required`) at
 compose-parse time. The seed itself only runs once, against an empty users table. Because compose
@@ -78,8 +81,6 @@ Read by the `master` service. Required values are enforced outside `CRAFTPANEL_P
 | `GRPC_TLS_SANS`                  | No       | —                                | Comma-separated extra SANs to add to the auto-generated server cert (add the master hostname/IP agents dial).  |
 | `GRPC_TLS_CERT`                  | No       | —                                | BYOC: path to a server certificate. Overrides auto-generation. See [Custom gRPC TLS](custom-tls.md).            |
 | `GRPC_TLS_KEY`                   | No       | —                                | BYOC: path to the matching private key (required with `GRPC_TLS_CERT`).                                        |
-| `DNS_PROVIDER`                   | No       | `none`                           | DNS provider identifier. Only `cloudflare` is implemented.                                                     |
-| `CF_API_TOKEN`                   | No       | —                                | Cloudflare API token; required when `DNS_PROVIDER=cloudflare`. Supports `CF_API_TOKEN_FILE`.                   |
 | `AUTH_SECURE_COOKIES`            | No       | `true`                           | Set the `Secure` flag on auth cookies. Set `false` only in dev behind plain HTTP.                              |
 | `AUTH_COOKIE_DOMAIN`             | No       | —                                | Shared parent domain for the refresh-token cookie (e.g. `.example.com`); only for a split-subdomain deploy.    |
 | `CRAFTPANEL_PROFILE`             | No       | `prod`                           | `dev` relaxes CORS, skips the HSTS header, and skips secret-strength validation. Never use in production.     |
@@ -122,9 +123,6 @@ registration protocol and data-path rules.
 | `MCROUTER_UPDATE_ON_START`          | No             | `true`                           | Whether to pull a fresh mc-router image on agent start. Set `false` to use the cached image.                    |
 | `MCROUTER_CONTAINER_NAME`           | No             | `craftpanel-mc-router`           | Overrides the mc-router container name.                                                                        |
 | `MCROUTER_ENABLED`                  | No             | `true`                           | When `false`, the agent never provisions, attaches, detaches, or metrics-queries mc-router.                    |
-| `METRICS_POLL_INTERVAL_SECONDS`     | No             | `5`                              | Polling interval for node and container metrics. Minimum 1.                                                    |
-| `METRICS_COLLECTION_CONCURRENCY`    | No             | `8`                              | Max server containers collected in parallel per metrics tick.                                                  |
-| `AGENT_RECONCILE_INTERVAL_SECONDS`  | No             | `30`                             | Cadence of the convergence backstop sweep. `0` disables the sweep.                                             |
 | `PULL_MAX_IMAGE_AGE_HOURS`          | No             | `24`                             | Max age of a locally-cached image before a fresh pull is attempted.                                            |
 | `HEARTBEAT_FILE`                    | No             | `/tmp/agent-heartbeat`           | Internal — path the agent touches on successful auth and every metrics tick; used by the container healthcheck. |
 
@@ -132,6 +130,12 @@ registration protocol and data-path rules.
     The master and agent both read `CRAFTPANEL_CONTAINER_PREFIX`, but they serve different purposes:
     master uses it for the Docker resources it tracks, the agent for the containers and networks it
     creates. Set them to the same value.
+
+!!! note "Removed agent tuning variables"
+    `METRICS_POLL_INTERVAL_SECONDS`, `METRICS_COLLECTION_CONCURRENCY` and
+    `AGENT_RECONCILE_INTERVAL_SECONDS` were removed. They are install-wide *System Settings* now;
+    master pushes them to every agent on connect and live when changed (see
+    [System Settings](../data-model/system-settings.md)).
 
 ## Frontend container variables
 
@@ -164,7 +168,6 @@ DATABASE_PASSWORD_FILE=/run/secrets/db_password
 |--------------------------------|--------------|---------------------------------------------------------|
 | `DATABASE_PASSWORD_FILE`       | master       | PostgreSQL password                                     |
 | `JWT_SECRET_FILE`              | master       | JWT signing key                                         |
-| `CF_API_TOKEN_FILE`            | master       | Cloudflare API token                                    |
 | `NODE_BOOTSTRAP_TOKEN_FILE`    | master, agent| Node registration bootstrap token                       |
 | `FORWARDING_KEY_FILE`          | master       | AES-256 key encrypting the stored forwarding secret     |
 

@@ -5,6 +5,7 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.di.ConnectionScope
 import io.craftpanel.agent.di.REALTIME_LANE
 import io.craftpanel.agent.di.TELEMETRY_LANE
+import io.craftpanel.agent.runtime.OutboundSink
 import io.craftpanel.proto.AgentMessage
 import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
@@ -32,7 +33,7 @@ class ConnectionManager(
 
         val certPem: String? = when {
             config.tlsEnabled -> File(config.tlsCertPath).readText()
-            else -> NodeKeyStore.read(config.caCertFilePath)
+            else              -> NodeKeyStore.read(config.caCertFilePath)
         }
 
         if (certPem != null) {
@@ -40,7 +41,8 @@ class ConnectionManager(
                 .trustManager(ByteArrayInputStream(certPem.toByteArray()))
                 .build()
             builder.sslContext(sslContext)
-        } else {
+        }
+        else {
             check(config.profile == "dev") {
                 "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT or mount master's grpc-ca.crt at ${config.caCertFilePath}"
             }
@@ -60,12 +62,14 @@ class ConnectionManager(
                 try {
                     // Identity authenticates over the channel before any per-connection object graph
                     // exists; the result is declared into the scope so every scoped service can inject it.
-                    val identity = koin.get<NodeAuthenticator>().authenticate(channel)
+                    val identity = koin.get<NodeAuthenticator>()
+                        .authenticate(channel)
                     backoffSeconds = 5L // reset on successful auth
                     Heartbeat.beat()
 
                     // Per-connection scope: built once authenticated, closed when the stream dies.
-                    // `close()` cancels the convergence scope and releases every scoped instance.
+                    // `close()` releases every scoped instance; process-scoped singletons (the
+                    // convergence loop, the runtime settings cache) are untouched by a reconnect.
                     val scope = koin.createScope("connection-${System.nanoTime()}", named<ConnectionScope>())
                     try {
                         scope.declare(channel)
@@ -73,11 +77,22 @@ class ConnectionManager(
                         val handler = scope.get<ControlStreamHandler>()
                         val realtime = scope.get<Channel<AgentMessage>>(named(REALTIME_LANE))
                         val telemetry = scope.get<Channel<AgentMessage>>(named(TELEMETRY_LANE))
-                        handler.run(channel, realtime, telemetry)
-                    } finally {
+                        // The process-scoped loops emit through this sink; attach it only once the
+                        // connection's outbound exists, and clear it when the stream dies.
+                        val sink = koin.get<OutboundSink>()
+                        sink.attach(scope.get<AgentOutbound>())
+                        try {
+                            handler.run(channel, realtime, telemetry)
+                        }
+                        finally {
+                            sink.detach()
+                        }
+                    }
+                    finally {
                         scope.close()
                     }
-                } finally {
+                }
+                finally {
                     channel.shutdown()
                 }
             }

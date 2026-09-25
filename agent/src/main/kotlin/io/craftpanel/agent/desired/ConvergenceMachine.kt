@@ -1,5 +1,6 @@
 package io.craftpanel.agent.desired
 
+import io.craftpanel.proto.RestartBudget
 import io.craftpanel.proto.ServerDesiredState
 
 /** Snapshot of the container's actual on-node state, gathered by the loop's operator layer. */
@@ -16,6 +17,7 @@ data class ActualState(
 
 /** What the agent must do to converge [DesiredState] towards [ActualState]. */
 sealed interface ConvergenceDecision {
+
     /** Already converged — nothing to do. Loop re-affirms the status that reflects reality. */
     data object NoOp : ConvergenceDecision
 
@@ -43,9 +45,9 @@ data class ConvergenceResult(
 
 /** True when this decision tears down and recreates the container (as opposed to a plain start). */
 fun ConvergenceDecision.recreateRequested(): Boolean = when (this) {
-    is ConvergenceDecision.EnsureRunning -> recreate
+    is ConvergenceDecision.EnsureRunning      -> recreate
     is ConvergenceDecision.ConditionalRestart -> recreate
-    else -> false
+    else                                      -> false
 }
 
 /**
@@ -62,15 +64,20 @@ fun ConvergenceDecision.recreateRequested(): Boolean = when (this) {
  */
 object ConvergenceMachine {
 
-    fun decide(state: DesiredState, actual: ActualState, nowMillis: Long = System.currentTimeMillis()): ConvergenceResult {
+    fun decide(
+        state: DesiredState,
+        actual: ActualState,
+        budget: RestartBudget? = null,
+        nowMillis: Long = System.currentTimeMillis()
+    ): ConvergenceResult {
         if (state.desired == ServerDesiredState.Desired.DESIRED_UNSPECIFIED) {
             return ConvergenceResult(ConvergenceDecision.NoOp, state)
         }
 
         return when (state.desired) {
             ServerDesiredState.Desired.STOPPED -> decideStopped(state, actual)
-            ServerDesiredState.Desired.RUNNING -> decideRunning(state, actual, nowMillis)
-            else -> ConvergenceResult(ConvergenceDecision.NoOp, state)
+            ServerDesiredState.Desired.RUNNING -> decideRunning(state, actual, budget, nowMillis)
+            else                               -> ConvergenceResult(ConvergenceDecision.NoOp, state)
         }
     }
 
@@ -81,19 +88,21 @@ object ConvergenceMachine {
         }
         return if (state.force) {
             ConvergenceResult(ConvergenceDecision.ForceKill, state.clearOneShots())
-        } else {
+        }
+        else {
             ConvergenceResult(ConvergenceDecision.EnsureStopped, state.clearOneShots())
         }
     }
 
-    private fun decideRunning(state: DesiredState, actual: ActualState, nowMillis: Long): ConvergenceResult {
+    private fun decideRunning(state: DesiredState, actual: ActualState, budget: RestartBudget?, nowMillis: Long): ConvergenceResult {
         val recreate = shouldRecreate(state, actual)
         // Already running. A user-initiated restart (force_restart) still fires; everything else
         // is a no-op — a spec change while running is reconfigure-only, applied at next start.
         if (actual.running) {
             return if (state.forceRestart) {
                 ConvergenceResult(ConvergenceDecision.ConditionalRestart(recreate), state.clearOneShots())
-            } else {
+            }
+            else {
                 ConvergenceResult(ConvergenceDecision.NoOp, state)
             }
         }
@@ -115,21 +124,21 @@ object ConvergenceMachine {
             return ConvergenceResult(ConvergenceDecision.NoOp, state)
         }
 
-        val budget = state.budget
-        val allowed = budget?.let { b -> b.maxAttempts > 0 } ?: true
+        val maxAttempts = budget?.maxAttempts
+        val allowed = maxAttempts?.let { it > 0 } ?: true
         if (!allowed) {
             return ConvergenceResult(
-                ConvergenceDecision.CrashLooped("restart budget max_attempts=${budget.maxAttempts} prohibits auto-restart"),
+                ConvergenceDecision.CrashLooped("restart budget max_attempts=${maxAttempts} prohibits auto-restart"),
                 state
             )
         }
 
-        val candidateCount = restartCandidateCount(state, nowMillis)
-        if (candidateCount > (budget?.maxAttempts ?: Int.MAX_VALUE)) {
+        val candidateCount = restartCandidateCount(state, budget, nowMillis)
+        if (candidateCount > (maxAttempts ?: Int.MAX_VALUE)) {
             return ConvergenceResult(
                 ConvergenceDecision.CrashLooped(
                     "crash-restart budget exhausted (${state.restartCount}/" +
-                        "${budget?.maxAttempts} within ${budget?.windowSeconds}s)"
+                        "$maxAttempts within ${budget?.windowSeconds}s)"
                 ),
                 state
             )
@@ -159,13 +168,14 @@ object ConvergenceMachine {
         return spec != applied
     }
 
-    private fun restartCandidateCount(state: DesiredState, nowMillis: Long): Int {
+    private fun restartCandidateCount(state: DesiredState, budget: RestartBudget?, nowMillis: Long): Int {
         val windowStart = state.windowStartEpochMillis
-        val windowSeconds = state.budget?.windowSeconds ?: Long.MAX_VALUE
+        val windowSeconds = budget?.windowSeconds ?: Long.MAX_VALUE
         return if (windowStart != null && nowMillis - windowStart > windowSeconds * 1000) {
             // Window lapsed — reset to a fresh single attempt.
             1
-        } else {
+        }
+        else {
             state.restartCount + 1
         }
     }

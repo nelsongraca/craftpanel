@@ -196,21 +196,18 @@ Whether or not a server is externally exposed, each server has an **internal hos
 
 ## DNS Providers
 
-Master uses a pluggable `DnsProvider` interface. The active provider is selected at startup via the `DNS_PROVIDER` environment variable.
+Master uses a pluggable `DnsProvider` interface. The active provider is a **System Setting** (`dns_provider`), editable in the UI under Settings — not an environment variable.
 
 | Value            | Behaviour                                                                         |
 |------------------|-----------------------------------------------------------------------------------|
 | `none` (default) | DNS records are not created. Subdomains are still stored for mc-router label use. |
-| `cloudflare`     | A records are managed via the Cloudflare API. Requires `CF_API_TOKEN`.            |
+| `cloudflare`     | A records are managed via the Cloudflare API. Requires the `cf_api_token` setting. |
 
 The zone ID and domain suffix are configured once globally, in System Settings — not per Server Network. There is only ever one Cloudflare API token for the whole install, so per-network DNS configuration would be redundant.
 
 ### DNS Provider Configuration (Cloudflare)
 
-```bash
-DNS_PROVIDER=cloudflare
-CF_API_TOKEN=<your-cloudflare-api-token>
-```
+Set `dns_provider` to `cloudflare` and store the token under **Settings → DNS (Cloudflare) → Cloudflare API Token**. The token is stored encrypted at rest (AES-256-GCM, keyed by `FORWARDING_KEY`) and is never returned by the API — only a `cf_api_token_set` flag.
 
 `dns_zone_id` and `dns_domain_suffix` must also be set via `PATCH /api/system/settings` (or the Settings page in the UI). Master will return `422` if exposure is enabled on a server while no DNS
 zone is configured. See [Enabling Public Hostnames](../usage/enabling-public-hostnames.md) for the one-time setup walkthrough.

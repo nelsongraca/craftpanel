@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory
 import kotlin.uuid.Uuid
 
 class ServerExposureService(
-    private val dnsProvider: DnsProvider?,
+    private val dnsProvider: (() -> DnsProvider?)? = null,
     private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
@@ -53,7 +53,7 @@ class ServerExposureService(
         var recordCleared = existingRecordId == null
 
         if (exposedExternally && subdomain != null) {
-            val provider = dnsProvider
+            val provider = dnsProvider?.invoke()
             val dns = serverHostnames.resolveGlobalDns()
 
             if (provider != null && dns == null) {
@@ -106,7 +106,7 @@ class ServerExposureService(
             newHostname = fullHostname
         }
 
-        val deleteProvider = dnsProvider
+        val deleteProvider = dnsProvider?.invoke()
         if (!exposedExternally && existingRecordId != null && deleteProvider != null) {
             val dns = serverHostnames.resolveGlobalDns()
             if (dns != null) {

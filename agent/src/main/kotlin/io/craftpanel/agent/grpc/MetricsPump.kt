@@ -1,17 +1,19 @@
 package io.craftpanel.agent.grpc
 
-import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.config.RuntimeSettingsStore
 import io.craftpanel.agent.desired.JvmMetricsPolicy
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.agent.docker.PlayerCountProbe
 import io.craftpanel.agent.docker.RouterSupervisor
+import io.craftpanel.agent.runtime.OutboundSink
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
@@ -21,24 +23,27 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * The one owner of the periodic metrics loop: node metrics, per-container metrics, player counts,
  * and (at its own, slower cadence) JVM heap metrics, emitted on the telemetry lane. Container
- * collection is fanned out concurrently (bounded by [AgentConfig.metricsCollectionConcurrency]) so a
- * node with many servers refreshes each server at roughly the poll interval rather than the sum of
- * every call.
+ * collection is fanned out concurrently (bounded by the install-wide
+ * [io.craftpanel.agent.config.RuntimeSettings.metricsCollectionConcurrency]) so a node with many
+ * servers refreshes each server at roughly the poll interval rather than the sum of every call.
  *
  * The interval is applied AFTER a tick completes, not as a fixed wall-clock cadence: each server's
  * probe (Docker stats plus an `mc-monitor` exec) is real work on the node, so a tick that ran long
  * must not immediately start the next one and multiply that load.
  *
- * JVM sampling is throttled separately by the per-server [JvmMetricsPolicy] (a global interval from
- * system settings): it costs an extra `docker exec` and can safepoint the server's JVM, so it runs
- * far less often than the container tick.
+ * The loop is **paused while the control stream is down**: a collected sample could only be dropped,
+ * so polling Docker for it is pure waste. It resumes on reconnect with the current settings.
+ *
+ * JVM sampling is throttled separately by the per-server [JvmMetricsPolicy] (per-server `enabled`,
+ * install-wide interval): it costs an extra `docker exec` and can safepoint the server's JVM, so it
+ * runs far less often than the container tick.
  */
 class MetricsPump(
-    private val config: AgentConfig,
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
     private val routerSupervisor: RouterSupervisor,
-    private val out: AgentOutbound,
+    private val out: OutboundSink,
+    private val settingsStore: RuntimeSettingsStore,
     private val cpuLimitMillicores: (String) -> Int,
     /** Per-server player-count probe input, or null when the server cannot be probed. */
     private val playerCountProbe: (String) -> PlayerCountProbe? = { null },
@@ -47,25 +52,39 @@ class MetricsPump(
 ) {
 
     private val log = LoggerFactory.getLogger(MetricsPump::class.java)
-    private val statsSemaphore = Semaphore(config.metricsCollectionConcurrency)
 
     /** Wall-clock millis of the last JVM sample per server, for the independent throttle. */
     private val lastJvmSampleMillis = ConcurrentHashMap<String, Long>()
 
     suspend fun run() {
-        val interval = config.metricsPollIntervalSeconds.toLong().seconds
         while (true) {
-            runCatching { tick() }
-                .onFailure { e ->
-                    if (e is CancellationException) throw e
-                    log.warn("Metrics tick failed — keeping the stream alive", e)
+            // Pause collection until a control stream opens — samples collected offline can only be
+            // dropped.
+            out.connected.first { it }
+            log.info("Metrics collection resumed")
+            var concurrency = settingsStore.current().metricsCollectionConcurrency
+            var semaphore = Semaphore(concurrency)
+            while (out.connected.value) {
+                val settings = settingsStore.current()
+                if (settings.metricsCollectionConcurrency != concurrency) {
+                    // A live change must not be silently ignored; a fresh semaphore also avoids
+                    // deadlocking in-flight collections when the value shrinks.
+                    concurrency = settings.metricsCollectionConcurrency
+                    semaphore = Semaphore(concurrency)
                 }
-            delay(interval)
+                runCatching { tick(semaphore) }
+                    .onFailure { e ->
+                        if (e is CancellationException) throw e
+                        log.warn("Metrics tick failed — keeping the stream alive", e)
+                    }
+                delay(settings.metricsPollIntervalSeconds.toLong().seconds)
+            }
+            log.info("Metrics collection paused — agent disconnected")
         }
     }
 
     /** One metrics tick. Internal so it can be driven directly in tests. */
-    internal suspend fun tick() {
+    internal suspend fun tick(semaphore: Semaphore) {
         Heartbeat.beat()
         val routerRunning = routerSupervisor.isRunning
         val metrics = metricsCollector.collect()
@@ -80,7 +99,7 @@ class MetricsPump(
         coroutineScope {
             containers.map { container ->
                 async(Dispatchers.IO) {
-                    statsSemaphore.withPermit {
+                    semaphore.withPermit {
                         val base = metricsCollector.collectContainerMetrics(
                             container.serverId,
                             container.containerId,
@@ -92,9 +111,14 @@ class MetricsPump(
                                 jvmSampleDue(container.serverId, nowMillis, policy.pollIntervalSeconds)
                             val withJvm = if (sampleJvm) {
                                 metricsCollector.collectJvmStats(container.containerId)
-                                    ?.let { base.toBuilder().setJvm(it).build() }
+                                    ?.let {
+                                        base.toBuilder()
+                                            .setJvm(it)
+                                            .build()
+                                    }
                                     ?: base
-                            } else {
+                            }
+                            else {
                                 base
                             }
                             out.sendTelemetry { containerMetrics = withJvm }
@@ -112,7 +136,8 @@ class MetricsPump(
                         }
                     }
                 }
-            }.awaitAll()
+            }
+                .awaitAll()
         }
     }
 
@@ -127,7 +152,8 @@ class MetricsPump(
             if (nowMillis - (last ?: 0L) >= intervalMillis) {
                 due = true
                 nowMillis
-            } else {
+            }
+            else {
                 last
             }
         }

@@ -5,13 +5,11 @@ import io.craftpanel.common.BuildInfo
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.AppConfig
+import io.craftpanel.master.config.backfillDnsSettingsFromEnv
 import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.database.migrations.resetSeedAdminPassword
 import io.craftpanel.master.database.migrations.seedAdminUser
-import io.craftpanel.master.di.DnsProviderHolder
 import io.craftpanel.master.di.appModule
-import io.craftpanel.master.dns.DnsProvider
-import io.craftpanel.master.dns.DnsProviderFactory
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.*
 import io.craftpanel.master.scheduler.ServerScheduler
@@ -67,6 +65,9 @@ fun Application.module() {
     appConfig.validate()
 
     DatabaseFactory.init(appConfig.database)
+    // TEMPORARY: carry DNS env vars into DB settings for an in-place upgrade. Remove after the
+    // deploy wave (delete this call + master/.../config/DnsEnvBackfill.kt).
+    backfillDnsSettingsFromEnv(appConfig.forwarding.key)
     if (appConfig.adminSeed.enabled) {
         transaction {
             seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username)
@@ -80,8 +81,6 @@ fun Application.module() {
     val startupSettings = SystemService(settingsRepository = startupSettingsRepo, settingsProvider = SettingsProvider(startupSettingsRepo)).getSettings().settings
 
     val appScope: CoroutineScope = this
-    val dnsProvider: DnsProvider? = DnsProviderFactory.create(appConfig.dns)
-    if (dnsProvider != null) log.info("DNS provider: ${dnsProvider.type}")
 
     install(Koin) {
         slf4jLogger()
@@ -90,7 +89,6 @@ fun Application.module() {
                 single { appConfig }
                 single(named("appScope")) { appScope }
                 single(named("containerPrefix")) { System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: ContainerNames.DEFAULT_PREFIX }
-                single { DnsProviderHolder(dnsProvider) }
                 single { GrpcServer(get(), get(), get()) }
             },
             appModule
@@ -141,7 +139,8 @@ fun Application.module() {
                 this@module.log.warn("CORS: no PUBLIC_URLS configured — allowing all origins (dev mode)")
                 anyHost()
             }
-        } else {
+        }
+        else {
             for (origin in appConfig.cors.origins) {
                 allowHost(origin.host, schemes = listOf(origin.scheme))
             }

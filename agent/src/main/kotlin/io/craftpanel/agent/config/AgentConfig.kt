@@ -35,12 +35,6 @@ data class AgentConfig(
     val privateIpOverride: String,
     // Explicit public IP reported to master. Takes priority over publicIpUrl discovery.
     val publicIpOverride: String = "",
-    val metricsPollIntervalSeconds: Int,
-    // Max concurrent per-container metrics collections. Bounds Docker-daemon load while removing
-    // the serial O(N) scan that made stats lag on nodes with many servers.
-    val metricsCollectionConcurrency: Int = 8,
-    // Cadence of the convergence backstop sweep in the agent. 0 disables the sweep.
-    val reconcileIntervalSeconds: Int = 30,
     // Max age (hours) a locally-cached image may be before a fresh pull is attempted.
     // Prod default 24h; tests set a very large value so local-only images are never re-pulled.
     val pullMaxImageAgeHours: Long = 24
@@ -107,15 +101,6 @@ data class AgentConfig(
                 containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: ContainerNames.DEFAULT_PREFIX,
                 privateIpOverride = System.getenv("NODE_PRIVATE_IP") ?: "",
                 publicIpOverride = System.getenv("NODE_PUBLIC_IP") ?: "",
-                metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
-                    ?.toIntOrNull()
-                    ?.coerceAtLeast(1) ?: 5,
-                metricsCollectionConcurrency = System.getenv("METRICS_COLLECTION_CONCURRENCY")
-                    ?.toIntOrNull()
-                    ?.coerceAtLeast(1) ?: 8,
-                reconcileIntervalSeconds = System.getenv("AGENT_RECONCILE_INTERVAL_SECONDS")
-                    ?.toIntOrNull()
-                    ?.coerceAtLeast(0) ?: 30,
                 pullMaxImageAgeHours = System.getenv("PULL_MAX_IMAGE_AGE_HOURS")
                     ?.toLongOrNull()
                     ?.coerceAtLeast(0) ?: 24

@@ -8,8 +8,11 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.grpc.handlers.*
+import io.craftpanel.master.service.AgentRuntimeSettingsService
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.SettingsProvider
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.craftpanel.proto.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -53,7 +56,12 @@ class ControlServiceImplTest :
             playerUpdateHandler = playerUpdateHandler,
             backupHandler = backupHandler,
             migrationHandler = migrationHandler,
-            dataOpResponseHandler = dataOpResponseHandler
+            dataOpResponseHandler = dataOpResponseHandler,
+            agentRuntimeSettingsService = AgentRuntimeSettingsService(
+                SettingsProvider(SettingsRepositoryImpl()),
+                nodeRepository,
+                registry
+            )
         )
 
         beforeTest {

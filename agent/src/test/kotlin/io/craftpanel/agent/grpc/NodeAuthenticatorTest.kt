@@ -1,6 +1,9 @@
 package io.craftpanel.agent.grpc
 
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.config.RestartBudgetSettings
+import io.craftpanel.agent.config.RuntimeSettings
+import io.craftpanel.agent.config.RuntimeSettingsStore
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.proto.*
 import io.grpc.inprocess.InProcessChannelBuilder
@@ -42,9 +45,9 @@ class NodeAuthenticatorTest :
             systemReservedCpuMillicores = -20,
             craftpanelNetwork = "craftpanel",
             containerNamePrefix = "craftpanel",
-            privateIpOverride = "192.0.2.10",
-            metricsPollIntervalSeconds = 5
+            privateIpOverride = "192.0.2.10"
         )
+        val settingsStore = RuntimeSettingsStore(tempDir.resolve("runtime-settings.json").toFile())
 
         beforeTest {
             Files.deleteIfExists(tempDir.resolve("node.key"))
@@ -64,7 +67,7 @@ class NodeAuthenticatorTest :
             }
 
             val identity = withChannel(service) { channel ->
-                runBlocking { NodeAuthenticator(config, metrics).authenticate(channel) }
+                runBlocking { NodeAuthenticator(config, metrics, settingsStore).authenticate(channel) }
             }
 
             identity shouldBe NodeIdentity("node-1", "returned-key")
@@ -81,7 +84,7 @@ class NodeAuthenticatorTest :
             }
 
             val identity = withChannel(service) { channel ->
-                runBlocking { NodeAuthenticator(config, metrics).authenticate(channel) }
+                runBlocking { NodeAuthenticator(config, metrics, settingsStore).authenticate(channel) }
             }
 
             identity shouldBe NodeIdentity("node-2", "existing-key")
@@ -97,7 +100,7 @@ class NodeAuthenticatorTest :
             }
 
             val identity = withChannel(service) { channel ->
-                runBlocking { NodeAuthenticator(config, metrics).authenticate(channel) }
+                runBlocking { NodeAuthenticator(config, metrics, settingsStore).authenticate(channel) }
             }
 
             identity shouldBe NodeIdentity("node-3", "existing-key")
@@ -114,7 +117,7 @@ class NodeAuthenticatorTest :
 
             val result = withChannel(service) { channel ->
                 runCatching {
-                    runBlocking { NodeAuthenticator(config, metrics).authenticate(channel) }
+                    runBlocking { NodeAuthenticator(config, metrics, settingsStore).authenticate(channel) }
                 }
             }
 
@@ -140,10 +143,92 @@ class NodeAuthenticatorTest :
             )
 
             withChannel(service) { channel ->
-                runBlocking { NodeAuthenticator(overrideConfig, metrics).authenticate(channel) }
+                runBlocking { NodeAuthenticator(overrideConfig, metrics, settingsStore).authenticate(channel) }
             }
 
             captured.captured.metadata.publicIp shouldBe "203.0.113.5"
+        }
+
+        test("applies the runtime settings snapshot from a register response") {
+            settingsStore.apply(RuntimeSettings(metricsPollIntervalSeconds = 9, metricsCollectionConcurrency = 4))
+            val service = object : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
+                override suspend fun registerNode(request: RegisterNodeRequest): RegisterNodeResponse = registerNodeResponse {
+                    nodeId = "node-6"
+                    nodeKey = "returned-key"
+                    runtimeSettings = agentRuntimeSettings {
+                        metricsPollIntervalSeconds = 11
+                        metricsCollectionConcurrency = 7
+                        reconcileIntervalSeconds = 0
+                        restartBudget = restartBudget {
+                            maxAttempts = 5
+                            windowSeconds = 600
+                        }
+                        jvmMetricsPollIntervalSeconds = 60
+                    }
+                }
+            }
+
+            withChannel(service) { channel ->
+                runBlocking { NodeAuthenticator(config, metrics, settingsStore).authenticate(channel) }
+            }
+
+            settingsStore.current() shouldBe RuntimeSettings(
+                metricsPollIntervalSeconds = 11,
+                metricsCollectionConcurrency = 7,
+                reconcileIntervalSeconds = 0,
+                restartBudget = RestartBudgetSettings(5, 600),
+                jvmMetricsPollIntervalSeconds = 60
+            )
+        }
+
+        test("applies the runtime settings snapshot from an identify response") {
+            Files.writeString(tempDir.resolve("node.key"), "existing-key")
+            settingsStore.apply(RuntimeSettings(metricsPollIntervalSeconds = 9, metricsCollectionConcurrency = 4))
+            val service = object : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
+                override suspend fun identifyNode(request: IdentifyNodeRequest): IdentifyNodeResponse = identifyNodeResponse {
+                    nodeId = "node-7"
+                    status = IdentifyNodeResponse.IdentifyStatus.ACTIVE
+                    runtimeSettings = agentRuntimeSettings {
+                        metricsPollIntervalSeconds = 2
+                        metricsCollectionConcurrency = 3
+                        reconcileIntervalSeconds = 20
+                        restartBudget = restartBudget {
+                            maxAttempts = 4
+                            windowSeconds = 300
+                        }
+                        jvmMetricsPollIntervalSeconds = 15
+                    }
+                }
+            }
+
+            withChannel(service) { channel ->
+                runBlocking { NodeAuthenticator(config, metrics, settingsStore).authenticate(channel) }
+            }
+
+            settingsStore.current() shouldBe RuntimeSettings(
+                metricsPollIntervalSeconds = 2,
+                metricsCollectionConcurrency = 3,
+                reconcileIntervalSeconds = 20,
+                restartBudget = RestartBudgetSettings(4, 300),
+                jvmMetricsPollIntervalSeconds = 15
+            )
+        }
+
+        test("an all-zero snapshot leaves the stored values untouched") {
+            settingsStore.apply(RuntimeSettings(metricsPollIntervalSeconds = 9, metricsCollectionConcurrency = 4))
+            Files.writeString(tempDir.resolve("node.key"), "existing-key")
+            val service = object : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
+                override suspend fun identifyNode(request: IdentifyNodeRequest): IdentifyNodeResponse = identifyNodeResponse {
+                    nodeId = "node-8"
+                    status = IdentifyNodeResponse.IdentifyStatus.ACTIVE
+                }
+            }
+
+            withChannel(service) { channel ->
+                runBlocking { NodeAuthenticator(config, metrics, settingsStore).authenticate(channel) }
+            }
+
+            settingsStore.current() shouldBe RuntimeSettings(metricsPollIntervalSeconds = 9, metricsCollectionConcurrency = 4)
         }
     }) {
     companion object {

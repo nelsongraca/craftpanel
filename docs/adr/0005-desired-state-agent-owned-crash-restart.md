@@ -32,8 +32,11 @@ and a restart budget; the agent converges and owns container mechanics, includin
   already-satisfied envelope is a no-op.
 - The agent keeps a per-server **in-memory** desired-state store, a pure `ConvergenceMachine`
   (next-state function, table-testable), and a `ConvergenceLoop` that serializes per-server work
-  behind a mutex. Crash restart happens in the agent, bounded by the budget shipped in the
-  envelope; exhaustion reports `CRASH_LOOPED`.
+  behind a mutex. Crash restart happens in the agent, bounded by the restart budget; exhaustion
+  reports `CRASH_LOOPED`. *(Delivery note, later revision: the budget is install-wide, so it now
+  rides the `AgentRuntimeSettings` snapshot pushed on connect and on settings change rather than
+  being re-serialised into every envelope. The envelope fields remain populated as a
+  backwards-compatible mirror for one release.)*
 - **`needs_recreate` is retired.** The agent decides recreate by comparing the pushed spec to the
   spec the container was last applied with (`spec != appliedSpec`), or container-absent. A spec
   change while running is stored but does not touch the container — it applies at the next
@@ -68,7 +71,7 @@ Rejected alternatives:
 - Restart is decided by desired state, never by the Docker exit code — an unexpected self-exit
   that returns 0 is restarted while desired stays `RUNNING`. Two backstops cover a lost `die`
   event: the watcher re-subscribes with exponential backoff, and a periodic reconcile sweep
-  re-converges intent that is not running (`AGENT_RECONCILE_INTERVAL_SECONDS`, default 30).
+  re-converges intent that is not running (`agent_reconcile_interval_seconds` system setting, default 30; `0` disables; pushed to agents live).
 - Migration sets `no_restart` on the source for the sync window and clears it on completion or
   failure.
 

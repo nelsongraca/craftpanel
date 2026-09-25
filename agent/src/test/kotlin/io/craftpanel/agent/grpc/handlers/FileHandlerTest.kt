@@ -81,8 +81,7 @@ class FileHandlerTest :
             systemReservedCpuMillicores = 0,
             craftpanelNetwork = "craftpanel",
             containerNamePrefix = "craftpanel",
-            privateIpOverride = "",
-            metricsPollIntervalSeconds = 60
+            privateIpOverride = ""
         )
 
         fun newOutbound(): Pair<AgentOutbound, Channel<AgentMessage>> {

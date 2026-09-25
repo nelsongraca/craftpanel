@@ -54,7 +54,7 @@ and shipped in every `ServerDesiredState` envelope), the agent restarts the cont
 manual start re-converges. A successful start resets the counter. A `no_restart` flag (used during live migration) suppresses autonomous restart while desired stays `RUNNING`.
 
 Two backstops cover a death whose `die` event is lost (agent/Docker daemon restart, dropped event stream): the watcher re-subscribes with exponential backoff, and the agent
-periodically re-converges any server with intent that is not running (`AGENT_RECONCILE_INTERVAL_SECONDS`, default 30, `0` disables).
+periodically re-converges any server with intent that is not running (`agent_reconcile_interval_seconds` system setting, default 30, `0` disables; pushed to agents live).
 
 ### Desired state vs reported state
 

@@ -22,6 +22,7 @@ class CommandDispatcherTest :
         val file = mockk<FileHandler>(relaxed = true)
         val console = mockk<ConsoleHandler>(relaxed = true)
         val bulkClient = mockk<BulkDataClient>(relaxed = true)
+        val runtimeSettings = mockk<RuntimeSettingsHandler>(relaxed = true)
 
         val dispatcher = CommandDispatcher(
             container = container,
@@ -30,7 +31,8 @@ class CommandDispatcherTest :
             migration = migration,
             file = file,
             console = console,
-            bulkClient = bulkClient
+            bulkClient = bulkClient,
+            runtimeSettings = runtimeSettings
         )
 
         test("routes desired-state envelope to DesiredStateHandler and remove/shutdown to ContainerHandler") {

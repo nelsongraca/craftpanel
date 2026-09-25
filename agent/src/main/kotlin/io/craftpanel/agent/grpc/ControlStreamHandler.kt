@@ -1,27 +1,32 @@
 package io.craftpanel.agent.grpc
 
-import io.craftpanel.agent.config.AgentConfig
-import io.craftpanel.agent.desired.ConvergenceLoop
-import io.craftpanel.agent.docker.*
+import io.craftpanel.agent.docker.ContainerManager
+import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.handlers.nowTimestamp
-import io.craftpanel.proto.*
+import io.craftpanel.proto.AgentMessage
+import io.craftpanel.proto.ControlServiceGrpcKt
+import io.craftpanel.proto.NodeStateSnapshot
+import io.craftpanel.proto.nodeStateSnapshot
 import io.grpc.ManagedChannel
-import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
-import kotlin.time.Duration.Companion.seconds
 
+/**
+ * Owns one control stream: sends the opening node-state snapshot, bridges the telemetry lane into
+ * the request stream, and dispatches inbound commands.
+ *
+ * The long-lived loops (convergence, reconcile sweep, metrics pump, Docker event watcher) are
+ * deliberately *not* started here — they live in
+ * [io.craftpanel.agent.runtime.AgentRuntime] so master downtime cannot disable crash-restart.
+ */
 class ControlStreamHandler(
-    private val config: AgentConfig,
     private val containerManager: ContainerManager,
-    private val metricsPump: MetricsPump,
     private val routerSupervisor: RouterSupervisor,
-    private val eventWatcher: ContainerEventWatcher,
     private val dispatcher: CommandDispatcher,
-    private val gate: WatcherGate,
-    private val out: AgentOutbound,
-    private val loop: ConvergenceLoop
+    private val out: AgentOutbound
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
@@ -51,37 +56,6 @@ class ControlStreamHandler(
             telemetryChannel.receiveAsFlow()
                 .collect { msg -> realtimeChannel.trySend(msg) }
         }
-
-        // Periodic metrics loop, owned by MetricsPump. Emits once immediately on connect so a
-        // freshly-opened detail page has live data without waiting a full poll interval.
-        launch { metricsPump.run() }
-
-        // Backstop: periodically re-converge servers with intent that are not running. Catches
-        // deaths the Docker event stream never delivered (agent/Docker daemon restart, dropped
-        // stream) instead of leaving the server down until the next reconnect.
-        if (config.reconcileIntervalSeconds > 0) {
-            val reconcileInterval = config.reconcileIntervalSeconds.toLong().seconds
-            launch {
-                while (true) {
-                    delay(reconcileInterval)
-                    runCatching { loop.reconcileAll() }
-                        .onFailure { log.warn("Periodic reconciliation sweep failed", it) }
-                }
-            }
-        } else {
-            log.warn("Convergence reconcile sweep disabled (reconcileIntervalSeconds=0)")
-        }
-
-        // Near-instant crash signal: unexpected deaths feed the convergence loop, which decides
-        // restart (within budget) vs report. Authored deaths are suppressed by the WatcherGate;
-        // the watcher self-heals (exponential-backoff resubscribe) and the reconcile sweep above
-        // is the second backstop.
-        val eventStream = eventWatcher.watch(
-            scope = this,
-            shouldReport = gate::shouldReportDie,
-            onContainerDie = { serverId -> loop.onContainerDie(serverId) }
-        )
-        coroutineContext.job.invokeOnCompletion { runCatching { eventStream.close() } }
 
         // Process inbound commands from master
         stream.collect { msg ->

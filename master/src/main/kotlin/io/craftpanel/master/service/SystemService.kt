@@ -1,8 +1,12 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.config.DnsConfig
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.database.schema.SystemSettings
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.dns.DnsProviderFactory
+import io.craftpanel.master.dns.DnsProviderResolver
 import io.craftpanel.master.service.repo.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.datetime.TimeZone
@@ -36,10 +40,28 @@ data class PatchSettingsRequest(
     @SerialName("image_proxy") val imageProxy: String? = null,
     @SerialName("console_tail_lines") val consoleTailLines: Int? = null,
     @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
-    @SerialName("dns_zone_id") val dnsZoneId: String? = null
+    @SerialName("dns_zone_id") val dnsZoneId: String? = null,
+    @SerialName("dns_provider") val dnsProvider: String? = null,
+    // Write-only: absent or blank means "keep the stored token".
+    @SerialName("cf_api_token") val cfApiToken: String? = null,
+    @SerialName("metrics_poll_interval_seconds") val metricsPollIntervalSeconds: Int? = null,
+    @SerialName("metrics_collection_concurrency") val metricsCollectionConcurrency: Int? = null,
+    @SerialName("agent_reconcile_interval_seconds") val agentReconcileIntervalSeconds: Int? = null
 )
 
-class SystemService(private val settingsRepository: SettingsRepository, private val settingsProvider: SettingsProvider, private val dnsProvider: DnsProvider? = null) {
+class SystemService(
+    private val settingsRepository: SettingsRepository,
+    private val settingsProvider: SettingsProvider,
+    private val dnsProviderResolver: DnsProviderResolver? = null,
+    private val cipher: SecretCipher? = null,
+    // Construction seam so the preflight can build a candidate provider from not-yet-persisted
+    // values and tests can inject a fake.
+    private val dnsProviderFactory: (DnsConfig) -> DnsProvider? = DnsProviderFactory::create,
+    // Broadcast seam (not a direct AgentRuntimeSettingsService dependency): SystemService only needs
+    // to trigger the push, and a hard dependency would re-introduce the construction cycle the
+    // NodeStateHandler seam avoids.
+    private val pushRuntimeSettings: () -> Unit = {}
+) {
 
     fun getSettings(): SystemSettingsResponse = loadSettings()
 
@@ -85,23 +107,50 @@ class SystemService(private val settingsRepository: SettingsRepository, private 
         if (req.consoleTailLines != null && req.consoleTailLines !in 1..5000) {
             throw UnprocessableException("console_tail_lines must be between 1 and 5000")
         }
+        if (req.dnsProvider != null && req.dnsProvider !in ALLOWED_DNS_PROVIDERS) {
+            throw UnprocessableException("dns_provider must be one of ${ALLOWED_DNS_PROVIDERS.joinToString()}")
+        }
+        if (req.cfApiToken != null && req.cfApiToken.length > 4096) {
+            throw UnprocessableException("cf_api_token must be at most 4096 characters")
+        }
+        if (req.metricsPollIntervalSeconds != null && req.metricsPollIntervalSeconds !in 1..3600) {
+            throw UnprocessableException("metrics_poll_interval_seconds must be between 1 and 3600")
+        }
+        if (req.metricsCollectionConcurrency != null && req.metricsCollectionConcurrency !in 1..64) {
+            throw UnprocessableException("metrics_collection_concurrency must be between 1 and 64")
+        }
+        if (req.agentReconcileIntervalSeconds != null && req.agentReconcileIntervalSeconds !in 0..3600) {
+            throw UnprocessableException("agent_reconcile_interval_seconds must be between 0 and 3600")
+        }
+
+        val current = settingsProvider.current()
+        val newToken = req.cfApiToken?.takeIf { it.isNotBlank() }
+        val resolvedProvider = req.dnsProvider ?: current.dnsProvider
+        val resolvedToken = newToken
+            ?: settingsProvider.encryptedCfApiToken()
+                ?.let { cipher?.let { c -> EncryptedSettingValue.decrypt(c, it) } }
+            ?: ""
+        if (resolvedProvider == "cloudflare" && resolvedToken.isBlank()) {
+            throw UnprocessableException("cf_api_token is required when dns_provider=cloudflare")
+        }
 
         // Preflight DNS settings against the provider before persisting: a token that cannot read
         // the zone would otherwise only surface when a server is exposed.
-        if (dnsProvider != null) {
-            val current = settingsProvider.current()
-            val changingZone = req.dnsZoneId != null && req.dnsZoneId != current.dnsZoneId
-            val changingSuffix = req.dnsDomainSuffix != null && req.dnsDomainSuffix != current.dnsDomainSuffix
-            if (changingZone || changingSuffix) {
-                val zoneId = (req.dnsZoneId ?: current.dnsZoneId)?.takeIf { it.isNotBlank() }
-                if (zoneId != null) {
-                    try {
-                        dnsProvider.verifyZone(zoneId)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        throw UnprocessableException("DNS settings rejected: ${e.message}")
-                    }
+        val changingProvider = req.dnsProvider != null && req.dnsProvider != current.dnsProvider
+        val changingToken = newToken != null
+        val changingZone = req.dnsZoneId != null && req.dnsZoneId != current.dnsZoneId
+        val changingSuffix = req.dnsDomainSuffix != null && req.dnsDomainSuffix != current.dnsDomainSuffix
+        if (changingProvider || changingToken || changingZone || changingSuffix) {
+            val zoneId = (req.dnsZoneId ?: current.dnsZoneId)?.takeIf { it.isNotBlank() }
+            if (zoneId != null) {
+                try {
+                    dnsProviderFactory(DnsConfig(resolvedProvider, resolvedToken))?.verifyZone(zoneId)
+                }
+                catch (e: CancellationException) {
+                    throw e
+                }
+                catch (e: Exception) {
+                    throw UnprocessableException("DNS settings rejected: ${e.message}")
                 }
             }
         }
@@ -125,6 +174,12 @@ class SystemService(private val settingsRepository: SettingsRepository, private 
             if (req.consoleTailLines != null) put("console_tail_lines", req.consoleTailLines.toString())
             if (req.dnsDomainSuffix != null) put("dns_domain_suffix", req.dnsDomainSuffix)
             if (req.dnsZoneId != null) put("dns_zone_id", req.dnsZoneId)
+            if (req.dnsProvider != null) put("dns_provider", req.dnsProvider)
+            // Encrypt only on write; the read path never exposes the value.
+            if (newToken != null && cipher != null) put("cf_api_token", EncryptedSettingValue.encrypt(cipher, newToken))
+            if (req.metricsPollIntervalSeconds != null) put("metrics_poll_interval_seconds", req.metricsPollIntervalSeconds.toString())
+            if (req.metricsCollectionConcurrency != null) put("metrics_collection_concurrency", req.metricsCollectionConcurrency.toString())
+            if (req.agentReconcileIntervalSeconds != null) put("agent_reconcile_interval_seconds", req.agentReconcileIntervalSeconds.toString())
         }
         transaction {
             updates.forEach { (k, v) ->
@@ -137,8 +192,15 @@ class SystemService(private val settingsRepository: SettingsRepository, private 
             }
         }
 
-        val stored = loadSettings()
         settingsProvider.invalidate()
+        // The resolver's cache is keyed on (provider, token), so zone/suffix-only changes are picked
+        // up lazily and a rebuild here is only needed when the credential changed.
+        if (changingProvider || changingToken) dnsProviderResolver?.refresh()
+        if (updates.keys.any { it in AGENT_RUNTIME_SETTING_KEYS }) {
+            pushRuntimeSettings()
+        }
+
+        val stored = loadSettings()
         val resolvedStart = req.defaultPortRangeStart ?: stored.settings.defaultPortRangeStart
         val resolvedEnd = req.defaultPortRangeEnd ?: stored.settings.defaultPortRangeEnd
         if (resolvedStart >= resolvedEnd) {
@@ -154,6 +216,21 @@ class SystemService(private val settingsRepository: SettingsRepository, private 
             settings = Settings.from(rows),
             updatedAt = latest?.updatedAt,
             updatedBy = latest?.updatedBy?.toString()
+        )
+    }
+
+    companion object {
+
+        private val ALLOWED_DNS_PROVIDERS = setOf("none", "cloudflare")
+
+        /** Settings whose change must be pushed live to connected agents. */
+        private val AGENT_RUNTIME_SETTING_KEYS = setOf(
+            "metrics_poll_interval_seconds",
+            "metrics_collection_concurrency",
+            "agent_reconcile_interval_seconds",
+            "restart_max_attempts",
+            "restart_window_seconds",
+            "jvm_metrics_poll_interval_seconds"
         )
     }
 }

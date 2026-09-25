@@ -6,6 +6,7 @@ import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
 import io.craftpanel.agent.grpc.handlers.FileHandler
 import io.craftpanel.agent.grpc.handlers.MigrationHandler
+import io.craftpanel.agent.grpc.handlers.RuntimeSettingsHandler
 import io.craftpanel.proto.MasterMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +39,7 @@ class CommandDispatcher private constructor(private val entries: Map<PayloadCase
     private data class Entry(val mode: Mode, val handle: suspend (msg: MasterMessage, out: AgentOutbound) -> Unit)
 
     companion object {
+
         operator fun invoke(
             container: ContainerHandler,
             desired: DesiredStateHandler,
@@ -45,7 +47,8 @@ class CommandDispatcher private constructor(private val entries: Map<PayloadCase
             migration: MigrationHandler,
             file: FileHandler,
             console: ConsoleHandler,
-            bulkClient: BulkDataClient
+            bulkClient: BulkDataClient,
+            runtimeSettings: RuntimeSettingsHandler
         ): CommandDispatcher = CommandDispatcher(
             buildMap {
                 fun entry(mode: Mode, handle: suspend (msg: MasterMessage, out: AgentOutbound) -> Unit) = Entry(mode, handle)
@@ -61,6 +64,8 @@ class CommandDispatcher private constructor(private val entries: Map<PayloadCase
                 )
                 put(PayloadCase.SHUTDOWN, entry(Mode.SYNC) { msg, out -> container.handleShutdown(msg.shutdown, out) })
                 put(PayloadCase.SERVER_DESIRED_STATE, entry(Mode.CONCURRENT) { msg, _ -> desired.handleDesiredState(msg.serverDesiredState) })
+
+                put(PayloadCase.AGENT_RUNTIME_SETTINGS, entry(Mode.SYNC) { msg, _ -> runtimeSettings.handle(msg.agentRuntimeSettings) })
 
                 put(PayloadCase.TRIGGER_BACKUP, entry(Mode.CONCURRENT) { msg, out -> backup.handleTriggerBackup(msg.triggerBackup, out) })
                 put(PayloadCase.DELETE_BACKUP, entry(Mode.CONCURRENT) { msg, out -> backup.handleDeleteBackup(msg.deleteBackup) })

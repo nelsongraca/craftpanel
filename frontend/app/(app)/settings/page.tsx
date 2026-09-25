@@ -27,6 +27,11 @@ type FormState = {
     console_tail_lines: string;
     dns_domain_suffix: string;
     dns_zone_id: string;
+    dns_provider: string;
+    cf_api_token: string;
+    metrics_poll_interval_seconds: string;
+    metrics_collection_concurrency: string;
+    agent_reconcile_interval_seconds: string;
 };
 
 function toForm(s: Settings): FormState {
@@ -46,6 +51,11 @@ function toForm(s: Settings): FormState {
         console_tail_lines: String(s.console_tail_lines),
         dns_domain_suffix: s.dns_domain_suffix ?? "",
         dns_zone_id: s.dns_zone_id ?? "",
+        dns_provider: s.dns_provider ?? "none",
+        cf_api_token: "",
+        metrics_poll_interval_seconds: String(s.metrics_poll_interval_seconds),
+        metrics_collection_concurrency: String(s.metrics_collection_concurrency),
+        agent_reconcile_interval_seconds: String(s.agent_reconcile_interval_seconds),
     };
 }
 
@@ -129,7 +139,16 @@ export default function SettingsPage() {
             console_tail_lines: parseInt(form.console_tail_lines, 10) || undefined,
             dns_domain_suffix: form.dns_domain_suffix,
             dns_zone_id: form.dns_zone_id,
+            dns_provider: form.dns_provider,
+            metrics_poll_interval_seconds: parseInt(form.metrics_poll_interval_seconds, 10) || undefined,
+            metrics_collection_concurrency: parseInt(form.metrics_collection_concurrency, 10) || undefined,
+            agent_reconcile_interval_seconds: parseInt(form.agent_reconcile_interval_seconds, 10) || undefined,
         };
+
+        // Write-only: only send a token when the operator typed one (blank = keep the stored one).
+        if (form.cf_api_token.trim() !== "") {
+            body.cf_api_token = form.cf_api_token.trim();
+        }
 
         if (logoData !== undefined) {
             body.app_logo = logoData;
@@ -353,6 +372,56 @@ export default function SettingsPage() {
                             </Field>
                         </section>
 
+                        {/* ── Agent Runtime ───────────────────────────────────── */}
+                        <section className="space-y-5 rounded-md border border-border bg-surface p-5">
+                            <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
+                                Agent Runtime
+                            </h2>
+                            <p className="-mt-2 text-xs text-text-muted">
+                                Install-wide agent tuning. Pushed to every connected node live — no restart required.
+                            </p>
+                            <Field label="Metrics Poll Interval (seconds)">
+                                <TextField
+                                    type="number"
+                                    min={1}
+                                    max={3600}
+                                    value={form.metrics_poll_interval_seconds}
+                                    onChange={(e) => set("metrics_poll_interval_seconds", e.target.value)}
+                                    required
+                                />
+                                <p className="mt-1 text-xs text-text-muted">
+                                    How often each node samples container metrics and player counts.
+                                </p>
+                            </Field>
+                            <Field label="Metrics Collection Concurrency">
+                                <TextField
+                                    type="number"
+                                    min={1}
+                                    max={64}
+                                    value={form.metrics_collection_concurrency}
+                                    onChange={(e) => set("metrics_collection_concurrency", e.target.value)}
+                                    required
+                                />
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Max servers sampled in parallel per node — bounds Docker-daemon load.
+                                </p>
+                            </Field>
+                            <Field label="Reconcile Sweep Interval (seconds)">
+                                <TextField
+                                    type="number"
+                                    min={0}
+                                    max={3600}
+                                    value={form.agent_reconcile_interval_seconds}
+                                    onChange={(e) => set("agent_reconcile_interval_seconds", e.target.value)}
+                                    required
+                                />
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Backstop that re-converges servers with intent that are not running. Set to 0 to
+                                    disable the sweep.
+                                </p>
+                            </Field>
+                        </section>
+
                         {/* ── Rate Limits ─────────────────────────────────────── */}
                         <section className="space-y-5 rounded-md border border-border bg-surface p-5">
                             <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
@@ -420,6 +489,39 @@ export default function SettingsPage() {
                                 Optional. Required to expose servers publicly. Applies to the whole install — see the
                                 docs for the one-time Cloudflare setup.
                             </p>
+                            <Field label="DNS Provider">
+                                <select
+                                    className="w-full rounded border border-border bg-surface-high px-3 py-2 text-sm text-text-primary"
+                                    value={form.dns_provider}
+                                    onChange={(e) => set("dns_provider", e.target.value)}
+                                >
+                                    <option value="none">None (IP:port only)</option>
+                                    <option value="cloudflare">Cloudflare</option>
+                                </select>
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Changing the provider verifies the zone against the new credentials before saving.
+                                </p>
+                            </Field>
+                            {form.dns_provider === "cloudflare" && (
+                                <Field label="Cloudflare API Token">
+                                    <TextField
+                                        type="password"
+                                        placeholder={
+                                            settingsData?.cf_api_token_set
+                                                ? "configured — leave blank to keep"
+                                                : "paste your Cloudflare API token"
+                                        }
+                                        value={form.cf_api_token}
+                                        onChange={(e) => set("cf_api_token", e.target.value)}
+                                        autoComplete="new-password"
+                                    />
+                                    <p className="mt-1 text-xs text-text-muted">
+                                        {settingsData?.cf_api_token_set
+                                            ? "A token is configured. Leave blank to keep it; typing a new value replaces it."
+                                            : "Required for Cloudflare. Stored encrypted; it is never shown again."}
+                                    </p>
+                                </Field>
+                            )}
                             <Field label="DNS Zone ID">
                                 <TextField
                                     type="text"

@@ -38,8 +38,8 @@ data class ImagesConfig(val minecraftImage: String, val proxyImage: String, val 
     fun deriveImage(serverType: ServerType, tag: String): String {
         val base = when {
             serverType.isPicolimbo -> picolimboImage
-            serverType.isProxy -> proxyImage
-            else -> minecraftImage
+            serverType.isProxy     -> proxyImage
+            else                   -> minecraftImage
         }
         return if (':' in base) base else "$base:$tag"
     }
@@ -49,8 +49,8 @@ data class ImagesConfig(val minecraftImage: String, val proxyImage: String, val 
     // PicoLimbo's WORKDIR is /usr/src/app — config (server.toml) lives there.
     fun dataContainerPath(serverType: ServerType): String = when {
         serverType.isPicolimbo -> "/usr/src/app"
-        serverType.isProxy -> "/server"
-        else -> "/data"
+        serverType.isProxy     -> "/server"
+        else                   -> "/data"
     }
 
     // Internal port the server process binds inside the container. itzg/minecraft-server
@@ -122,15 +122,6 @@ class AppConfig(config: ApplicationConfig) {
             "NODE_BOOTSTRAP_TOKEN",
             config.property("node.bootstrapToken")
                 .getString()
-        )
-    )
-    val dns = DnsConfig(
-        provider = config.propertyOrNull("dns.provider")
-            ?.getString() ?: "none",
-        cloudflareApiToken = secretFromFileOrValue(
-            "CF_API_TOKEN",
-            config.propertyOrNull("dns.cloudflare.apiToken")
-                ?.getString() ?: ""
         )
     )
     val cors = CorsConfig(

@@ -33,7 +33,7 @@ open class MigrationCoordinator(
     val proxyBackendRepository: ProxyBackendRepository,
     val nodeRepository: NodeRepository,
     val gateway: AgentGateway,
-    val dnsProvider: DnsProvider?,
+    val dnsProvider: (() -> DnsProvider?)? = null,
     val lifecycle: ContainerLifecycle,
     private val serverHostnames: ServerHostnames,
     val scope: CoroutineScope,

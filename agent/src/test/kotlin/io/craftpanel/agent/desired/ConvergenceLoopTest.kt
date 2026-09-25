@@ -1,12 +1,16 @@
 package io.craftpanel.agent.desired
 
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.config.RestartBudgetSettings
+import io.craftpanel.agent.config.RuntimeSettings
+import io.craftpanel.agent.config.RuntimeSettingsStore
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.FakeContainerManager
 import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.docker.WatcherGate
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
+import io.craftpanel.agent.runtime.OutboundSink
 import io.craftpanel.proto.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -46,13 +50,20 @@ class ConvergenceLoopTest :
             systemReservedCpuMillicores = 0,
             craftpanelNetwork = "craftpanel",
             containerNamePrefix = "craftpanel",
-            metricsPollIntervalSeconds = 60,
             masterHttpPort = 80,
             privateIpOverride = "",
             mcRouterContainerName = ""
         )
 
         fun newScope(): CoroutineScope = CoroutineScope(Dispatchers.Default)
+
+        // The restart budget is an install-wide runtime setting now (no longer carried by the
+        // per-server envelope); default it to the tests' historical 3/600.
+        fun newRuntimeSettings(maxAttempts: Int = 3, windowSeconds: Long = 600): RuntimeSettingsStore {
+            val store = RuntimeSettingsStore(Files.createTempFile("runtime-settings", ".json").toFile())
+            store.apply(RuntimeSettings(restartBudget = RestartBudgetSettings(maxAttempts, windowSeconds)))
+            return store
+        }
 
         fun newLoop(
             cm: ContainerManager,
@@ -61,7 +72,8 @@ class ConvergenceLoopTest :
             store: DesiredStateStore = DesiredStateStore(),
             gate: WatcherGate = WatcherGate(),
             startConflictRetryDelayMs: Long = 5_000L,
-            ensureRouterRunning: suspend () -> Unit = {}
+            ensureRouterRunning: suspend () -> Unit = {},
+            runtimeSettings: RuntimeSettingsStore = newRuntimeSettings()
         ) = ConvergenceLoop(
             store = store,
             operator = ContainerOperator(
@@ -73,8 +85,9 @@ class ConvergenceLoopTest :
             ),
             containerNamePrefix = config.containerNamePrefix,
             gate = gate,
-            out = outbound,
-            scope = scope
+            out = OutboundSink().also { it.attach(outbound) },
+            scope = scope,
+            runtimeSettings = runtimeSettings
         )
 
         fun startCmd(serverId: String = "srv-1", serverName: String = "myserver", image: String = "itzg/minecraft-server:latest", publicHostname: String = "") = startContainerCommand {
@@ -856,10 +869,11 @@ class ConvergenceLoopTest :
             loop.jvmMetricsPolicy("srv-unknown") shouldBe null
         }
 
-        test("jvmMetricsPolicy is read live from the desired-state envelope") {
+        test("jvmMetricsPolicy combines the per-server enabled flag with the store's interval") {
             val cm = FakeContainerManager()
             val (_, out) = newOutbound()
-            val loop = newLoop(cm, out)
+            val runtimeSettings = newRuntimeSettings()
+            val loop = newLoop(cm, out, runtimeSettings = runtimeSettings)
 
             runBlocking {
                 loop.applyDesired(
@@ -867,12 +881,13 @@ class ConvergenceLoopTest :
                         .setJvmMetrics(
                             jvmMetricsPolicy {
                                 enabled = false
-                                pollIntervalSeconds = 45
+                                pollIntervalSeconds = 45 // ignored — the interval is install-wide now
                             }
                         )
                         .build()
                 ).join()
             }
+            runtimeSettings.apply(runtimeSettings.current().copy(jvmMetricsPollIntervalSeconds = 45))
 
             loop.jvmMetricsPolicy("srv-1") shouldBe JvmMetricsPolicy(enabled = false, pollIntervalSeconds = 45)
         }
@@ -881,7 +896,8 @@ class ConvergenceLoopTest :
             val cm = FakeContainerManager()
             val (_, out) = newOutbound()
             val store = DesiredStateStore()
-            val loop = newLoop(cm, out, store = store)
+            val runtimeSettings = newRuntimeSettings()
+            val loop = newLoop(cm, out, store = store, runtimeSettings = runtimeSettings)
 
             runBlocking {
                 loop.applyDesired(
@@ -909,6 +925,7 @@ class ConvergenceLoopTest :
                         .build()
                 ).join()
             }
+            runtimeSettings.apply(runtimeSettings.current().copy(jvmMetricsPollIntervalSeconds = 60))
 
             // The policy lives on the envelope, not the spec, so the spec is untouched.
             store.get("srv-1").spec shouldBe specBefore

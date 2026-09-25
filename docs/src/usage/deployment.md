@@ -23,17 +23,15 @@ FORWARDING_KEY=<base64 AES-256 key — generate with the command below>
 ADMIN_EMAIL=you@example.com
 ADMIN_PASSWORD=<initial admin password>
 HOST_DATA_PATH=/opt/craftpanel/data
-# Optional — leave commented if you don't want public hostnames yet.
-# See "Enabling Public Hostnames" for the full setup.
-#DNS_PROVIDER=cloudflare
-#CF_API_TOKEN=<Cloudflare API token>
 ```
 
 This is the minimum set. Every variable — compose `.env`, plus the master, agent, and frontend
 container variables — is documented in
 [Environment Variables, Ports & Volumes](environment-variables.md).
 
-The `DNS_PROVIDER` / `CF_API_TOKEN` pair enables automatic A-record management for externally-exposed servers via Cloudflare. Leave them commented to skip DNS integration (servers are then reachable only by node IP + port). See [Enabling Public Hostnames](enabling-public-hostnames.md) for the one-time Cloudflare setup walkthrough.
+Automatic A-record management for externally-exposed servers via Cloudflare is configured in the
+panel's **Settings** page (DNS provider + API token), not via environment variables. See
+[Enabling Public Hostnames](enabling-public-hostnames.md) for the one-time Cloudflare setup walkthrough.
 
 `FORWARDING_KEY` must be a Base64-encoded 32-byte (256-bit) key. Generate one on Linux/macOS with:
 

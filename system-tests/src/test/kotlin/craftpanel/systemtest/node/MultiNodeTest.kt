@@ -94,8 +94,9 @@ class MultiNodeTest : BaseSystemTest() {
             should("expose node metrics for both nodes") {
                 val nodes = api.listNodes()
                 for (node in nodes) {
-                    // First metric tick arrives up to METRICS_POLL_INTERVAL_SECONDS
-                    // after the agent connects, so poll instead of asserting once.
+                    // First metric tick arrives up to metrics_poll_interval_seconds (a system
+                    // setting pushed from master; default 5s) after the agent connects, so poll
+                    // instead of asserting once.
                     val metrics = pollUntilNotNull(60_000) {
                         api.getNodeMetrics(node.id)
                             .takeIf { it.ramTotalMb.isNotEmpty() }

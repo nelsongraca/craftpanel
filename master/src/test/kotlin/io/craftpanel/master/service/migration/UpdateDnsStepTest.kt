@@ -115,7 +115,7 @@ class UpdateDnsStepTest :
                 proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
                 gateway = TestAgentGateway(),
-                dnsProvider = dnsProvider,
+                dnsProvider = { dnsProvider },
                 lifecycle = ContainerLifecycle(
                     gateway = TestAgentGateway(),
                     modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),

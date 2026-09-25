@@ -5,6 +5,7 @@ import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.docker.MasterDockerClient
 import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.dns.DnsProviderResolver
 import io.craftpanel.master.grpc.*
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.scheduler.BackupJobHandler
@@ -40,6 +41,10 @@ val appModule = module {
     single<RecoveryCodeRepository> { RecoveryCodeRepositoryImpl() }
     single<SettingsRepository> { SettingsRepositoryImpl() }
     single { SettingsProvider(get()) }
+    // Lazy, restartable DNS provider holder built from DB-backed settings (never from env), so a
+    // wrong token cannot make master unbootable.
+    single { DnsProviderResolver(settingsProvider = get(), cipher = get()) }
+    single { AgentRuntimeSettingsService(settingsProvider = get(), nodeRepository = get(), gateway = get()) }
 
     // gRPC core
     single { NodeStateReconciler(nodeRepository = get()) }
@@ -71,7 +76,8 @@ val appModule = module {
             nodeStateReconciler = get(),
             // Lazy lookup: resolving DesiredStateSyncService here would cycle through
             // ContainerLifecycle → AgentGateway → ControlServiceImpl → this handler.
-            pushDesiredStates = { nodeId -> get<DesiredStateSyncService>().pushAllForNode(nodeId) }
+            pushDesiredStates = { nodeId -> get<DesiredStateSyncService>().pushAllForNode(nodeId) },
+            pushRuntimeSettings = { nodeId -> get<AgentRuntimeSettingsService>().pushToNode(nodeId) }
         )
     }
     single { NodeMetricsHandler(get(), get()) }
@@ -95,7 +101,8 @@ val appModule = module {
             playerUpdateHandler = get(),
             backupHandler = get(),
             migrationHandler = get(),
-            dataOpResponseHandler = get()
+            dataOpResponseHandler = get(),
+            agentRuntimeSettingsService = get()
         )
     }
     single { BulkDataServiceImpl(get()) }
@@ -133,7 +140,15 @@ val appModule = module {
     single { UserService(userRepository = get()) }
     single { GroupService(groupRepository = get()) }
     single { AssignmentService(userRepository = get(), groupRepository = get(), serverRepository = get(), networkRepository = get()) }
-    single { SystemService(settingsRepository = get(), settingsProvider = get(), dnsProvider = get<DnsProviderHolder>().provider) }
+    single {
+        SystemService(
+            settingsRepository = get(),
+            settingsProvider = get(),
+            dnsProviderResolver = get(),
+            cipher = get(),
+            pushRuntimeSettings = { get<AgentRuntimeSettingsService>().pushAll() }
+        )
+    }
     single { BrandingService(settingsProvider = get()) }
     single { NodeService(gateway = get<AgentGateway>(), nodeRepository = get(), serverRepository = get(), nodeRegistrationService = get()) }
     single {
@@ -194,7 +209,7 @@ val appModule = module {
     }
     single {
         ServerExposureService(
-            dnsProvider = get<DnsProviderHolder>().provider,
+            dnsProvider = { get<DnsProviderResolver>().current() },
             lifecycle = get(),
             serverRepository = get(),
             nodeRepository = get(),
@@ -205,7 +220,7 @@ val appModule = module {
         ServerService(
             gateway = get<AgentGateway>(),
             networkService = get(),
-            dnsProvider = get<DnsProviderHolder>().provider,
+            dnsProvider = { get<DnsProviderResolver>().current() },
             containerNamePrefix = get(named("containerPrefix")),
             serverRepository = get(),
             nodeRepository = get(),
@@ -280,7 +295,7 @@ val appModule = module {
             proxyBackendRepository = get<ProxyBackendRepository>(),
             nodeRepository = get<NodeRepository>(),
             gateway = get<AgentGateway>(),
-            dnsProvider = get<DnsProviderHolder>().provider,
+            dnsProvider = { get<DnsProviderResolver>().current() },
             scope = get(named("appScope")),
             lifecycle = get(),
             serverHostnames = get(),

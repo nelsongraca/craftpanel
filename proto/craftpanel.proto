@@ -65,6 +65,9 @@ message RegisterNodeResponse {
   string node_key = 1;
   // UUID assigned to this node record by master.
   string node_id = 2;
+  // Install-wide runtime tuning. Always populated by a current master; an older master
+  // leaves it empty (all-zero), which the agent treats as "no snapshot" and ignores.
+  AgentRuntimeSettings runtime_settings = 3;
 }
 
 message IdentifyNodeRequest {
@@ -77,6 +80,9 @@ message IdentifyNodeRequest {
 message IdentifyNodeResponse {
   IdentifyStatus status = 1;
   string node_id = 2;
+  // Install-wide runtime tuning. Always populated by a current master; an older master
+  // leaves it empty (all-zero), which the agent treats as "no snapshot" and ignores.
+  AgentRuntimeSettings runtime_settings = 3;
 
   enum IdentifyStatus {
     IDENTIFY_STATUS_UNSPECIFIED = 0;
@@ -87,6 +93,31 @@ message IdentifyNodeResponse {
     // Node key is unknown or has been revoked — agent should halt.
     REJECTED = 3;
   }
+}
+
+// Install-wide runtime tuning pushed to agents (global defaults, not per-node). Every field is
+// always populated — no presence semantics — so the all-zero value unambiguously means "this
+// master predates the snapshot" and the agent keeps its cached/default values instead.
+message AgentRuntimeSettings {
+  // Metrics collection cadence and fan-out. Replaces METRICS_POLL_INTERVAL_SECONDS and
+  // METRICS_COLLECTION_CONCURRENCY.
+  uint32 metrics_poll_interval_seconds = 1;
+  uint32 metrics_collection_concurrency = 2;
+  // Convergence backstop sweep cadence in the agent. Replaces AGENT_RECONCILE_INTERVAL_SECONDS.
+  // 0 disables the sweep.
+  uint32 reconcile_interval_seconds = 3;
+  // Crash-restart budget. Moved off the per-server ServerDesiredState envelope: install-wide, so it
+  // rides this snapshot instead of being re-serialised into every envelope.
+  RestartBudget restart_budget = 4;
+  // JVM heap-metrics polling interval (seconds). Moved off the per-server envelope for the same
+  // reason; the per-server `enabled` flag stays on ServerDesiredState.jvm_metrics.
+  uint32 jvm_metrics_poll_interval_seconds = 5;
+}
+
+// Pushed on the control stream when an install-wide agent tuning value changes, so connected
+// agents apply it live instead of waiting for the next reconnect.
+message AgentRuntimeSettingsUpdate {
+  AgentRuntimeSettings settings = 1;
 }
 
 message NodeMetadata {
@@ -200,6 +231,10 @@ message MasterMessage {
     // full runtime spec and restart budget; the agent converges to it and owns crash-restart
     // autonomously. Re-pushed by master on every agent reconnect and on master boot.
     ServerDesiredState server_desired_state = 29;
+
+    // Install-wide agent runtime tuning (metrics cadence, reconcile sweep, restart budget, JVM
+    // poll interval). Sent live when an operator changes one of the backing system settings.
+    AgentRuntimeSettingsUpdate agent_runtime_settings = 30;
   }
 }
 

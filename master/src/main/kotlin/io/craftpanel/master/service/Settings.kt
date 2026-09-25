@@ -26,7 +26,14 @@ data class Settings(
     @SerialName("image_proxy") val imageProxy: String,
     @SerialName("console_tail_lines") val consoleTailLines: Int,
     @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
-    @SerialName("dns_zone_id") val dnsZoneId: String?
+    @SerialName("dns_zone_id") val dnsZoneId: String?,
+    @SerialName("dns_provider") val dnsProvider: String,
+    // Read-only: true when a non-blank `cf_api_token` row exists. The token itself is never
+    // part of this snapshot — it is only ever read (and decrypted) by [DnsProviderResolver].
+    @SerialName("cf_api_token_set") val cfApiTokenSet: Boolean,
+    @SerialName("metrics_poll_interval_seconds") val metricsPollIntervalSeconds: Int,
+    @SerialName("metrics_collection_concurrency") val metricsCollectionConcurrency: Int,
+    @SerialName("agent_reconcile_interval_seconds") val agentReconcileIntervalSeconds: Int
 ) {
 
     companion object {
@@ -50,7 +57,12 @@ data class Settings(
                 imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
                 consoleTailLines = map["console_tail_lines"]?.toIntOrNull() ?: 200,
                 dnsDomainSuffix = map["dns_domain_suffix"]?.takeIf { it.isNotBlank() },
-                dnsZoneId = map["dns_zone_id"]?.takeIf { it.isNotBlank() }
+                dnsZoneId = map["dns_zone_id"]?.takeIf { it.isNotBlank() },
+                dnsProvider = map["dns_provider"]?.takeIf { it.isNotBlank() } ?: "none",
+                cfApiTokenSet = map["cf_api_token"]?.isNotBlank() == true,
+                metricsPollIntervalSeconds = map["metrics_poll_interval_seconds"]?.toIntOrNull() ?: 5,
+                metricsCollectionConcurrency = map["metrics_collection_concurrency"]?.toIntOrNull() ?: 8,
+                agentReconcileIntervalSeconds = map["agent_reconcile_interval_seconds"]?.toIntOrNull() ?: 30
             )
         }
     }

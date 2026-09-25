@@ -2,6 +2,8 @@ package io.craftpanel.agent.grpc
 
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.config.RuntimeSettings
+import io.craftpanel.agent.config.RuntimeSettingsStore
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.common.BuildInfo
 import io.craftpanel.proto.*
@@ -14,7 +16,11 @@ internal class NodeRejectedException(message: String) : Exception(message)
 
 data class NodeIdentity(val nodeId: String, val nodeKey: String)
 
-class NodeAuthenticator(private val config: AgentConfig, private val metricsCollector: MetricsCollector) {
+class NodeAuthenticator(
+    private val config: AgentConfig,
+    private val metricsCollector: MetricsCollector,
+    private val runtimeSettings: RuntimeSettingsStore
+) {
 
     private val log = LoggerFactory.getLogger(NodeAuthenticator::class.java)
 
@@ -43,6 +49,7 @@ class NodeAuthenticator(private val config: AgentConfig, private val metricsColl
                 }
             )
             NodeKeyStore.write(config.keyFilePath, response.nodeKey)
+            applyRuntimeSettings(response.runtimeSettings)
             log.info("Registered as node ${response.nodeId} — status PENDING, awaiting admin approval")
             return NodeIdentity(nodeId = response.nodeId, nodeKey = response.nodeKey)
         }
@@ -57,11 +64,13 @@ class NodeAuthenticator(private val config: AgentConfig, private val metricsColl
 
         return when (response.status) {
             IdentifyNodeResponse.IdentifyStatus.ACTIVE -> {
+                applyRuntimeSettings(response.runtimeSettings)
                 log.info("Node ${response.nodeId} is ACTIVE")
                 NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
 
             IdentifyNodeResponse.IdentifyStatus.PENDING -> {
+                applyRuntimeSettings(response.runtimeSettings)
                 log.info("Node ${response.nodeId} is PENDING — awaiting admin approval")
                 NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
@@ -70,8 +79,22 @@ class NodeAuthenticator(private val config: AgentConfig, private val metricsColl
         }
     }
 
+    /**
+     * Applies the snapshot from a register/identify response. An all-zero message means the master
+     * predates runtime settings (or the field is absent), so the cached/default values are kept.
+     */
+    private fun applyRuntimeSettings(proto: AgentRuntimeSettings) {
+        val settings = RuntimeSettings.fromProto(proto) ?: run {
+            log.debug("Master sent no runtime settings snapshot — keeping current values")
+            return
+        }
+        runtimeSettings.apply(settings)
+        log.info("Applied runtime settings from master: {}", settings)
+    }
+
     private fun resolvePublicIp(): String {
-        config.publicIpOverride.takeIf { it.isNotBlank() }?.let { return it }
+        config.publicIpOverride.takeIf { it.isNotBlank() }
+            ?.let { return it }
         if (config.publicIpUrl.isBlank()) return resolvePrivateIp()
         return runCatching {
             val conn = URI(config.publicIpUrl).toURL()

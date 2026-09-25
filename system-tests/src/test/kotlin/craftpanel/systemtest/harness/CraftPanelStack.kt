@@ -302,7 +302,8 @@ class CraftPanelStack {
             .withEnv("NODE_PRIVATE_IP", gatewayIp)
             .withEnv("HOST_DATA_PATH", dataDir.absolutePath)
             .withEnv("NODE_HOSTNAME", alias)
-            .withEnv("METRICS_POLL_INTERVAL_SECONDS", "5")
+            // Agent runtime tuning (metrics cadence, reconcile sweep, restart budget) now arrives
+            // from master via the RegisterNode/IdentifyNode snapshot — no agent env needed.
             // Never re-pull local-only fake images (365 days in hours) — they are built once
             // by :fake-server:dockerBuildImage and are not pullable from any registry.
             .withEnv("PULL_MAX_IMAGE_AGE_HOURS", "8760")

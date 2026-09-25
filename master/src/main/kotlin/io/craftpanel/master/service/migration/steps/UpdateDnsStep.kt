@@ -9,7 +9,7 @@ class UpdateDnsStep : MigrationStep {
 
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult {
         val recordId = plan.serverRow.dnsRecordId
-        val provider = coord.dnsProvider
+        val provider = coord.dnsProvider?.invoke()
         if (recordId != null && provider != null) {
             val dns = coord.resolveTargetDns(plan)
             if (dns != null) {

@@ -110,8 +110,7 @@ class AgentConfigTest :
             hostnameOverride: String = "",
             publicIpOverride: String = "",
             craftpanelNetwork: String = "craftpanel",
-            containerNamePrefix: String = "craftpanel",
-            metricsPollIntervalSeconds: Int = 60
+            containerNamePrefix: String = "craftpanel"
         ) = AgentConfig(
             profile = profile,
             masterAddress = masterAddress,
@@ -133,7 +132,6 @@ class AgentConfigTest :
             systemReservedCpuMillicores = 0,
             craftpanelNetwork = craftpanelNetwork,
             containerNamePrefix = containerNamePrefix,
-            metricsPollIntervalSeconds = metricsPollIntervalSeconds,
             masterHttpPort = 80,
             privateIpOverride = "",
             publicIpOverride = publicIpOverride,

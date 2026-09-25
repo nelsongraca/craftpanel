@@ -20,7 +20,7 @@ import kotlin.uuid.Uuid
 class ServerService(
     private val gateway: AgentGateway,
     private val networkService: NetworkService? = null,
-    private val dnsProvider: DnsProvider? = null,
+    private val dnsProvider: (() -> DnsProvider?)? = null,
     private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
@@ -145,7 +145,7 @@ class ServerService(
 
         val recordId = existing.dnsRecordId
         if (recordId != null) {
-            val provider = dnsProvider
+            val provider = dnsProvider?.invoke()
                 ?: throw ConflictException("Cannot delete server with DNS record: DNS provider not configured")
             val zoneId = settingsProvider.current().dnsZoneId
                 ?: throw ConflictException("Cannot delete server with DNS record: no DNS zone configured")

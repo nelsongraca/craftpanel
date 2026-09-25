@@ -16,7 +16,6 @@ import java.nio.file.Files
 class ControlStreamHandlerTest :
     FunSpec({
         val containerManager: ContainerManager = mockk(relaxed = true)
-        val metricsPump: MetricsPump = mockk(relaxed = true)
         val identity = NodeIdentity(nodeId = "node-1", nodeKey = "test-key")
         val symlinkTempRoot = Files.createTempDirectory("agent-symlinks")
             .toFile()
@@ -41,7 +40,6 @@ class ControlStreamHandlerTest :
             systemReservedCpuMillicores = 0,
             craftpanelNetwork = "craftpanel",
             containerNamePrefix = "craftpanel",
-            metricsPollIntervalSeconds = 60,
             masterHttpPort = 80,
             privateIpOverride = "",
             mcRouterContainerName = ""
@@ -49,29 +47,23 @@ class ControlStreamHandlerTest :
         val containerHandler = ContainerHandler(containerManager, config, mockk<NetworkManager>(relaxed = true))
         val backupHandler = BackupHandler(config)
         val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true), mockk<NetworkManager>(relaxed = true))
-        val eventWatcher = ContainerEventWatcher(mockk(relaxed = true))
         val consoleHandler = ConsoleHandler(mockk(relaxed = true), mockk(relaxed = true))
-        // Shared test view: the convergence loop is a mock here because these tests exercise the
-        // handler's snapshot/remove/shutdown/symlink paths only; convergence behaviour is covered in
-        // ConvergenceLoopTest.
+        // The long-lived loops now live in AgentRuntime, so this handler keeps only the snapshot,
+        // telemetry bridge and dispatch paths; convergence behaviour is covered in ConvergenceLoopTest.
         val handler = ControlStreamHandler(
-            config,
-            containerManager,
-            metricsPump,
-            routerSupervisor,
-            eventWatcher,
-            CommandDispatcher(
+            containerManager = containerManager,
+            routerSupervisor = routerSupervisor,
+            dispatcher = CommandDispatcher(
                 container = containerHandler,
                 desired = mockk(relaxed = true),
                 backup = backupHandler,
                 migration = mockk(relaxed = true),
                 file = mockk(relaxed = true),
                 console = consoleHandler,
-                bulkClient = mockk(relaxed = true)
+                bulkClient = mockk(relaxed = true),
+                runtimeSettings = mockk(relaxed = true)
             ),
-            gate = WatcherGate(),
-            out = mockk(relaxed = true),
-            loop = mockk(relaxed = true)
+            out = mockk(relaxed = true)
         )
 
         var tempDir: File = File("")

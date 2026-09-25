@@ -78,9 +78,16 @@ the table below mirrors it with extra protocol context.
 | `MCROUTER_ENABLED`              | `true`                        | When `false`, the agent never provisions, attaches, detaches, or metrics-queries mc-router.                                                                                                                                               |
 | `SYSTEM_RESERVED_RAM_MB`        | `0`                           | Megabytes of RAM the agent will not offer to servers. Reported to master alongside the node's physical total and withheld from allocatable capacity (`total − reserved`). On a co-located node running master + PostgreSQL, `1024`–`2048` is typical. |
 | `SYSTEM_RESERVED_CPU_MILLICORES` | `0`                          | CPU millicores the agent will not offer to servers (1000 millicores per core). Reported to master alongside the node's total and withheld from allocatable capacity (`total − reserved`).                                                     |
-| `METRICS_POLL_INTERVAL_SECONDS` | `5`                           | How often the agent polls `/proc` and Docker Stats for node and container metrics. Minimum 1 second.                                                                                                                                      |
-| `METRICS_COLLECTION_CONCURRENCY` | `8`                          | Maximum number of server containers whose stats/player counts are collected in parallel per metrics tick. Bounds Docker daemon load.                                                                                                       |
-| `AGENT_RECONCILE_INTERVAL_SECONDS` | `30`                       | Cadence of the convergence backstop sweep. Set to `0` to disable the sweep.                                                                                                                                                                |
+
+!!! note "Removed tuning variables"
+    `METRICS_POLL_INTERVAL_SECONDS`, `METRICS_COLLECTION_CONCURRENCY` and
+    `AGENT_RECONCILE_INTERVAL_SECONDS` no longer exist. Metrics cadence, collection concurrency, and
+    the reconcile-sweep interval are install-wide **System Settings** (`metrics_poll_interval_seconds`,
+    `metrics_collection_concurrency`, `agent_reconcile_interval_seconds`) that master pushes to every
+    agent on connect and live when changed. The crash-restart budget
+    (`restart_max_attempts`/`restart_window_seconds`) and the JVM heap poll interval
+    (`jvm_metrics_poll_interval_seconds`) travel the same way. See
+    [System Settings](../data-model/system-settings.md).
 
 ### Private IP discovery
 

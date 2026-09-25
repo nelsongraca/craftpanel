@@ -86,7 +86,7 @@ class MigrationService(
     private val proxyBackendRepository: ProxyBackendRepository,
     private val nodeRepository: NodeRepository,
     private val gateway: AgentGateway,
-    private val dnsProvider: DnsProvider?,
+    private val dnsProvider: (() -> DnsProvider?)? = null,
     private val scope: CoroutineScope,
     private val lifecycle: ContainerLifecycle,
     private val serverHostnames: ServerHostnames,

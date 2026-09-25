@@ -50,6 +50,11 @@ const defaultSettings = {
         console_tail_lines: 200,
         dns_domain_suffix: "mc.example.com",
         dns_zone_id: "023e105f4ecef8ad9ca31a8482d7aca9",
+        dns_provider: "cloudflare",
+        cf_api_token_set: true,
+        metrics_poll_interval_seconds: 5,
+        metrics_collection_concurrency: 8,
+        agent_reconcile_interval_seconds: 30,
     },
 };
 
