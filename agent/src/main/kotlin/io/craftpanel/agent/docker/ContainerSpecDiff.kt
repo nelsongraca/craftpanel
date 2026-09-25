@@ -6,6 +6,7 @@ import io.craftpanel.proto.StartContainerCommand
 
 /** A field whose live container configuration does not match the desired spec. */
 enum class SpecDiffReason {
+
     IMAGE,
     USER,
     MEMORY,
@@ -21,6 +22,7 @@ enum class SpecDiffReason {
 
 /** Outcome of comparing a desired spec against the live container's inspected configuration. */
 sealed interface SpecDiff {
+
     /** The live container already satisfies the spec — starting it needs no recreate. */
     data object Match : SpecDiff
 
@@ -58,16 +60,33 @@ object ContainerSpecDiff {
             if (expectedMount !in snapshot.binds) add(SpecDiffReason.BIND)
 
             val expectedPorts = buildList {
-                add(PortBindingSnapshot(spec.internalListenPort, spec.containerProtocol.ifEmpty { "TCP" }.lowercase(), spec.hostPort))
+                add(PortBindingSnapshot(spec.internalListenPort,
+                    spec.containerProtocol.ifEmpty { "TCP" }
+                        .lowercase(),
+                    spec.hostPort
+                )
+                )
                 spec.extraPortsList.forEach {
-                    add(PortBindingSnapshot(it.containerPort, it.protocol.ifEmpty { "TCP" }.lowercase(), it.hostPort))
+                    add(PortBindingSnapshot(it.containerPort,
+                        it.protocol.ifEmpty { "TCP" }
+                            .lowercase(),
+                        it.hostPort
+                    )
+                    )
                 }
-            }.filter { it.hostPort > 0 }.sortedWith(compareBy({ it.containerPort }, { it.protocol }))
+            }.filter { it.hostPort > 0 }
+                .sortedWith(compareBy({ it.containerPort }, { it.protocol }))
             val actualPorts = snapshot.portBindings.filter { it.hostPort > 0 }
                 .sortedWith(compareBy({ it.containerPort }, { it.protocol }))
             if (expectedPorts != actualPorts) add(SpecDiffReason.PORTS)
 
-            if (spec.publicHostname.isNotEmpty() && snapshot.labels["mc-router.host"] != spec.publicHostname) {
+            // The routing label must match exactly, including its absence: a stale label on a
+            // non-exposed server (or a removed exposure) must force a recreate, otherwise the server
+            // stays reachable through mc-router. UDP backends never carry the label — mc-router only
+            // proxies TCP — so their expected label is always absent.
+            val expectedHostnameLabel = spec.publicHostname
+                .takeIf { it.isNotEmpty() && !spec.containerProtocol.equals("UDP", ignoreCase = true) }
+            if (snapshot.labels["mc-router.host"] != expectedHostnameLabel) {
                 add(SpecDiffReason.HOSTNAME_LABEL)
             }
             if (spec.dockerNetwork.isNotEmpty() && snapshot.networkMode != spec.dockerNetwork) {
@@ -100,7 +119,10 @@ object ContainerSpecDiff {
             if (snapshot.env[key] != value) return true
         }
         val recorded = snapshot.labels[DockerLabels.MANAGED_ENV_KEYS] ?: return false
-        val recordedKeys = recorded.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val recordedKeys = recorded.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
         return recordedKeys != spec.envVarsMap.keys
     }
 

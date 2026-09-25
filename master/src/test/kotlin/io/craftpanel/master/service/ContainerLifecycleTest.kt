@@ -9,12 +9,14 @@ import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerView
+import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.craftpanel.master.util.toUtcString
 import io.craftpanel.proto.ServerDesiredState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldNotContain
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
@@ -119,12 +121,15 @@ class ContainerLifecycleTest :
                 }
         }
 
+        fun serverHostnames() = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository)
+
         fun lifecycle(startTimeout: kotlin.time.Duration = 2.seconds, stopTimeout: kotlin.time.Duration = 2.seconds, removeTimeout: kotlin.time.Duration = 2.seconds) = ContainerLifecycle(
             gateway = gateway,
             modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
             serverIntent = ServerIntent(repos.serverRepository),
             envVarsRepository = repos.envVarsRepository,
             extraPortRepository = repos.extraPortRepository,
+            serverHostnames = serverHostnames(),
             startTimeout = startTimeout,
             stopTimeout = stopTimeout,
             removeTimeout = removeTimeout
@@ -150,7 +155,8 @@ class ContainerLifecycleTest :
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository,
-                extraPortRepository = repos.extraPortRepository
+                extraPortRepository = repos.extraPortRepository,
+                serverHostnames = serverHostnames()
             )
             val ok = lc.sendDesiredState(server, DesiredStatus.RUNNING)
             ok shouldBe false
@@ -185,6 +191,34 @@ class ContainerLifecycleTest :
             }
             val cmd = lifecycle().buildStartSpec(serverRow())
             cmd.dataDirName shouldBe "survival"
+        }
+
+        test("buildStartSpec - unexposed server carries no mc-router routing label") {
+            val cmd = lifecycle().buildStartSpec(serverRow())
+            cmd.publicHostname shouldBe ""
+            cmd.publicHostname shouldNotContain ".mc.internal"
+        }
+
+        test("buildStartSpec - custom hostname becomes the routing label") {
+            transaction {
+                Servers.update({ Servers.id eq serverId }) {
+                    it[Servers.customHostname] = "play.example.com"
+                }
+            }
+            lifecycle().buildStartSpec(serverRow()).publicHostname shouldBe "play.example.com"
+        }
+
+        test("buildStartSpec - managed and custom hostnames are both routed") {
+            transaction {
+                Servers.update({ Servers.id eq serverId }) {
+                    it[Servers.exposedExternally] = true
+                    it[Servers.publicSubdomain] = "survival"
+                    it[Servers.dnsRecordName] = "survival.example.com"
+                    it[Servers.customHostname] = "play.example.com, alt.example.com"
+                }
+            }
+            lifecycle().buildStartSpec(serverRow()).publicHostname shouldBe
+                "survival.example.com,play.example.com,alt.example.com"
         }
 
         test("buildStartSpec - proxy server type - data container path is /server") {
@@ -251,6 +285,7 @@ class ContainerLifecycleTest :
                 serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository,
                 extraPortRepository = repos.extraPortRepository,
+                serverHostnames = serverHostnames(),
                 jvmMetricsPollIntervalProvider = { 45 }
             )
             lc.sendDesiredState(serverRow(), DesiredStatus.RUNNING)
@@ -401,7 +436,8 @@ class ContainerLifecycleTest :
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository,
-                extraPortRepository = repos.extraPortRepository
+                extraPortRepository = repos.extraPortRepository,
+                serverHostnames = serverHostnames()
             )
             shouldThrow<BadGatewayException> {
                 lc.stop(server, nodeId.toString())

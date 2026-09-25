@@ -141,7 +141,10 @@ class ConfigTest : BaseSystemTest() {
             should("update server exposure") {
                 api.updateServerExposure(
                     serverId2,
-                    PatchExposureRequest(exposedExternally = true)
+                    PatchExposureRequest(
+                        exposedExternally = true,
+                        customHostname = "configtest-${System.currentTimeMillis()}.example.com"
+                    )
                 )
                 val server = api.getServer(serverId2)
                 server.exposedExternally shouldBe true

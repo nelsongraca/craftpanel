@@ -191,6 +191,7 @@ val appModule = module {
             serverIntent = get(),
             envVarsRepository = get(),
             extraPortRepository = get(),
+            serverHostnames = get(),
             imagesProvider = { settingsProvider.images() },
             containerNamePrefix = get(named("containerPrefix")),
             restartBudgetProvider = budgetProvider,
@@ -201,7 +202,6 @@ val appModule = module {
         ServerLifecycleService(
             lifecycle = get(),
             serverRepository = get(),
-            serverHostnames = get(),
             serverIntent = get(),
             proxyPatchWriter = get(),
             backendForwardingService = get()
@@ -240,6 +240,7 @@ val appModule = module {
             envVarsRepository = get(),
             modRepository = get(),
             networkService = get(),
+            serverHostnames = get(),
             containerNamePrefix = get(named("containerPrefix"))
         )
     }

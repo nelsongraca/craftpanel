@@ -17,7 +17,6 @@ import kotlin.uuid.Uuid
 class ServerLifecycleService(
     private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
-    private val serverHostnames: ServerHostnames,
     private val serverIntent: ServerIntent,
     private val proxyPatchWriter: ProxyPatchWriter,
     private val backendForwardingService: BackendForwardingService
@@ -33,7 +32,6 @@ class ServerLifecycleService(
         val alreadyRunning = reported == ServerStatus.HEALTHY || reported == ServerStatus.STARTING
         if (alreadyRunning) throw ConflictException("Server is already running")
         if (serverRow.isDisabled()) throw ConflictException(serverRow.disabledReason())
-        val publicHostname = serverHostnames.mcRouterLabel(serverRow)
         // Write the proxy patch before pushing intent: a failure here must surface loudly and leave
         // the prior intent untouched, not strand the server at a running intent with no process starting.
         ensureProxySecret(serverRow)
@@ -42,7 +40,7 @@ class ServerLifecycleService(
         // container — force a restart so the agent retries past its exhausted crash budget.
         val forceRestart = desired == DesiredStatus.RUNNING
         serverIntent.withIntent(id, DesiredStatus.RUNNING) {
-            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = forceRestart, publicHostname = publicHostname)
+            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = forceRestart)
         }
     }
 
@@ -57,7 +55,7 @@ class ServerLifecycleService(
         ensureProxySecret(serverRow)
         proxyPatchWriter.write(serverRow)
         serverIntent.withIntent(id, DesiredStatus.RUNNING) {
-            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverHostnames.mcRouterLabel(serverRow))
+            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true)
         }
     }
 

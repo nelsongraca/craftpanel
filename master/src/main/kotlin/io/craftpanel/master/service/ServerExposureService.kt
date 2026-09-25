@@ -21,7 +21,8 @@ class ServerExposureService(
 
     suspend fun updateExposure(id: Uuid, exposedExternally: Boolean, publicSubdomain: String?, customHostname: String?) {
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        val subdomain = publicSubdomain?.trim()?.takeIf { it.isNotEmpty() }
+        val subdomain = publicSubdomain?.trim()
+            ?.takeIf { it.isNotEmpty() }
 
         if (exposedExternally && subdomain != null) {
             if (!SUBDOMAIN_LABEL.matches(subdomain)) {
@@ -41,6 +42,25 @@ class ServerExposureService(
             customHostname != null -> serverHostnames.resolveCustomHostnames(customHostname, id)
 
             else -> serverRow.customHostname
+        }
+
+        // An exposed server must have at least one routable name — managed (subdomain) or custom.
+        // Without one, buildStartSpec emits no mc-router.host label, so the server would be
+        // "exposed" in name only and unreachable. Reject early, before any DNS record work, so a
+        // refused request has no side effects.
+        if (exposedExternally) {
+            val hasManagedName = if (subdomain != null) {
+                serverHostnames.resolveGlobalDns() != null || serverHostnames.resolveSuffix() != null
+            }
+            else {
+                serverRow.dnsRecordName != null
+            }
+            if (!hasManagedName && resolvedCustomHostname.isNullOrBlank()) {
+                throw UnprocessableException(
+                    "Exposing a server requires a managed subdomain (configure dns_zone_id and " +
+                        "dns_domain_suffix in System Settings) or at least one custom hostname"
+                )
+            }
         }
 
         val existingRecordId = serverRow.dnsRecordId
@@ -64,7 +84,8 @@ class ServerExposureService(
 
             val fullHostname = if (dns != null) {
                 "$subdomain.${dns.domainSuffix}"
-            } else {
+            }
+            else {
                 serverHostnames.resolveSuffix()
                     ?.let { "$subdomain.$it" }
             }
@@ -82,7 +103,8 @@ class ServerExposureService(
                     // Our record, unchanged name — repoint it at this node's IP.
                     provider.updateARecord(dns.zoneId, existingRecordId, node.publicIp)
                     existingRecordId
-                } else {
+                }
+                else {
                     // First exposure or a rename. Never overwrite a record we did not create.
                     val found = provider.findARecord(dns.zoneId, target)
                     if (found != null && found.id != existingRecordId) {
@@ -99,7 +121,8 @@ class ServerExposureService(
                     }
                     recordId
                 }
-            } else {
+            }
+            else {
                 null
             }
 
@@ -129,14 +152,14 @@ class ServerExposureService(
                     e.dnsRecordName = newHostname
                 }
 
-                !exposedExternally -> {
+                !exposedExternally                     -> {
                     if (recordCleared) {
                         e.dnsRecordId = null
                         e.dnsRecordName = null
                     }
                 }
 
-                else -> {
+                else                                   -> {
                     e.dnsRecordId = existingRecordId
                     e.dnsRecordName = serverRow.dnsRecordName
                 }
@@ -150,13 +173,17 @@ class ServerExposureService(
             // takes effect on the next start/restart. Flag a pending restart for the UI and refresh
             // the agent's stored spec — never yank a live server out from under its players.
             if (serverHostnames.mcRouterLabel(serverRow) != serverHostnames.mcRouterLabel(freshRow)) {
-                transaction { Server.findById(id)?.let { it.restartPending = true } }
-                lifecycle.refreshRunningSpec(freshRow, publicHostname = serverHostnames.mcRouterLabel(freshRow))
+                transaction {
+                    Server.findById(id)
+                        ?.let { it.restartPending = true }
+                }
+                lifecycle.refreshRunningSpec(freshRow)
             }
         }
     }
 
     private companion object {
+
         /** A single RFC-1123 DNS label: the managed subdomain prefix (e.g. `survival`). */
         val SUBDOMAIN_LABEL = Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
     }

@@ -61,6 +61,7 @@ class MigrationsRoutesTest :
                 serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository,
                 extraPortRepository = repos.extraPortRepository,
+                serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
             ),
             serverHostnames = ServerHostnames(
                 settingsProvider = SettingsProvider(SettingsRepositoryImpl()),

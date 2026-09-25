@@ -157,9 +157,41 @@ class ContainerSpecDiffTest :
                 SpecDiff.Mismatch(listOf(SpecDiffReason.HOSTNAME_LABEL))
         }
 
-        test("no public hostname means the mc-router label is not checked") {
+        test("no public hostname with no label matches") {
             diff(s = spec().toBuilder().setPublicHostname("").build(), snap = snapshot().copy(labels = emptyMap())) shouldBe
                 SpecDiff.Match
+        }
+
+        test("a stale mc-router.host label on a non-exposed server forces a recreate") {
+            // Exposure was removed (or never granted): the container must lose the label, otherwise
+            // it stays reachable through mc-router.
+            diff(s = spec().toBuilder().setPublicHostname("").build()) shouldBe
+                SpecDiff.Mismatch(listOf(SpecDiffReason.HOSTNAME_LABEL))
+        }
+
+        test("a UDP backend never expects the mc-router.host label") {
+            diff(
+                s = spec().toBuilder().setContainerProtocol("UDP").build(),
+                snap = snapshot().copy(
+                    labels = emptyMap(),
+                    portBindings = listOf(
+                        PortBindingSnapshot(25565, "udp", 25565),
+                        PortBindingSnapshot(8123, "tcp", 25580)
+                    )
+                )
+            ) shouldBe SpecDiff.Match
+        }
+
+        test("a stale mc-router.host label on a UDP backend forces a recreate") {
+            diff(
+                s = spec().toBuilder().setContainerProtocol("UDP").build(),
+                snap = snapshot().copy(
+                    portBindings = listOf(
+                        PortBindingSnapshot(25565, "udp", 25565),
+                        PortBindingSnapshot(8123, "tcp", 25580)
+                    )
+                )
+            ) shouldBe SpecDiff.Mismatch(listOf(SpecDiffReason.HOSTNAME_LABEL))
         }
 
         test("network mode differs") {

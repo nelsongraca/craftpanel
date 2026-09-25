@@ -98,6 +98,7 @@ class ServerProvisioning(
     private val envVarsRepository: EnvVarsRepository,
     private val modRepository: ModRepository,
     private val networkService: NetworkService,
+    private val serverHostnames: ServerHostnames,
     private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX
 ) {
 
@@ -111,7 +112,12 @@ class ServerProvisioning(
             )
         }
         if (ServerNames.collidesWithPrefix(spec.name, containerNamePrefix)) {
-            throw UnprocessableException("Server name must not start with the reserved prefix '${containerNamePrefix.trim().trimEnd('-')}-'")
+            throw UnprocessableException(
+                "Server name must not start with the reserved prefix '${
+                    containerNamePrefix.trim()
+                        .trimEnd('-')
+                }-'"
+            )
         }
         if (spec.memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (spec.cpuLimitMillicores < 0) throw UnprocessableException("cpu_limit_millicores must be non-negative")
@@ -137,18 +143,30 @@ class ServerProvisioning(
             networkService.requireSingleNodeForNetwork(networkKotlinId, nodeKotlinId)
         }
 
+        // Creation has no managed-subdomain field, so the only routable name available is a custom
+        // hostname. An exposed server without one would carry no mc-router.host label and be
+        // unreachable, so reject before any side effects.
+        if (spec.exposedExternally == true && spec.customHostname.isNullOrBlank()) {
+            throw UnprocessableException(
+                "Exposing a server at creation requires a custom hostname; a managed subdomain can " +
+                    "be configured after creation"
+            )
+        }
+
         return run {
             var lastEx: java.sql.SQLException? = null
             repeat(3) {
                 try {
                     return@run attemptCreate(spec, st, proto, expiryLocal, nodeKotlinId, networkKotlinId)
-                } catch (ex: Exception) {
+                }
+                catch (ex: Exception) {
                     val cause = generateSequence(ex as Throwable) { it.cause }
                         .filterIsInstance<java.sql.SQLException>()
                         .firstOrNull()
                     if (cause != null && cause.sqlState?.startsWith("23") == true) {
                         lastEx = cause
-                    } else {
+                    }
+                    else {
                         throw ex
                     }
                 }
@@ -194,19 +212,22 @@ class ServerProvisioning(
             forwardingPatchFile = source.forwardingPatchFile,
             backupSchedule = source.backupSchedule,
             backupMaxCount = source.backupMaxCount,
-            envVars = envVarsRepository.getEnvVars(sourceId).associate { it.key to it.value },
-            mods = modRepository.listMods(sourceId).map {
-                ProvisionMod(
-                    modrinthProjectId = it.modrinthProjectId,
-                    displayName = it.displayName,
-                    pinStrategy = it.pinStrategy,
-                    pinnedVersionId = it.pinnedVersionId,
-                    installedVersionId = it.installedVersionId
-                )
-            },
-            extraPorts = extraPortRepository.findByServerId(sourceId).map {
-                ProvisionExtraPort(name = it.name, containerPort = it.containerPort, protocol = it.protocol)
-            }
+            envVars = envVarsRepository.getEnvVars(sourceId)
+                .associate { it.key to it.value },
+            mods = modRepository.listMods(sourceId)
+                .map {
+                    ProvisionMod(
+                        modrinthProjectId = it.modrinthProjectId,
+                        displayName = it.displayName,
+                        pinStrategy = it.pinStrategy,
+                        pinnedVersionId = it.pinnedVersionId,
+                        installedVersionId = it.installedVersionId
+                    )
+                },
+            extraPorts = extraPortRepository.findByServerId(sourceId)
+                .map {
+                    ProvisionExtraPort(name = it.name, containerPort = it.containerPort, protocol = it.protocol)
+                }
         )
         return provision(spec)
     }
@@ -222,7 +243,7 @@ class ServerProvisioning(
         when (capacityChecker.check(node, excludeServerId = null, memoryMb = spec.memoryMb, cpuLimitMillicores = spec.cpuLimitMillicores)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok -> {}
+            CapacityResult.Ok              -> {}
         }
 
         val port = portAllocator.allocate(nodeKotlinId)
@@ -263,12 +284,15 @@ class ServerProvisioning(
             }
 
             spec.exposedExternally?.let { entity.exposedExternally = it }
-            spec.customHostname?.let { entity.customHostname = it }
+            spec.customHostname?.let {
+                entity.customHostname = serverHostnames.resolveCustomHostnames(it, entity.id.value)
+            }
             spec.backupSchedule?.let { entity.backupSchedule = it }
             spec.backupMaxCount?.let { entity.backupMaxCount = it }
             if (st.isProxy) {
                 entity.proxyMotd = spec.proxyMotd ?: "$serverTypeDisplay powered by $platformName"
-            } else {
+            }
+            else {
                 entity.proxyMotd = spec.proxyMotd
             }
             entity.proxyMaxPlayers = spec.proxyMaxPlayers
@@ -280,7 +304,8 @@ class ServerProvisioning(
             val envVars = spec.envVars
                 ?: if (!st.isProxy && !st.isCustom && !st.isPicolimbo) {
                     buildDefaultEnvVars(spec.mcVersion, serverTypeDisplay, platformName)
-                } else {
+                }
+                else {
                     emptyMap()
                 }
             envVars.forEach { (key, value) ->

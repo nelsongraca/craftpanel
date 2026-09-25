@@ -77,17 +77,18 @@ class ServersRoutesTest :
             val networkRepository = NetworkRepositoryImpl()
             val settingsRepository = SettingsRepositoryImpl()
             val modService = ModService(modRepository = repos.modRepository, serverRepository = serverRepository)
+            val nodeRepository = NodeRepositoryImpl()
+            val serverHostnames = ServerHostnames(
+                settingsProvider = SettingsProvider(settingsRepository),
+                serverRepository = serverRepository
+            )
             val lifecycle = ContainerLifecycle(
                 gateway = gateway,
                 modService = modService,
                 serverIntent = ServerIntent(serverRepository),
                 envVarsRepository = repos.envVarsRepository,
-                extraPortRepository = repos.extraPortRepository
-            )
-            val nodeRepository = NodeRepositoryImpl()
-            val serverHostnames = ServerHostnames(
-                settingsProvider = SettingsProvider(settingsRepository),
-                serverRepository = serverRepository
+                extraPortRepository = repos.extraPortRepository,
+                serverHostnames = serverHostnames
             )
             val proxyPatchWriter = ProxyPatchWriter(
                 patchService = ProxyConfigPatchService(repos.proxyBackendRepository, serverRepository),
@@ -96,7 +97,6 @@ class ServersRoutesTest :
             val lifecycleService = ServerLifecycleService(
                 lifecycle = lifecycle,
                 serverRepository = serverRepository,
-                serverHostnames = serverHostnames,
                 serverIntent = ServerIntent(serverRepository),
                 proxyPatchWriter = proxyPatchWriter,
                 backendForwardingService = BackendForwardingService(
@@ -129,7 +129,8 @@ class ServersRoutesTest :
                 extraPortRepository = repos.extraPortRepository,
                 envVarsRepository = repos.envVarsRepository,
                 modRepository = repos.modRepository,
-                networkService = networkService
+                networkService = networkService,
+                serverHostnames = serverHostnames
             )
             serversRoutes(
                 ServerService(
@@ -1234,6 +1235,7 @@ class ServersRoutesTest :
                 assignGlobalGroup(userId, "Super Admin")
                 val nodeId = createNode()
                 val serverId = createServer(nodeId, "expose-me")
+                setDnsSettings()
                 val resp = client.patch("/api/servers/$serverId/exposure") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
@@ -1247,6 +1249,26 @@ class ServersRoutesTest :
                 }
                 row[Servers.exposedExternally] shouldBe true
                 row[Servers.publicSubdomain] shouldBe "myserver"
+            }
+        }
+
+        test("PATCH exposure returns 422 when neither a managed subdomain nor a custom hostname is given") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "expose-me")
+                val resp = client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true}""")
+                }
+                // An exposed server must carry at least one routable name — managed or custom —
+                // otherwise it would be "exposed" in name only and unreachable (and previously
+                // would have silently received a guessable <id>.mc.internal routing label).
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
             }
         }
 
@@ -1365,6 +1387,7 @@ class ServersRoutesTest :
                 val nodeId = createNode()
                 val s1 = createServer(nodeId, "srv-1", port = 25565)
                 val s2 = createServer(nodeId, "srv-2", port = 25566)
+                setDnsSettings()
                 client.patch("/api/servers/$s1/exposure") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)

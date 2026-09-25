@@ -122,6 +122,7 @@ class RemoveSourceContainerStepTest :
                     serverIntent = ServerIntent(repos.serverRepository),
                     envVarsRepository = repos.envVarsRepository,
                     extraPortRepository = repos.extraPortRepository,
+                    serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
                 ),
                 serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
                 scope = TestScope(),

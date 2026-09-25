@@ -5,6 +5,7 @@ import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
@@ -25,6 +26,7 @@ class DesiredStateSyncServiceTest :
                 serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository,
                 extraPortRepository = repos.extraPortRepository,
+                serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
             ),
             serverRepository = repos.serverRepository,
             serverIntent = ServerIntent(repos.serverRepository)
@@ -48,7 +50,14 @@ class DesiredStateSyncServiceTest :
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServer(nodeId: Uuid, desiredStatus: String?, status: String = "STOPPED"): Uuid = transaction {
+        fun createServer(
+            nodeId: Uuid,
+            desiredStatus: String?,
+            status: String = "STOPPED",
+            customHostname: String? = null,
+            dnsRecordName: String? = null,
+            exposedExternally: Boolean = false
+        ): Uuid = transaction {
             Servers.insert {
                 it[Servers.nodeId] = nodeId
                 it[Servers.name] = "s-${Uuid.random()}"
@@ -56,6 +65,9 @@ class DesiredStateSyncServiceTest :
                 it[Servers.memoryMb] = 1024
                 it[Servers.status] = status
                 it[Servers.desiredStatus] = desiredStatus
+                it[Servers.customHostname] = customHostname
+                it[Servers.dnsRecordName] = dnsRecordName
+                it[Servers.exposedExternally] = exposedExternally
             }[Servers.id].let { Uuid.parse(it.toString()) }
         }
 
@@ -113,6 +125,22 @@ class DesiredStateSyncServiceTest :
                 service().pushAllForNode(nodeId.toString())
                 gateway.sent.size shouldBe 1
                 gateway.sent[0].first shouldBe nodeId.toString()
+            }
+        }
+
+        test("pushAllForNode carries the mc-router routing label on reconnect") {
+            runTest {
+                createServer(nodeId, "RUNNING", customHostname = "play.example.com")
+                service().pushAllForNode(nodeId.toString())
+                gateway.sent.single().second.serverDesiredState.spec.publicHostname shouldBe "play.example.com"
+            }
+        }
+
+        test("pushAllForNode sends no routing label for an unexposed server") {
+            runTest {
+                createServer(nodeId, "RUNNING")
+                service().pushAllForNode(nodeId.toString())
+                gateway.sent.single().second.serverDesiredState.spec.publicHostname shouldBe ""
             }
         }
 

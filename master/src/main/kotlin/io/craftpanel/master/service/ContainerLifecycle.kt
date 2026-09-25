@@ -20,6 +20,9 @@ class ContainerLifecycle(
     private val serverIntent: ServerIntent,
     private val envVarsRepository: EnvVarsRepository,
     private val extraPortRepository: ServerExtraPortRepository,
+    /** Source of the server's mc-router routing label(s) — the single source of truth for the
+     *  `mc-router.host` spec field, so no start path can drop it. */
+    private val serverHostnames: ServerHostnames,
     /** Resolved per use so a live image-settings change takes effect without a restart. */
     private val imagesProvider: () -> ImagesConfig = { ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy") },
     private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
@@ -47,9 +50,8 @@ class ContainerLifecycle(
         nodeId: String = server.nodeId.toString(),
         force: Boolean = false,
         forceRestart: Boolean = false,
-        publicHostname: String? = null,
         noRestart: Boolean = false
-    ): Boolean = send(nodeId, buildDesiredStateMessage(server, desired, force, forceRestart, publicHostname, noRestart))
+    ): Boolean = send(nodeId, buildDesiredStateMessage(server, desired, force, forceRestart, noRestart))
 
     fun sendRemove(server: ServerView, nodeId: String, force: Boolean = false): Boolean {
         val id = server.id
@@ -61,7 +63,7 @@ class ContainerLifecycle(
      * intent. Callers use this when a spec-feeding field changed (data-dir override, routing
      * labels) — for a RUNNING server only, so the new spec applies on the next start/recreate.
      */
-    fun refreshRunningSpec(server: ServerView, publicHostname: String? = null): Boolean = sendDesiredState(server, DesiredStatus.RUNNING, publicHostname = publicHostname)
+    fun refreshRunningSpec(server: ServerView): Boolean = sendDesiredState(server, DesiredStatus.RUNNING)
 
     // ── Await-based primitives (used by MigrationService for cross-node relocation) ─
 
@@ -69,12 +71,12 @@ class ContainerLifecycle(
      * Sets desired RUNNING and waits for the agent to report HEALTHY. [ServerIntent] reverts the
      * desired status on failure so a failed migration step does not strand an unstartable intent.
      */
-    suspend fun start(server: ServerView, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
+    suspend fun start(server: ServerView, nodeId: String = server.nodeId.toString()) {
         ensureStartable(server)
         val id = server.id
         serverIntent.withIntent(id, DesiredStatus.RUNNING) {
             awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
-                if (!sendDesiredState(server, DesiredStatus.RUNNING, nodeId, publicHostname = publicHostname)) {
+                if (!sendDesiredState(server, DesiredStatus.RUNNING, nodeId)) {
                     throw BadGatewayException("Agent not connected")
                 }
             }
@@ -104,11 +106,17 @@ class ContainerLifecycle(
 
     // ── Build helpers ─────────────────────────────────────────────────────────
 
-    fun buildStartSpec(server: ServerView, publicHostname: String? = null): StartContainerCommand {
+    fun buildStartSpec(server: ServerView): StartContainerCommand {
         val id = server.id
         val image = deriveImage(server.serverType, server.itzgImageTag)
         val allVars = buildAllVars(server)
-        val resolvedHostname = publicHostname ?: server.dnsRecordName ?: "$id.mc.internal"
+        // The mc-router routing label(s) — managed hostname + custom hostnames — derived here and
+        // nowhere else, so every start path (user start/restart, reconnect re-push, migration,
+        // data-dir refresh) produces the same value. Empty means "not routable": no
+        // `mc-router.host` label is written, so a non-exposed server cannot be reached through
+        // mc-router even if its id is known.
+        val resolvedHostname = serverHostnames.mcRouterLabel(server)
+            .orEmpty()
         val extraPortRows = extraPortRepository.findByServerId(id)
         val extraPortPb = extraPortRows.map { extra ->
             extraPortBinding {
@@ -142,7 +150,7 @@ class ContainerLifecycle(
         }
     }
 
-    private fun buildDesiredStateMessage(server: ServerView, desired: DesiredStatus, force: Boolean, forceRestart: Boolean, publicHostname: String?, noRestart: Boolean): MasterMessage {
+    private fun buildDesiredStateMessage(server: ServerView, desired: DesiredStatus, force: Boolean, forceRestart: Boolean, noRestart: Boolean): MasterMessage {
         val (maxAttempts, windowSeconds) = restartBudgetProvider()
         return masterMessage {
             serverDesiredState = serverDesiredState {
@@ -151,7 +159,7 @@ class ContainerLifecycle(
                     DesiredStatus.RUNNING -> ServerDesiredState.Desired.RUNNING
                     DesiredStatus.STOPPED -> ServerDesiredState.Desired.STOPPED
                 }
-                this.spec = buildStartSpec(server, publicHostname)
+                this.spec = buildStartSpec(server)
                 this.force = force
                 this.forceRestart = forceRestart
                 this.noRestart = noRestart
@@ -205,7 +213,8 @@ class ContainerLifecycle(
             if (isProxy && !isManual) put("PATCH_DEFINITIONS", "/server/craftpanel-patch.json")
             // Backend forwarding patch (ADR-0003): master-owned, injected here rather than persisted
             // as a user env var. Honours MANUAL (#49) — no config is injected in manual mode.
-            server.forwardingPatchFile?.takeIf { !isManual }?.let { put("PATCH_DEFINITIONS", it) }
+            server.forwardingPatchFile?.takeIf { !isManual }
+                ?.let { put("PATCH_DEFINITIONS", it) }
             if (isCustom) {
                 val jar = server.customServerJar
                 if (!jar.isNullOrBlank()) put("CUSTOM_SERVER", jar)
@@ -229,7 +238,7 @@ class ContainerLifecycle(
                 .collect { event ->
                     if (event.serverId == serverId) {
                         when {
-                            event.status == expected ->
+                            event.status == expected               ->
                                 found.complete(Unit)
 
                             event.status == ServerStatus.UNHEALTHY ->
@@ -249,7 +258,8 @@ class ContainerLifecycle(
                 ?: throw ContainerLifecycleException(
                     "step timed out after $timeout waiting for $expected (server $serverId)"
                 )
-        } finally {
+        }
+        finally {
             job.cancel()
         }
     }

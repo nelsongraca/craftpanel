@@ -45,7 +45,8 @@ class ExportServiceTest :
             extraPortRepository = repos.extraPortRepository,
             envVarsRepository = repos.envVarsRepository,
             modRepository = repos.modRepository,
-            networkService = networkService
+            networkService = networkService,
+            serverHostnames = ServerHostnames(SettingsProvider(settingsRepository), serverRepository)
         )
 
         fun createServer(
