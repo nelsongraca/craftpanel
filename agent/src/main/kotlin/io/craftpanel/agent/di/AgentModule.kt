@@ -131,7 +131,8 @@ val agentModule = module {
                 routerSupervisor = get(),
                 out = get(),
                 cpuLimitMillicores = get<ConvergenceLoop>()::cpuLimitMillicores,
-                playerCountProbe = get<ConvergenceLoop>()::playerCountProbe
+                playerCountProbe = get<ConvergenceLoop>()::playerCountProbe,
+                jvmMetricsPolicy = get<ConvergenceLoop>()::jvmMetricsPolicy
             )
         }
         scoped { ContainerEventWatcher(get()) }

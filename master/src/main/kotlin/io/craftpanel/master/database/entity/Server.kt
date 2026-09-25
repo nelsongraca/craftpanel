@@ -41,6 +41,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var containerProtocol by Servers.containerProtocol
     var disableHealthcheck by Servers.disableHealthcheck
     var forceRedownload by Servers.forceRedownload
+    var jvmMetricsEnabled by Servers.jvmMetricsEnabled
     var dataDirName by Servers.dataDirName
     var restartPending by Servers.restartPending
     var disabled by Servers.disabled
@@ -103,6 +104,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
         containerProtocol = containerProtocol,
         disableHealthcheck = disableHealthcheck,
         forceRedownload = forceRedownload,
+        jvmMetricsEnabled = jvmMetricsEnabled,
         dataDirName = dataDirName,
         restartPending = restartPending,
         proxyMotd = proxyMotd,

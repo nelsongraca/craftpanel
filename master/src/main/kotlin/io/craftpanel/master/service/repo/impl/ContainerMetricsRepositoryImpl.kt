@@ -64,5 +64,8 @@ private fun ResultRow.toContainerMetricsRow() = ContainerMetricsRow(
     netInBytes = this[ContainerMetrics.netInBytes],
     netOutBytes = this[ContainerMetrics.netOutBytes],
     blockInBytes = this[ContainerMetrics.blockInBytes],
-    blockOutBytes = this[ContainerMetrics.blockOutBytes]
+    blockOutBytes = this[ContainerMetrics.blockOutBytes],
+    heapUsedBytes = this[ContainerMetrics.heapUsedBytes],
+    heapMaxBytes = this[ContainerMetrics.heapMaxBytes],
+    nonHeapUsedBytes = this[ContainerMetrics.nonHeapUsedBytes]
 )

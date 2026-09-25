@@ -43,6 +43,7 @@ data class ServerResponse(
     @SerialName("container_protocol") val containerProtocol: String = "TCP",
     @SerialName("disable_healthcheck") val disableHealthcheck: Boolean = false,
     @SerialName("force_redownload") val forceRedownload: Boolean = false,
+    @SerialName("jvm_metrics_enabled") val jvmMetricsEnabled: Boolean = true,
     // Admin override for the data directory name; null = server id.
     @SerialName("data_dir_name") val dataDirName: String? = null
 )
@@ -64,7 +65,8 @@ data class CreateServerRequest(
     @SerialName("container_listen_port") val containerListenPort: Int? = null,
     @SerialName("container_protocol") val containerProtocol: String? = null,
     @SerialName("disable_healthcheck") val disableHealthcheck: Boolean? = null,
-    @SerialName("force_redownload") val forceRedownload: Boolean? = null
+    @SerialName("force_redownload") val forceRedownload: Boolean? = null,
+    @SerialName("jvm_metrics_enabled") val jvmMetricsEnabled: Boolean? = null
 )
 
 @Serializable
@@ -81,11 +83,16 @@ data class UpdateServerRequest(
     @SerialName("container_listen_port") val containerListenPort: Int? = null,
     @SerialName("container_protocol") val containerProtocol: String? = null,
     @SerialName("disable_healthcheck") val disableHealthcheck: Boolean? = null,
-    @SerialName("force_redownload") val forceRedownload: Boolean? = null
+    @SerialName("force_redownload") val forceRedownload: Boolean? = null,
+    @SerialName("jvm_metrics_enabled") val jvmMetricsEnabled: Boolean? = null
 )
 
 @Serializable
-data class PatchResourcesRequest(@SerialName("memory_mb") val memoryMb: Int, @SerialName("cpu_limit_millicores") val cpuLimitMillicores: Int, @SerialName("itzg_image_tag") val itzgImageTag: String? = null)
+data class PatchResourcesRequest(
+    @SerialName("memory_mb") val memoryMb: Int,
+    @SerialName("cpu_limit_millicores") val cpuLimitMillicores: Int,
+    @SerialName("itzg_image_tag") val itzgImageTag: String? = null
+)
 
 @Serializable
 data class PatchExpirationRequest(@SerialName("expires_at") val expiresAt: String?)
@@ -145,6 +152,7 @@ internal fun ServerView.toResponse(serverHostnames: ServerHostnames, isMigrating
         containerProtocol = containerProtocol,
         disableHealthcheck = disableHealthcheck,
         forceRedownload = forceRedownload,
+        jvmMetricsEnabled = jvmMetricsEnabled,
         dataDirName = dataDirName
     )
 }

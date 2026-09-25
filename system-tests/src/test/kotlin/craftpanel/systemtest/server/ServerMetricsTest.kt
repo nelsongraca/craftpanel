@@ -4,6 +4,7 @@ import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Tags
+import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
@@ -45,6 +46,51 @@ class ServerMetricsTest : BaseSystemTest() {
 
                 metrics.serverId shouldBe serverId
                 metrics.series shouldNotBe null
+            }
+
+            should("collect JVM heap metrics for a running JVM server") {
+                // A HEALTHY itzg server runs a HotSpot JVM; the agent should attach via jcmd/jstat
+                // and surface a heap sample. Poll until a sample lands (the first metric tick may
+                // race the JVM becoming attachable).
+                val deadline = Instant.now()
+                    .plus(Duration.ofMinutes(2))
+                var latest = emptyList<Long>()
+                while (Instant.now() < deadline) {
+                    val series = api.getServerMetrics(serverId, fiveMinutesAgo(), now()).series
+                    latest = (series.heapMaxBytes ?: emptyList()).map { it.v }
+                    if (latest.isNotEmpty()) break
+                    Thread.sleep(2_000)
+                }
+
+                (latest.isEmpty()) shouldBe false
+                (latest.max() ?: 0L) shouldBeGreaterThan 0L
+            }
+
+            should("not collect JVM metrics when the server has them disabled") {
+                val disabledId = helper.createTestServer(nodeId, jvmMetricsEnabled = false)
+                try {
+                    api.startServer(disabledId)
+                    helper.awaitStatus(disabledId, ServerStatus.HEALTHY)
+                    // Give the metrics pump a few ticks to (not) emit a JVM sample.
+                    Thread.sleep(10_000)
+
+                    val series = api.getServerMetrics(disabledId, fiveMinutesAgo(), now()).series
+                    (series.heapUsedBytes ?: emptyList()) shouldBe emptyList()
+                    (series.heapMaxBytes ?: emptyList()) shouldBe emptyList()
+                    (series.nonHeapUsedBytes ?: emptyList()) shouldBe emptyList()
+                } finally {
+                    runCatching { api.stopServer(disabledId) }
+                    helper.awaitStoppedOrGone(disabledId)
+                    runCatching { api.deleteServer(disabledId) }
+                }
+            }
+
+            should("return empty JVM series for a stopped server") {
+                val metrics = api.getServerMetrics(serverId2, fiveMinutesAgo(), now())
+
+                (metrics.series.heapUsedBytes ?: emptyList()) shouldBe emptyList()
+                (metrics.series.heapMaxBytes ?: emptyList()) shouldBe emptyList()
+                (metrics.series.nonHeapUsedBytes ?: emptyList()) shouldBe emptyList()
             }
 
             should("return empty metrics for a stopped server") {

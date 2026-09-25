@@ -420,6 +420,7 @@ export const fakeSystemSettings: SystemSettingsResponse = {
         default_port_range_end: 25600,
         restart_max_attempts: 3,
         restart_window_seconds: 300,
+        jvm_metrics_poll_interval_seconds: 30,
         rate_limit_login_per_minute: 10,
         rate_limit_refresh_per_minute: 30,
         rate_limit_totp_verify_per_minute: 10,

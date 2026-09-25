@@ -42,6 +42,11 @@ class DockerContainerManager(
         return docker.listContainersCmd()
             .withShowAll(false)
             .exec()
+            // Own containers only: the label alone would also match another agent's containers when
+            // two agents share a Docker daemon (as the multi-node system tests do), which would make
+            // this agent emit duplicate metrics — and, for JVM metrics, sample a server whose
+            // per-server toggle was addressed to the other node.
+            .filter { it.names.any { n -> names.isManagedContainerName(n.trimStart('/')) } }
             .filter { it.labels.containsKey("craftpanel.server.id") }
             .mapNotNull { container ->
                 val serverId = container.labels["craftpanel.server.id"]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null

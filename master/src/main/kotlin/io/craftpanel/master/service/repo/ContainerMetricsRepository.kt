@@ -11,7 +11,10 @@ data class ContainerMetricsRow(
     val netInBytes: Long,
     val netOutBytes: Long,
     val blockInBytes: Long,
-    val blockOutBytes: Long
+    val blockOutBytes: Long,
+    val heapUsedBytes: Long? = null,
+    val heapMaxBytes: Long? = null,
+    val nonHeapUsedBytes: Long? = null
 )
 
 interface ContainerMetricsRepository {

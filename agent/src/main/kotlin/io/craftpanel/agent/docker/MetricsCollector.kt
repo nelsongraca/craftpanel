@@ -129,6 +129,52 @@ open class MetricsCollector(private val docker: DockerClient) {
     }
 
     /**
+     * Samples the server's JVM heap (used/max) and non-heap usage from inside its container.
+     *
+     * Uses the `jattach` utility bundled in the itzg images (installed via apk/apt). jattach speaks
+     * the JVM dynamic-attach mechanism over a UNIX socket inside the container, so no network port
+     * is involved — it works on the isolated server network and needs only a JRE, not a JDK.
+     *
+     * Best-effort and nullable: returns null when the container is not running, has no JVM (e.g.
+     * PicoLimbo), or is not attachable (non-HotSpot runtime, attach disabled). Never throws and never
+     * zeroes a sample — an absent value means "no data", so history is not polluted with fake dips.
+     */
+    fun collectJvmStats(containerId: String): JvmStats? = runCatching {
+        // One exec per sample: resolve the in-container JVM pid, then read heap usage and the -Xmx
+        // ceiling in the same shell. The marker separates the two outputs for the parser.
+        val output = execCapture(containerId, listOf("sh", "-c", JvmStatsParser.JATTACH_PROBE_SCRIPT))
+        if (output.isNullOrBlank()) {
+            // No JVM in the container (e.g. PicoLimbo) or the probe produced nothing — not an error.
+            log.debug("JVM probe returned no output for $containerId")
+            return null
+        }
+        val heap = JvmStatsParser.parseHeapInfo(output.substringBefore(JvmStatsParser.MAX_HEAP_MARKER))
+        if (heap == null) {
+            log.warn("Unrecognised JVM heap format for $containerId: {}", output.take(200))
+            return null
+        }
+        val heapMax = JvmStatsParser.parseMaxHeapSize(output.substringAfter(JvmStatsParser.MAX_HEAP_MARKER, ""))
+        if (heapMax == null) {
+            log.warn("JVM probe could not parse MaxHeapSize for $containerId: {}", output.take(200))
+            return null
+        }
+        log.debug(
+            "JVM sample for $containerId: heapUsed={} heapMax={} nonHeap={}",
+            heap.heapUsedBytes,
+            heapMax,
+            heap.nonHeapUsedBytes
+        )
+        jvmStats {
+            heapUsedBytes = heap.heapUsedBytes
+            heapMaxBytes = heapMax
+            nonHeapUsedBytes = heap.nonHeapUsedBytes
+        }
+    }.getOrElse {
+        log.warn("Failed to collect JVM stats for $containerId: ${it.message}")
+        null
+    }
+
+    /**
      * Probes the container for its player list by running the image's bundled `mc-monitor` inside
      * it: `mc-monitor status --json --host localhost --port <internalListenPort>`. Network-independent
      * — the probe runs in the container's own namespace and never involves mc-router or the Docker
@@ -187,7 +233,7 @@ open class MetricsCollector(private val docker: DockerClient) {
         if (!latch.await(timeoutSeconds, TimeUnit.SECONDS)) return null
         out.toString(Charsets.UTF_8.name())
     }.getOrElse {
-        log.debug("mc-monitor exec failed for $containerId: ${it.message}")
+        log.debug("container exec failed for $containerId: ${it.message}")
         null
     }
 

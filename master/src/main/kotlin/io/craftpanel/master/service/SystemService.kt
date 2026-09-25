@@ -28,6 +28,7 @@ data class PatchSettingsRequest(
     @SerialName("default_port_range_end") val defaultPortRangeEnd: Int? = null,
     @SerialName("restart_max_attempts") val restartMaxAttempts: Int? = null,
     @SerialName("restart_window_seconds") val restartWindowSeconds: Long? = null,
+    @SerialName("jvm_metrics_poll_interval_seconds") val jvmMetricsPollIntervalSeconds: Int? = null,
     @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int? = null,
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int? = null,
     @SerialName("rate_limit_totp_verify_per_minute") val rateLimitTotpVerifyPerMinute: Int? = null,
@@ -38,11 +39,7 @@ data class PatchSettingsRequest(
     @SerialName("dns_zone_id") val dnsZoneId: String? = null
 )
 
-class SystemService(
-    private val settingsRepository: SettingsRepository,
-    private val settingsProvider: SettingsProvider,
-    private val dnsProvider: DnsProvider? = null
-) {
+class SystemService(private val settingsRepository: SettingsRepository, private val settingsProvider: SettingsProvider, private val dnsProvider: DnsProvider? = null) {
 
     fun getSettings(): SystemSettingsResponse = loadSettings()
 
@@ -63,6 +60,9 @@ class SystemService(
         }
         if (req.restartWindowSeconds != null && req.restartWindowSeconds < 1) {
             throw UnprocessableException("restart_window_seconds must be at least 1")
+        }
+        if (req.jvmMetricsPollIntervalSeconds != null && req.jvmMetricsPollIntervalSeconds < 1) {
+            throw UnprocessableException("jvm_metrics_poll_interval_seconds must be at least 1")
         }
         if (req.rateLimitLoginPerMinute != null && req.rateLimitLoginPerMinute < 1) {
             throw UnprocessableException("rate_limit_login_per_minute must be at least 1")
@@ -116,6 +116,7 @@ class SystemService(
             if (req.defaultPortRangeEnd != null) put("default_port_range_end", req.defaultPortRangeEnd.toString())
             if (req.restartMaxAttempts != null) put("restart_max_attempts", req.restartMaxAttempts.toString())
             if (req.restartWindowSeconds != null) put("restart_window_seconds", req.restartWindowSeconds.toString())
+            if (req.jvmMetricsPollIntervalSeconds != null) put("jvm_metrics_poll_interval_seconds", req.jvmMetricsPollIntervalSeconds.toString())
             if (req.rateLimitLoginPerMinute != null) put("rate_limit_login_per_minute", req.rateLimitLoginPerMinute.toString())
             if (req.rateLimitRefreshPerMinute != null) put("rate_limit_refresh_per_minute", req.rateLimitRefreshPerMinute.toString())
             if (req.rateLimitTotpVerifyPerMinute != null) put("rate_limit_totp_verify_per_minute", req.rateLimitTotpVerifyPerMinute.toString())

@@ -484,6 +484,18 @@ message ServerDesiredState {
   // Budget for autonomous crash-restarts (see RestartBudget). Read by the agent on every
   // envelope; a changed budget takes effect immediately.
   RestartBudget restart_budget = 7;
+
+  // JVM heap-metrics policy. Carried on the envelope (not in `spec`) deliberately: toggling or
+  // retuning it must NOT force a recreate, and the agent applies a changed policy immediately.
+  JvmMetricsPolicy jvm_metrics = 8;
+}
+
+// Whether and how often the agent samples a server's JVM heap from inside its container.
+// `enabled` is per-server (servers.jvm_metrics_enabled); `poll_interval_seconds` is a global
+// system setting. Both are read by the agent from the desired-state envelope.
+message JvmMetricsPolicy {
+  bool  enabled = 1;
+  int32 poll_interval_seconds = 2;
 }
 
 message PrepareRsyncReceiveCommand {
@@ -766,6 +778,18 @@ message ContainerMetricsUpdate {
   // Counters reset when the container restarts — same reset-detection as net I/O.
   int64  block_in_bytes = 7;
   int64  block_out_bytes = 8;
+  // JVM heap/non-heap sample. Absent when this server has JVM metrics disabled, is not
+  // a JVM server (e.g. PicoLimbo), or the JVM is not attachable this tick. Never zeroed.
+  JvmStats jvm = 9;
+}
+
+// JVM memory sampled from inside the server container (jcmd/jstat over docker exec).
+// `heap_used_bytes` vs `heap_max_bytes` is the primary "actual RAM usage" signal; the
+// container's cgroup figure in ContainerMetricsUpdate.ram_used_mb approximates the rest.
+message JvmStats {
+  int64 heap_used_bytes = 1;
+  int64 heap_max_bytes = 2;
+  int64 non_heap_used_bytes = 3;
 }
 
 message ServerStatusUpdate {

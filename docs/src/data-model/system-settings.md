@@ -20,6 +20,7 @@ configuration (database credentials, secrets, DNS API keys) which lives in the c
 | `default_backup_max_count` | integer | `10`    | Default backup retention limit applied to newly created servers |
 | `default_port_range_start` | integer | `25570` | Default start of the host port range for new nodes              |
 | `default_port_range_end`   | integer | `26070` | Default end of the host port range for new nodes                |
+| `jvm_metrics_poll_interval_seconds` | integer | `30` | How often the agent samples each running server's JVM heap (pushed to agents live) |
 
 !!! note "What does not belong here"
 Deployment-time configuration — database connection details, JWT signing keys, DNS provider credentials, TLS certificate paths, bind addresses — is **never** stored in this table. Those values are

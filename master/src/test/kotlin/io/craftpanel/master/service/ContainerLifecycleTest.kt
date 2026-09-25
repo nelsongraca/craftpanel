@@ -107,6 +107,7 @@ class ContainerLifecycleTest :
                         containerProtocol = r[Servers.containerProtocol],
                         disableHealthcheck = r[Servers.disableHealthcheck],
                         forceRedownload = r[Servers.forceRedownload],
+                        jvmMetricsEnabled = r[Servers.jvmMetricsEnabled],
                         dataDirName = r[Servers.dataDirName],
                         lastPlayerCount = r[Servers.lastPlayerCount],
                         lastPlayerNames = r[Servers.lastPlayerNames],
@@ -230,6 +231,40 @@ class ContainerLifecycleTest :
             cmd.image shouldBe "ghcr.io/quozul/picolimbo:latest"
             cmd.dataContainerPath shouldBe "/usr/src/app"
             cmd.containerUser shouldBe "1000:1000"
+        }
+
+        test("sendDesiredState - carries the JVM metrics policy with the default interval") {
+            val ok = lifecycle().sendDesiredState(serverRow(), DesiredStatus.RUNNING)
+            ok shouldBe true
+            val policy = gateway.sent.single().second.serverDesiredState.jvmMetrics
+            policy.enabled shouldBe true
+            policy.pollIntervalSeconds shouldBe 30
+        }
+
+        test("sendDesiredState - carries a disabled toggle and the configured interval") {
+            transaction {
+                Servers.update({ Servers.id eq serverId }) { it[Servers.jvmMetricsEnabled] = false }
+            }
+            val lc = ContainerLifecycle(
+                gateway = gateway,
+                modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+                serverIntent = ServerIntent(repos.serverRepository),
+                envVarsRepository = repos.envVarsRepository,
+                extraPortRepository = repos.extraPortRepository,
+                jvmMetricsPollIntervalProvider = { 45 }
+            )
+            lc.sendDesiredState(serverRow(), DesiredStatus.RUNNING)
+            val policy = gateway.sent.single().second.serverDesiredState.jvmMetrics
+            policy.enabled shouldBe false
+            policy.pollIntervalSeconds shouldBe 45
+        }
+
+        test("buildStartSpec - is not affected by the JVM metrics toggle (policy rides the envelope)") {
+            val before = lifecycle().buildStartSpec(serverRow())
+            transaction {
+                Servers.update({ Servers.id eq serverId }) { it[Servers.jvmMetricsEnabled] = false }
+            }
+            lifecycle().buildStartSpec(serverRow()) shouldBe before
         }
 
         test("buildStartSpec - CUSTOM server type - injects CUSTOM_SERVER and forces VERSION=LATEST") {

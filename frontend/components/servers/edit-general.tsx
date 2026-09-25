@@ -4,7 +4,13 @@ import {useEffect, useState} from "react";
 import {InfoRow} from "@/components/edit/info-row";
 import {EditFieldRow, EditInput, EditSelect, EditTextarea, EditSection} from "@/components/edit/edit-fields";
 import {McVersionSelect} from "@/components/ui/mc-version";
-import {updateServer, listNetworks, updateServerExpiration, setServerDisabled, updateServerDataDir} from "@/lib/generated/sdk.gen";
+import {
+    updateServer,
+    listNetworks,
+    updateServerExpiration,
+    setServerDisabled,
+    updateServerDataDir,
+} from "@/lib/generated/sdk.gen";
 import type {Network, Server} from "@/lib/types";
 import {hasPermission} from "@/lib/permissions";
 import {Switch} from "@/components/ui/switch";
@@ -32,6 +38,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
     const [mcVersion, setMcVersion] = useState("");
     const [expiresAt, setExpiresAt] = useState<string>(""); // datetime-local string
     const [disabled, setDisabled] = useState(false);
+    const [jvmMetricsEnabled, setJvmMetricsEnabled] = useState(true);
     const [dataDirName, setDataDirName] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -44,6 +51,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
         setMcVersion(server.mc_version);
         setExpiresAt(server.expires_at ? server.expires_at.slice(0, 16) : "");
         setDisabled(server.disabled ?? false);
+        setJvmMetricsEnabled(server.jvm_metrics_enabled ?? true);
         setDataDirName(server.data_dir_name ?? "");
         setError(null);
         setEditing(true);
@@ -73,9 +81,14 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
             if (description !== (server.description ?? "")) body.description = description || "";
             if (networkId !== (server.network_id ?? "")) body.network_id = networkId || "";
             if (mcVersion !== server.mc_version) body.mc_version = mcVersion;
+            if (jvmMetricsEnabled !== (server.jvm_metrics_enabled ?? true))
+                body.jvm_metrics_enabled = jvmMetricsEnabled;
 
             // Update general fields via PATCH /servers/{id}
-            const {error: updateErr} = await updateServer({path: {id: server.id}, body: body as Parameters<typeof updateServer>[0]["body"]});
+            const {error: updateErr} = await updateServer({
+                path: {id: server.id},
+                body: body as Parameters<typeof updateServer>[0]["body"],
+            });
             if (updateErr) {
                 setError(updateErr.message ?? "Failed to save");
                 return;
@@ -87,9 +100,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                 if (expiresAt !== prev) {
                     const {error: expireErr} = await updateServerExpiration({
                         path: {id: server.id},
-                        body: expiresAt
-                            ? {expires_at: new Date(expiresAt).toISOString()}
-                            : {expires_at: null}
+                        body: expiresAt ? {expires_at: new Date(expiresAt).toISOString()} : {expires_at: null},
                     });
                     if (expireErr) {
                         setError(expireErr.message ?? "Failed to save expiration");
@@ -102,7 +113,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
             if (canDisable && disabled !== (server.disabled ?? false)) {
                 const {error: disableErr} = await setServerDisabled({
                     path: {id: server.id},
-                    body: {disabled}
+                    body: {disabled},
                 });
                 if (disableErr) {
                     setError(disableErr.message ?? "Failed to update disabled state");
@@ -116,7 +127,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                 if (dataDirName.trim() !== prev) {
                     const {error: dirErr} = await updateServerDataDir({
                         path: {id: server.id},
-                        body: {data_dir_name: dataDirName.trim() || null}
+                        body: {data_dir_name: dataDirName.trim() || null},
                     });
                     if (dirErr) {
                         setError(dirErr.message ?? "Failed to update data directory");
@@ -145,19 +156,15 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
             onSave={() => void save()}
         >
             <div>
-                <InfoRow label="Display Name" value={server.display_name}/>
-                <InfoRow label="Description" value={server.description ?? "-"}/>
-                <InfoRow label="Network" value={networks.find((n) => n.id === server.network_id)?.name ?? "-"}/>
-                {!isCustom && !isPicolimbo && <InfoRow label="MC Version" value={server.mc_version}/>}
+                <InfoRow label="Display Name" value={server.display_name} />
+                <InfoRow label="Description" value={server.description ?? "-"} />
+                <InfoRow label="Network" value={networks.find((n) => n.id === server.network_id)?.name ?? "-"} />
+                {!isCustom && !isPicolimbo && <InfoRow label="MC Version" value={server.mc_version} />}
                 <InfoRow
                     label="Expires"
-                    value={
-                        server.expires_at
-                            ? new Date(server.expires_at).toLocaleString()
-                            : "Never"
-                    }
+                    value={server.expires_at ? new Date(server.expires_at).toLocaleString() : "Never"}
                 />
-                <InfoRow label="Data Directory" value={server.data_dir_name || server.id}/>
+                <InfoRow label="Data Directory" value={server.data_dir_name || server.id} />
             </div>
             <div className="space-y-3">
                 <EditFieldRow label="Display Name">
@@ -178,7 +185,9 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                     <EditSelect value={networkId} onChange={(e) => setNetworkId(e.target.value)}>
                         <option value="">None</option>
                         {networks.map((n) => (
-                            <option key={n.id} value={n.id}>{n.name}</option>
+                            <option key={n.id} value={n.id}>
+                                {n.name}
+                            </option>
                         ))}
                     </EditSelect>
                 </EditFieldRow>
@@ -195,15 +204,12 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                 {canDisable && (
                     <EditFieldRow label="Disabled">
                         <div className="flex items-center gap-3">
-                            <Switch
-                                checked={disabled}
-                                onCheckedChange={setDisabled}
-                            />
+                            <Switch checked={disabled} onCheckedChange={setDisabled} />
                             <span className="text-xs text-text-muted">
-                                    {disabled
-                                        ? "Server cannot be started until re-enabled. If running, it will be stopped."
-                                        : "Server can be started and stopped normally."}
-                                </span>
+                                {disabled
+                                    ? "Server cannot be started until re-enabled. If running, it will be stopped."
+                                    : "Server can be started and stopped normally."}
+                            </span>
                         </div>
                     </EditFieldRow>
                 )}
@@ -214,10 +220,10 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                             onChange={(e) => setDataDirName(e.target.value)}
                             placeholder={server.id}
                         />
-                        <p className="text-xs text-text-muted mt-1">
-                            Overrides the data directory name (defaults to the server ID). No files are moved —
-                            the directory must already hold the data; a running server is flagged restart-pending
-                            and picks up the new path on the next start or restart.
+                        <p className="mt-1 text-xs text-text-muted">
+                            Overrides the data directory name (defaults to the server ID). No files are moved — the
+                            directory must already hold the data; a running server is flagged restart-pending and picks
+                            up the new path on the next start or restart.
                         </p>
                     </EditFieldRow>
                 )}
@@ -230,7 +236,20 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                             fieldSize="sm"
                             surface="bg"
                         />
-                        <p className="text-xs text-text-muted mt-1">Requires restart to take effect.</p>
+                        <p className="mt-1 text-xs text-text-muted">Requires restart to take effect.</p>
+                    </EditFieldRow>
+                )}
+                {!isPicolimbo && (
+                    <EditFieldRow label="JVM Metrics">
+                        <div className="flex items-center gap-3">
+                            <Switch checked={jvmMetricsEnabled} onCheckedChange={setJvmMetricsEnabled} />
+                            <span className="text-xs text-text-muted">
+                                {jvmMetricsEnabled
+                                    ? "Collect JVM heap and non-heap usage for this server."
+                                    : "JVM memory metrics are not collected for this server."}
+                            </span>
+                        </div>
+                        <p className="mt-1 text-xs text-text-muted">Requires restart to take effect.</p>
                     </EditFieldRow>
                 )}
             </div>

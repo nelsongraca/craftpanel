@@ -48,6 +48,7 @@ data class ServerProvisionSpec(
     val containerProtocol: String? = null,
     val disableHealthcheck: Boolean? = null,
     val forceRedownload: Boolean? = null,
+    val jvmMetricsEnabled: Boolean? = null,
     // Configuration overrides — null derives the default.
     val configMode: String? = null,
     val stopCommand: String? = null,
@@ -182,6 +183,7 @@ class ServerProvisioning(
             containerProtocol = source.containerProtocol,
             disableHealthcheck = source.disableHealthcheck,
             forceRedownload = source.forceRedownload,
+            jvmMetricsEnabled = source.jvmMetricsEnabled,
             configMode = source.configMode,
             stopCommand = source.stopCommand,
             proxyMotd = source.proxyMotd,
@@ -250,6 +252,7 @@ class ServerProvisioning(
                 this.containerProtocol = proto
                 this.disableHealthcheck = spec.disableHealthcheck ?: false
                 this.forceRedownload = spec.forceRedownload ?: false
+                this.jvmMetricsEnabled = spec.jvmMetricsEnabled ?: true
             }
 
             PortRegistry.insert {

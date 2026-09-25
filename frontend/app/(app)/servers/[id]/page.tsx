@@ -4,7 +4,19 @@ import {useCallback, useEffect, useState} from "react";
 import dynamic from "next/dynamic";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {ChevronRight, Copy, Download, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
+import {
+    ChevronRight,
+    Copy,
+    Download,
+    MoreHorizontal,
+    Play,
+    RotateCcw,
+    Shuffle,
+    Skull,
+    Square,
+    Trash2,
+    X,
+} from "lucide-react";
 import {exportServer, getNetwork, getNode, getServer, getServerMetrics} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission, scopedPermissions} from "@/lib/permissions";
@@ -20,18 +32,26 @@ import {OverviewTab} from "@/components/servers/overview-tab";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {isCustomType, isModLoaderType, isPicolimboType, isProxyType} from "@/lib/server-types";
 
-type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
-type LivePlayers = { count: number; list: string[] };
+type LiveMetrics = {
+    cpuPercent: number;
+    ramUsedMb: number;
+    netInBytes: number;
+    netOutBytes: number;
+    heapUsedBytes?: number | null;
+    heapMaxBytes?: number | null;
+    nonHeapUsedBytes?: number | null;
+};
+type LivePlayers = {count: number; list: string[]};
 
 const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Ports", "Migration"] as const;
 type Tab = (typeof TABS)[number];
 
 const HEADER_ACTION_BUTTONS = {
-    start: {icon: <Play size={12} strokeWidth={2.5}/>, label: "Start", variant: "green"},
-    stop: {icon: <Square size={12} strokeWidth={2.5}/>, label: "Stop", variant: "red"},
-    forceStop: {icon: <Skull size={12} strokeWidth={2.5}/>, label: "Force Stop", variant: "red"},
-    restart: {icon: <RotateCcw size={12} strokeWidth={2.5}/>, label: "Restart", variant: "yellow"},
-    delete: {icon: <Trash2 size={12} strokeWidth={2.5}/>, label: "Delete", variant: "red"},
+    start: {icon: <Play size={12} strokeWidth={2.5} />, label: "Start", variant: "green"},
+    stop: {icon: <Square size={12} strokeWidth={2.5} />, label: "Stop", variant: "red"},
+    forceStop: {icon: <Skull size={12} strokeWidth={2.5} />, label: "Force Stop", variant: "red"},
+    restart: {icon: <RotateCcw size={12} strokeWidth={2.5} />, label: "Restart", variant: "yellow"},
+    delete: {icon: <Trash2 size={12} strokeWidth={2.5} />, label: "Delete", variant: "red"},
 } as const;
 
 // Lazily load each tab so visiting one tab does not bundle/evaluate the rest.
@@ -91,17 +111,23 @@ export default function ServerDetailPage() {
         const from = new Date(to.getTime() - 10 * 60_000);
         getServerMetrics({path: {id}, query: {from: from.toISOString(), to: to.toISOString()}}).then(({data}) => {
             if (!data) return;
-            const last = (points: { t: string; v: number }[]) => points.at(-1)?.v;
+            const last = (points: {t: string; v: number}[]) => points.at(-1)?.v;
             const cpu = last(data.series.cpu_percent);
             const ram = last(data.series.ram_used_mb);
             const netIn = last(data.series.net_in_bytes);
             const netOut = last(data.series.net_out_bytes);
+            const heapUsed = last(data.series.heap_used_bytes ?? []);
+            const heapMax = last(data.series.heap_max_bytes ?? []);
+            const nonHeap = last(data.series.non_heap_used_bytes ?? []);
             if (cpu == null && ram == null && netIn == null && netOut == null) return;
             setLiveMetrics({
                 cpuPercent: cpu ?? 0,
                 ramUsedMb: ram ?? 0,
                 netInBytes: netIn ?? 0,
                 netOutBytes: netOut ?? 0,
+                heapUsedBytes: heapUsed ?? null,
+                heapMaxBytes: heapMax ?? null,
+                nonHeapUsedBytes: nonHeap ?? null,
             });
         });
     }, [id]);
@@ -145,6 +171,9 @@ export default function ServerDetailPage() {
                     ramUsedMb: mine.metrics.ram_used_mb,
                     netInBytes: mine.metrics.net_in_bytes,
                     netOutBytes: mine.metrics.net_out_bytes,
+                    heapUsedBytes: mine.metrics.heap_used_bytes ?? null,
+                    heapMaxBytes: mine.metrics.heap_max_bytes ?? null,
+                    nonHeapUsedBytes: mine.metrics.non_heap_used_bytes ?? null,
                 });
             }
         });
@@ -155,11 +184,14 @@ export default function ServerDetailPage() {
                 ramUsedMb: payload.ram_used_mb,
                 netInBytes: payload.net_in_bytes,
                 netOutBytes: payload.net_out_bytes,
+                heapUsedBytes: payload.heap_used_bytes ?? null,
+                heapMaxBytes: payload.heap_max_bytes ?? null,
+                nonHeapUsedBytes: payload.non_heap_used_bytes ?? null,
             });
         });
         const unsubStatus = subscribe("server.status", (payload) => {
             if (payload.server_id !== id) return;
-            setServer((prev) => prev ? {...prev, status: payload.status} : prev);
+            setServer((prev) => (prev ? {...prev, status: payload.status} : prev));
             if (payload.status === "STOPPED") {
                 setLiveMetrics(null);
                 setLivePlayers(null);
@@ -210,10 +242,10 @@ export default function ServerDetailPage() {
 
     if (loading) {
         return (
-            <div className="px-6 pt-6 space-y-4">
-                <Skeleton className="h-4 w-40 bg-surface"/>
-                <Skeleton className="h-8 w-64 bg-surface"/>
-                <Skeleton className="h-4 w-48 bg-surface"/>
+            <div className="space-y-4 px-6 pt-6">
+                <Skeleton className="h-4 w-40 bg-surface" />
+                <Skeleton className="h-8 w-64 bg-surface" />
+                <Skeleton className="h-4 w-48 bg-surface" />
             </div>
         );
     }
@@ -221,11 +253,13 @@ export default function ServerDetailPage() {
     if (notFound || !server) {
         return (
             <Empty className="min-h-[200px]">
-                        <EmptyDescription>
-                            Server not found.{" "}
-                            <Link href="/servers" className="text-accent hover:underline">Back to servers</Link>
-                        </EmptyDescription>
-                    </Empty>
+                <EmptyDescription>
+                    Server not found.{" "}
+                    <Link href="/servers" className="text-accent hover:underline">
+                        Back to servers
+                    </Link>
+                </EmptyDescription>
+            </Empty>
         );
     }
 
@@ -240,49 +274,46 @@ export default function ServerDetailPage() {
     const expired = serverExpired(server.expires_at);
 
     return (
-        <div className="flex flex-col h-full min-h-0">
+        <div className="flex h-full min-h-0 flex-col">
             {/* Page header */}
-            <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
-
+            <div className="shrink-0 border-b border-border px-6 pt-6 pb-5">
                 {/* Breadcrumb */}
-                <div className="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
-                    <Link href="/servers" className="hover:text-text-primary transition-colors">
+                <div className="mb-4 flex items-center gap-1.5 font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
+                    <Link href="/servers" className="transition-colors hover:text-text-primary">
                         Servers
                     </Link>
                     {network && (
                         <>
-                            <ChevronRight size={11} strokeWidth={2.5}/>
+                            <ChevronRight size={11} strokeWidth={2.5} />
                             <Link
                                 href={`/servers?network=${network.id}`}
-                                className="hover:text-text-primary transition-colors"
+                                className="transition-colors hover:text-text-primary"
                             >
                                 {network.name}
                             </Link>
                         </>
                     )}
-                    <ChevronRight size={11} strokeWidth={2.5}/>
+                    <ChevronRight size={11} strokeWidth={2.5} />
                     <span className="text-text-dim">{server.display_name}</span>
                 </div>
 
                 {/* Name row + action buttons */}
                 <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <h1 className="font-heading text-[22px] leading-none font-bold tracking-wide text-text-primary uppercase">
                             {server.display_name}
                         </h1>
                         <Badge variant={serverStatusVariant(sStatus)}>{serverStatusLabel(sStatus)}</Badge>
-                        {server.disabled && (
-                            <Badge variant="destructive">Disabled</Badge>
-                        )}
-                        {!server.disabled && expired && (
-                            <Badge variant="destructive">Expired</Badge>
-                        )}
+                        {server.disabled && <Badge variant="destructive">Disabled</Badge>}
+                        {!server.disabled && expired && <Badge variant="destructive">Expired</Badge>}
                     </div>
 
                     {/* Action buttons + menu */}
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex shrink-0 items-center gap-2">
                         {allowedActions(server)
-                            .filter((action): action is Exclude<ServerActionKind, "duplicate"> => action !== "duplicate")
+                            .filter(
+                                (action): action is Exclude<ServerActionKind, "duplicate"> => action !== "duplicate",
+                            )
                             .map((action) => {
                                 const {icon, label, variant} = HEADER_ACTION_BUTTONS[action];
                                 return (
@@ -291,28 +322,30 @@ export default function ServerDetailPage() {
                                         icon={icon}
                                         label={label}
                                         loading={pendingFor(server.id) === action}
-                                        onClick={() => action === "delete" ? remove(server) : run(server.id, action)}
+                                        onClick={() => (action === "delete" ? remove(server) : run(server.id, action))}
                                         variant={variant}
                                     />
                                 );
                             })}
 
                         {/* Overflow menu */}
-                        {(hasPermission(serverPerms, "server.migrate") || hasPermission(serverPerms, "server.export") || hasPermission(serverPerms, "server.create")) && (
+                        {(hasPermission(serverPerms, "server.migrate") ||
+                            hasPermission(serverPerms, "server.export") ||
+                            hasPermission(serverPerms, "server.create")) && (
                             <div className="relative">
                                 <button
                                     onClick={(e) => {
                                         e.nativeEvent.stopImmediatePropagation();
                                         setMenuOpen((o) => !o);
                                     }}
-                                    className="flex items-center justify-center w-8 h-8 rounded border border-border text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors"
+                                    className="flex h-8 w-8 items-center justify-center rounded border border-border text-text-muted transition-colors hover:bg-surface-high hover:text-text-primary"
                                 >
-                                    <MoreHorizontal size={14} strokeWidth={2}/>
+                                    <MoreHorizontal size={14} strokeWidth={2} />
                                 </button>
 
                                 {menuOpen && (
                                     <div
-                                        className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[160px] py-1"
+                                        className="absolute top-full right-0 z-50 mt-1 min-w-[160px] rounded border border-border bg-surface-higher py-1 shadow-xl"
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         {hasPermission(serverPerms, "server.migrate") && (
@@ -321,9 +354,9 @@ export default function ServerDetailPage() {
                                                     setMenuOpen(false);
                                                     setActiveTab("Migration");
                                                 }}
-                                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                                className="flex w-full items-center gap-2 px-3 py-2 text-left font-heading text-xs font-bold tracking-wider text-text-primary uppercase transition-colors hover:bg-surface-high"
                                             >
-                                                <Shuffle size={12} strokeWidth={2}/>
+                                                <Shuffle size={12} strokeWidth={2} />
                                                 Migrate
                                             </button>
                                         )}
@@ -331,9 +364,9 @@ export default function ServerDetailPage() {
                                             <Link
                                                 href={`/servers/new?clone=${server.id}`}
                                                 onClick={() => setMenuOpen(false)}
-                                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                                className="flex w-full items-center gap-2 px-3 py-2 text-left font-heading text-xs font-bold tracking-wider text-text-primary uppercase transition-colors hover:bg-surface-high"
                                             >
-                                                <Copy size={12} strokeWidth={2}/>
+                                                <Copy size={12} strokeWidth={2} />
                                                 Clone Server
                                             </Link>
                                         )}
@@ -343,9 +376,9 @@ export default function ServerDetailPage() {
                                                     setMenuOpen(false);
                                                     void doExport();
                                                 }}
-                                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                                className="flex w-full items-center gap-2 px-3 py-2 text-left font-heading text-xs font-bold tracking-wider text-text-primary uppercase transition-colors hover:bg-surface-high"
                                             >
-                                                <Download size={12} strokeWidth={2}/>
+                                                <Download size={12} strokeWidth={2} />
                                                 Export
                                             </button>
                                         )}
@@ -357,15 +390,15 @@ export default function ServerDetailPage() {
                 </div>
 
                 {/* Type / config badges */}
-                <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <span className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded border border-border bg-surface-high px-1.5 py-0.5 font-mono text-xs tracking-wider text-text-dim uppercase">
                         {server.server_type}
                     </span>
-                    <span className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                    <span className="rounded border border-border bg-surface-high px-1.5 py-0.5 font-mono text-xs tracking-wider text-text-dim uppercase">
                         {server.config_mode}
                     </span>
                     {server.is_migrating && (
-                        <span className="font-mono text-xs uppercase tracking-wider text-warning border border-warning/30 bg-warning/10 px-1.5 py-0.5 rounded">
+                        <span className="rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 font-mono text-xs tracking-wider text-warning uppercase">
                             \u27f3 Migrating
                         </span>
                     )}
@@ -373,18 +406,16 @@ export default function ServerDetailPage() {
 
                 {/* Hostname */}
                 {server.canonical_hostname && (
-                    <p className="mt-2 font-mono text-xs text-text-muted">
-                        {server.canonical_hostname}
-                    </p>
+                    <p className="mt-2 font-mono text-xs text-text-muted">{server.canonical_hostname}</p>
                 )}
 
                 {/* Node */}
                 {node && (
-                    <p className="mt-1 text-xs font-heading text-text-muted">
+                    <p className="mt-1 font-heading text-xs text-text-muted">
                         Node:{" "}
                         <Link
                             href={`/nodes/${node.id}`}
-                            className="text-text-dim hover:text-text-primary transition-colors font-mono"
+                            className="font-mono text-text-dim transition-colors hover:text-text-primary"
                         >
                             {node.display_name}
                         </Link>
@@ -394,12 +425,12 @@ export default function ServerDetailPage() {
 
             {/* Restart required banner */}
             {server.restart_pending && sStatus !== "STOPPED" && (
-                <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-xs">
+                <div className="mx-6 mt-4 flex items-center justify-between rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
                     <span>Settings saved. Restart the server for changes to take effect.</span>
                     {allowedActions(server).includes("restart") && (
                         <button
                             onClick={() => void run(server.id, "restart")}
-                            className="ml-4 shrink-0 text-xs font-heading font-bold uppercase tracking-wider underline hover:no-underline"
+                            className="ml-4 shrink-0 font-heading text-xs font-bold tracking-wider uppercase underline hover:no-underline"
                         >
                             Restart Now
                         </button>
@@ -409,23 +440,33 @@ export default function ServerDetailPage() {
 
             {/* Error banner */}
             {actionError && (
-                <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
+                <div className="mx-6 mt-4 flex items-center justify-between rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
                     <span>{actionError}</span>
                     <button onClick={() => setActionError(null)} className="ml-4 hover:opacity-70">
-                        <X size={13}/>
+                        <X size={13} />
                     </button>
                 </div>
             )}
 
             {/* Tab bar */}
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)} className="flex-1 min-h-0 overflow-hidden">
-                <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px] shrink-0">
-                    <TabsList variant="line" className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0">
-                        {TABS.filter((tab) => !(isProxy && tab === "Migration") && !((isCustom || isPicolimbo) && tab === "Mods")).map((tab) => (
+            <Tabs
+                value={activeTab}
+                onValueChange={(value) => setActiveTab(value as Tab)}
+                className="min-h-0 flex-1 overflow-hidden"
+            >
+                <div className="shrink-0 scrollbar-none overflow-x-auto border-b border-border bg-surface pb-[7px]">
+                    <TabsList
+                        variant="line"
+                        className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0"
+                    >
+                        {TABS.filter(
+                            (tab) =>
+                                !(isProxy && tab === "Migration") && !((isCustom || isPicolimbo) && tab === "Mods"),
+                        ).map((tab) => (
                             <TabsTrigger
                                 key={tab}
                                 value={tab}
-                                className="shrink-0 rounded-none border-none px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-dim data-active:bg-transparent data-active:text-accent data-active:shadow-none after:bg-accent hover:text-text-primary"
+                                className="shrink-0 rounded-none border-none px-4 py-3 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bg-accent hover:text-text-primary data-active:bg-transparent data-active:text-accent data-active:shadow-none"
                             >
                                 {tab === "Mods" && !isModServerType ? "Plugins" : tab}
                             </TabsTrigger>
@@ -445,18 +486,23 @@ export default function ServerDetailPage() {
                         onSaved={() => void fetchServer()}
                     />
                 </TabsContent>
-                <TabsContent value="Console" className="flex-1 min-h-0 overflow-hidden">
-                    <ConsoleTab serverId={server.id} serverStatus={server.status}/>
+                <TabsContent value="Console" className="min-h-0 flex-1 overflow-hidden">
+                    <ConsoleTab serverId={server.id} serverStatus={server.status} />
                 </TabsContent>
-                <TabsContent value="Files" className="flex-1 min-h-0 overflow-hidden">
-                    <FilesTab serverId={server.id}/>
+                <TabsContent value="Files" className="min-h-0 flex-1 overflow-hidden">
+                    <FilesTab serverId={server.id} />
                 </TabsContent>
                 <TabsContent value="Backups" className="overflow-auto">
-                    <BackupsTab serverId={server.id}/>
+                    <BackupsTab serverId={server.id} />
                 </TabsContent>
                 {!isCustom && !isPicolimbo && (
                     <TabsContent value="Mods" className="overflow-auto">
-                        <ModsTab serverId={server.id} serverType={server.server_type} mcVersion={server.mc_version} onModsChanged={() => void fetchServer()}/>
+                        <ModsTab
+                            serverId={server.id}
+                            serverType={server.server_type}
+                            mcVersion={server.mc_version}
+                            onModsChanged={() => void fetchServer()}
+                        />
                     </TabsContent>
                 )}
                 <TabsContent value="Configuration" className="overflow-auto">
@@ -473,7 +519,12 @@ export default function ServerDetailPage() {
                     />
                 </TabsContent>
                 <TabsContent value="Ports" className="overflow-auto">
-                    <PortsTab serverId={server.id} serverType={server.server_type} currentContainerPort={server.container_listen_port} currentProtocol={server.container_protocol} />
+                    <PortsTab
+                        serverId={server.id}
+                        serverType={server.server_type}
+                        currentContainerPort={server.container_listen_port}
+                        currentProtocol={server.container_protocol}
+                    />
                 </TabsContent>
                 {!isProxy && (
                     <TabsContent value="Migration" className="overflow-auto">

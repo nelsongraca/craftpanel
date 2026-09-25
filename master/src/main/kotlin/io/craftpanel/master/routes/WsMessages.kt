@@ -13,7 +13,18 @@ data class WsEnvelope(val type: String, val payload: JsonElement)
 data class ServerSnapshot(val id: String, val displayName: String, val status: ServerStatus, val nodeId: String, val networkId: String? = null, val metrics: ServerMetricsSnapshot? = null)
 
 @Serializable
-data class ServerMetricsSnapshot(val cpuPercent: Double, val ramUsedMb: Int, val netInBytes: Long, val netOutBytes: Long, val blockInBytes: Long, val blockOutBytes: Long, val recordedAt: String)
+data class ServerMetricsSnapshot(
+    val cpuPercent: Double,
+    val ramUsedMb: Int,
+    val netInBytes: Long,
+    val netOutBytes: Long,
+    val blockInBytes: Long,
+    val blockOutBytes: Long,
+    val recordedAt: String,
+    val heapUsedBytes: Long? = null,
+    val heapMaxBytes: Long? = null,
+    val nonHeapUsedBytes: Long? = null
+)
 
 @Serializable
 data class NodeSnapshot(val id: String, val displayName: String, val status: NodeStatus, val health: NodeHealth)
@@ -46,7 +57,11 @@ data class ServerMetricsPayload(
     val netOutBytes: Long,
     val blockInBytes: Long,
     val blockOutBytes: Long,
-    val recordedAt: String
+    val recordedAt: String,
+    // JVM heap/non-heap sample; null when this tick carried none.
+    val heapUsedBytes: Long? = null,
+    val heapMaxBytes: Long? = null,
+    val nonHeapUsedBytes: Long? = null
 )
 
 @Serializable

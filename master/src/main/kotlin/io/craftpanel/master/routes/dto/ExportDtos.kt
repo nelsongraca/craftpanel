@@ -24,6 +24,7 @@ data class ServerExportData(
     @SerialName("container_protocol") val containerProtocol: String? = "TCP",
     @SerialName("disable_healthcheck") val disableHealthcheck: Boolean? = false,
     @SerialName("force_redownload") val forceRedownload: Boolean? = false,
+    @SerialName("jvm_metrics_enabled") val jvmMetricsEnabled: Boolean? = true,
     @SerialName("expires_at") val expiresAt: String? = null,
     @SerialName("proxy_motd") val proxyMotd: String? = null,
     @SerialName("proxy_max_players") val proxyMaxPlayers: Int? = null,

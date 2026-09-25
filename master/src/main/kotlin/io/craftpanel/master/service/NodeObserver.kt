@@ -101,6 +101,9 @@ class NodeObserver(
                 this.netOutBytes = event.netOutBytes
                 this.blockInBytes = event.blockInBytes
                 this.blockOutBytes = event.blockOutBytes
+                this.heapUsedBytes = event.heapUsedBytes
+                this.heapMaxBytes = event.heapMaxBytes
+                this.nonHeapUsedBytes = event.nonHeapUsedBytes
                 this.recordedAt = event.recordedAt.toLocalDateTime(TimeZone.UTC)
             }
         }

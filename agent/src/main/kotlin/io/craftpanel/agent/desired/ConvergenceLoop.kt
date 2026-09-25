@@ -100,6 +100,12 @@ class ConvergenceLoop(
                     forceRestart = env.forceRestart,
                     force = env.force,
                     noRestart = env.noRestart,
+                    jvmMetricsEnabled = if (env.hasJvmMetrics()) env.jvmMetrics.enabled else state.jvmMetricsEnabled,
+                    jvmMetricsPollIntervalSeconds = if (env.hasJvmMetrics()) {
+                        env.jvmMetrics.pollIntervalSeconds
+                    } else {
+                        state.jvmMetricsPollIntervalSeconds
+                    },
                     restartCount = if (userStart) 0 else state.restartCount,
                     windowStartEpochMillis = if (userStart) null else state.windowStartEpochMillis
                 )
@@ -160,6 +166,25 @@ class ConvergenceLoop(
         return PlayerCountProbe(
             internalListenPort = spec.internalListenPort,
             useProxyProtocol = spec.proxyProtocol
+        )
+    }
+
+    /**
+     * JVM-metrics policy for this server, or null when this agent does not own it. Ownership is
+     * "master has pushed a desired state for this server to this node": a container visible in the
+     * Docker daemon but absent from the store belongs to another node (two agents sharing one daemon,
+     * as the system tests do) and must not be sampled — the per-server toggle was addressed to its
+     * real owner.
+     *
+     * Read live from the desired state (not the applied spec), so toggling it or retuning the interval
+     * takes effect on the next tick without recreating the container.
+     */
+    fun jvmMetricsPolicy(serverId: String): JvmMetricsPolicy? {
+        if (!store.contains(serverId)) return null
+        val state = store.get(serverId)
+        return JvmMetricsPolicy(
+            enabled = state.jvmMetricsEnabled,
+            pollIntervalSeconds = state.jvmMetricsPollIntervalSeconds
         )
     }
 
