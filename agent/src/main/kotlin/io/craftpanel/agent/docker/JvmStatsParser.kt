@@ -12,6 +12,9 @@ object JvmStatsParser {
     /** Separates the `GC.heap_info` block from the `printflag MaxHeapSize` block in probe output. */
     const val MAX_HEAP_MARKER = "===CRAFTPANEL_MAXHEAP==="
 
+    /** Emitted by the probe when the image does not bundle `jattach`, so the caller can skip it. */
+    const val NO_JATTACH_MARKER = "===CRAFTPANEL_NO_JATTACH==="
+
     /**
      * Shell run inside the container by the probe: resolve the (in-container) JVM pid, then print
      * `GC.heap_info`, `VM.metaspace` (the heap block no longer carries Metaspace on recent JDKs), and
@@ -19,8 +22,12 @@ object JvmStatsParser {
      *
      * PID discovery scans `/proc`, which works on both the Debian-based itzg images and the Alpine
      * fake-server regardless of whether `pgrep` is installed. The process name is `java` on HotSpot.
+     *
+     * Images without `jattach` (notably `itzg/mc-proxy`) short-circuit to [NO_JATTACH_MARKER] rather
+     * than emitting empty output, so the agent can distinguish "cannot probe" from "not started yet".
      */
     val JATTACH_PROBE_SCRIPT: String = """
+        if ! command -v jattach >/dev/null 2>&1; then echo "$NO_JATTACH_MARKER"; exit 0; fi
         P=""
         for d in /proc/[0-9]*; do
           if [ "$(cat "${'$'}d/comm" 2>/dev/null)" = java ]; then P="${'$'}{d#/proc/}"; break; fi

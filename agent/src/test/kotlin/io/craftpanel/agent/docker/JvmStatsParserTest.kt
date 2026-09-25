@@ -118,6 +118,7 @@ class JvmStatsParserTest :
         test("JATTACH_PROBE_SCRIPT emits the marker and both jattach invocations") {
             JvmStatsParser.JATTACH_PROBE_SCRIPT.contains("jattach") shouldBe true
             JvmStatsParser.JATTACH_PROBE_SCRIPT.contains(JvmStatsParser.MAX_HEAP_MARKER) shouldBe true
+            JvmStatsParser.JATTACH_PROBE_SCRIPT.contains(JvmStatsParser.NO_JATTACH_MARKER) shouldBe true
             JvmStatsParser.JATTACH_PROBE_SCRIPT.contains("GC.heap_info") shouldBe true
             JvmStatsParser.JATTACH_PROBE_SCRIPT.contains("VM.metaspace") shouldBe true
             JvmStatsParser.JATTACH_PROBE_SCRIPT.contains("MaxHeapSize") shouldBe true

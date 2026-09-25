@@ -17,6 +17,7 @@ import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.File
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -131,48 +132,78 @@ open class MetricsCollector(private val docker: DockerClient) {
     /**
      * Samples the server's JVM heap (used/max) and non-heap usage from inside its container.
      *
-     * Uses the `jattach` utility bundled in the itzg images (installed via apk/apt). jattach speaks
-     * the JVM dynamic-attach mechanism over a UNIX socket inside the container, so no network port
-     * is involved — it works on the isolated server network and needs only a JRE, not a JDK.
+     * Uses the `jattach` utility that the itzg **game** images bundle (installed via apk/apt).
+     * jattach speaks the JVM dynamic-attach mechanism over a UNIX socket inside the container, so no
+     * network port is involved — it works on the isolated server network and needs only a JRE.
      *
-     * Best-effort and nullable: returns null when the container is not running, has no JVM (e.g.
-     * PicoLimbo), or is not attachable (non-HotSpot runtime, attach disabled). Never throws and never
-     * zeroes a sample — an absent value means "no data", so history is not polluted with fake dips.
+     * Best-effort and nullable. Images that cannot be probed — `itzg/mc-proxy` does not ship
+     * jattach, and PicoLimbo has no shell at all — are detected once and then skipped, so they do
+     * not log every tick. Never throws and never zeroes a sample: an absent value means "no data",
+     * so history shows gaps rather than fake dips.
      */
-    fun collectJvmStats(containerId: String): JvmStats? = runCatching {
-        // One exec per sample: resolve the in-container JVM pid, then read heap usage and the -Xmx
-        // ceiling in the same shell. The marker separates the two outputs for the parser.
-        val output = execCapture(containerId, listOf("sh", "-c", JvmStatsParser.JATTACH_PROBE_SCRIPT))
-        if (output.isNullOrBlank()) {
-            // No JVM in the container (e.g. PicoLimbo) or the probe produced nothing — not an error.
-            log.debug("JVM probe returned no output for $containerId")
-            return null
+    fun collectJvmStats(containerId: String): JvmStats? {
+        if (containerId in unsupportedJvmProbes) return null
+        return runCatching {
+            // One exec per sample: resolve the in-container JVM pid, then read heap usage and the
+            // -Xmx ceiling in the same shell. The marker separates the two outputs for the parser.
+            val output = execCapture(containerId, listOf("sh", "-c", JvmStatsParser.JATTACH_PROBE_SCRIPT))
+            if (output.isNullOrBlank()) {
+                // No JVM in the container yet (still starting) or the probe produced nothing —
+                // transient, so keep probing.
+                log.debug("JVM probe returned no output for $containerId")
+                return null
+            }
+            if (output.contains(JvmStatsParser.NO_JATTACH_MARKER)) {
+                skipJvmProbe(containerId, "jattach is not bundled in this image")
+                return null
+            }
+            if (execUnavailable.containsMatchIn(output)) {
+                skipJvmProbe(containerId, "no shell in this image")
+                return null
+            }
+            val heap = JvmStatsParser.parseHeapInfo(output.substringBefore(JvmStatsParser.MAX_HEAP_MARKER))
+            if (heap == null) {
+                log.debug("JVM probe could not parse heap info for $containerId: {}", output.take(200))
+                return null
+            }
+            val heapMax = JvmStatsParser.parseMaxHeapSize(output.substringAfter(JvmStatsParser.MAX_HEAP_MARKER, ""))
+            if (heapMax == null) {
+                log.debug("JVM probe could not parse MaxHeapSize for $containerId")
+                return null
+            }
+            log.debug(
+                "JVM sample for $containerId: heapUsed={} heapMax={} nonHeap={}",
+                heap.heapUsedBytes,
+                heapMax,
+                heap.nonHeapUsedBytes
+            )
+            jvmStats {
+                heapUsedBytes = heap.heapUsedBytes
+                heapMaxBytes = heapMax
+                nonHeapUsedBytes = heap.nonHeapUsedBytes
+            }
+        }.getOrElse {
+            if (execUnavailable.containsMatchIn(it.message ?: "")) {
+                skipJvmProbe(containerId, "no shell in this image")
+            } else {
+                // Attach can fail transiently while the JVM is starting; do not blacklist on this.
+                log.debug("Failed to collect JVM stats for $containerId: ${it.message}")
+            }
+            null
         }
-        val heap = JvmStatsParser.parseHeapInfo(output.substringBefore(JvmStatsParser.MAX_HEAP_MARKER))
-        if (heap == null) {
-            log.warn("Unrecognised JVM heap format for $containerId: {}", output.take(200))
-            return null
-        }
-        val heapMax = JvmStatsParser.parseMaxHeapSize(output.substringAfter(JvmStatsParser.MAX_HEAP_MARKER, ""))
-        if (heapMax == null) {
-            log.warn("JVM probe could not parse MaxHeapSize for $containerId: {}", output.take(200))
-            return null
-        }
-        log.debug(
-            "JVM sample for $containerId: heapUsed={} heapMax={} nonHeap={}",
-            heap.heapUsedBytes,
-            heapMax,
-            heap.nonHeapUsedBytes
-        )
-        jvmStats {
-            heapUsedBytes = heap.heapUsedBytes
-            heapMaxBytes = heapMax
-            nonHeapUsedBytes = heap.nonHeapUsedBytes
-        }
-    }.getOrElse {
-        log.warn("Failed to collect JVM stats for $containerId: ${it.message}")
-        null
     }
+
+    /** Containers this agent has proved cannot be probed; skip them rather than retry every tick. */
+    private val unsupportedJvmProbes = ConcurrentHashMap.newKeySet<String>()
+
+    /** Records a permanently unprobeable container, logging once (not once per tick). */
+    private fun skipJvmProbe(containerId: String, reason: String) {
+        if (unsupportedJvmProbes.add(containerId)) {
+            log.info("JVM metrics skipped for container $containerId: $reason")
+        }
+    }
+
+    private val execUnavailable = Regex("executable file not found|OCI runtime exec failed", RegexOption.IGNORE_CASE)
 
     /**
      * Probes the container for its player list by running the image's bundled `mc-monitor` inside

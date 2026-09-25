@@ -252,7 +252,7 @@ class ServerProvisioning(
                 this.containerProtocol = proto
                 this.disableHealthcheck = spec.disableHealthcheck ?: false
                 this.forceRedownload = spec.forceRedownload ?: false
-                this.jvmMetricsEnabled = spec.jvmMetricsEnabled ?: true
+                this.jvmMetricsEnabled = spec.jvmMetricsEnabled ?: !st.isPicolimbo
             }
 
             PortRegistry.insert {
