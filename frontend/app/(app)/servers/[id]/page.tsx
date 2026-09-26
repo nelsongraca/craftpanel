@@ -165,18 +165,19 @@ export default function ServerDetailPage() {
     useEffect(() => {
         const unsubSnapshot = subscribe("snapshot", (payload) => {
             const mine = payload.servers?.find((s) => s.id === id);
-            if (mine?.metrics) {
+            const metrics = mine?.metrics;
+            if (metrics) {
                 // JVM heap is sampled on a slower cadence than container metrics, so a sample
                 // without heap is not "no data" — keep the last known value so the card does not
                 // flicker between samples. Cleared explicitly on STOPPED (see status handler).
                 setLiveMetrics((prev) => ({
-                    cpuPercent: mine.metrics.cpu_percent,
-                    ramUsedMb: mine.metrics.ram_used_mb,
-                    netInBytes: mine.metrics.net_in_bytes,
-                    netOutBytes: mine.metrics.net_out_bytes,
-                    heapUsedBytes: mine.metrics.heap_used_bytes ?? prev?.heapUsedBytes ?? null,
-                    heapMaxBytes: mine.metrics.heap_max_bytes ?? prev?.heapMaxBytes ?? null,
-                    nonHeapUsedBytes: mine.metrics.non_heap_used_bytes ?? prev?.nonHeapUsedBytes ?? null,
+                    cpuPercent: metrics.cpu_percent,
+                    ramUsedMb: metrics.ram_used_mb,
+                    netInBytes: metrics.net_in_bytes,
+                    netOutBytes: metrics.net_out_bytes,
+                    heapUsedBytes: metrics.heap_used_bytes ?? prev?.heapUsedBytes ?? null,
+                    heapMaxBytes: metrics.heap_max_bytes ?? prev?.heapMaxBytes ?? null,
+                    nonHeapUsedBytes: metrics.non_heap_used_bytes ?? prev?.nonHeapUsedBytes ?? null,
                 }));
             }
         });
