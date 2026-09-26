@@ -1,8 +1,8 @@
 package craftpanel.systemtest.server
 
-import com.google.gson.JsonParser
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
+import craftpanel.systemtest.harness.ModrinthFixture
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Tags
@@ -10,8 +10,6 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.delay
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.openapitools.client.infrastructure.ClientException
 import kotlin.random.Random
 
@@ -20,17 +18,11 @@ class ModrinthInjectionTest : BaseSystemTest() {
 
     init {
         lateinit var serverId: String
-        val httpClient = OkHttpClient()
 
         // Resolves a live Modrinth version id for [projectId] compatible with [mcVersion] on the given [loader], so
         // fixtures never rot against Modrinth's actual catalog the way hand-picked version numbers eventually did.
         fun resolveModrinthVersionId(projectId: String, loader: String, mcVersion: String): String {
-            val url = "https://api.modrinth.com/v2/project/$projectId/version" +
-                "?loaders=%5B%22$loader%22%5D&game_versions=%5B%22$mcVersion%22%5D"
-            val body = httpClient.newCall(Request.Builder().url(url).build())
-                .execute()
-                .use { it.body.string() }
-            val versions = JsonParser.parseString(body).asJsonArray
+            val versions = ModrinthFixture.versions(projectId, loader, mcVersion)
             check(versions.size() > 0) { "No Modrinth version of '$projectId' compatible with $loader $mcVersion - fixture needs updating" }
             return versions[0].asJsonObject["id"].asString
         }
@@ -187,6 +179,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
             context("LATEST strategy") {
 
                 should("include a LATEST mod in MODRINTH_PROJECTS without a version pin") {
+                    ModrinthFixture.assumeReachable()
                     api.addMod(
                         serverId,
                         CreateModRequest(
@@ -216,6 +209,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     // essentialsx is a Paper/Spigot-only plugin, never published a Fabric build - exercises the
                     // root-cause fix: addMod validates loader+mcVersion compatibility before persisting, so an
                     // incompatible mod can never leave a server unable to boot once itzg tries to resolve it.
+                    ModrinthFixture.assumeReachable()
                     val ex = shouldThrow<ClientException> {
                         api.addMod(
                             serverId,

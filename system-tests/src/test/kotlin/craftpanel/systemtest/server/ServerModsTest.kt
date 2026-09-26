@@ -1,15 +1,13 @@
 package craftpanel.systemtest.server
 
-import com.google.gson.JsonParser
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
+import craftpanel.systemtest.harness.ModrinthFixture
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.openapitools.client.infrastructure.ClientException
 import kotlin.random.Random
 
@@ -19,15 +17,9 @@ class ServerModsTest : BaseSystemTest() {
     init {
 
         lateinit var serverId: String
-        val httpClient = OkHttpClient()
 
         fun resolveModrinthVersionIds(projectId: String, loader: String, mcVersion: String, count: Int = 2): List<String> {
-            val url = "https://api.modrinth.com/v2/project/$projectId/version" +
-                "?loaders=%5B%22$loader%22%5D&game_versions=%5B%22$mcVersion%22%5D"
-            val body = httpClient.newCall(Request.Builder().url(url).build())
-                .execute()
-                .use { it.body.string() }
-            val versions = JsonParser.parseString(body).asJsonArray
+            val versions = ModrinthFixture.versions(projectId, loader, mcVersion)
             check(versions.size() >= count) {
                 "Only ${versions.size()} Modrinth version(s) of '$projectId' compatible with $loader $mcVersion, need $count"
             }
@@ -36,14 +28,13 @@ class ServerModsTest : BaseSystemTest() {
             }
         }
 
-        lateinit var lithiumVersion: String
-        lateinit var lithiumVersion2: String
-        lateinit var sodiumVersion: String
+        // Resolved lazily inside the test body (not beforeSpec) so a Modrinth outage skips the test
+        // rather than failing the spec's beforeSpec with a wrapped ExtensionException.
+        val lithiumVersion: String by lazy { resolveModrinthVersionIds("lithium", "fabric", "1.21.4", 2).first() }
+        val lithiumVersion2: String by lazy { resolveModrinthVersionIds("lithium", "fabric", "1.21.4", 2).last() }
+        val sodiumVersion: String by lazy { resolveModrinthVersionIds("sodium", "fabric", "1.21.4").first() }
 
         beforeSpec {
-            lithiumVersion = resolveModrinthVersionIds("lithium", "fabric", "1.21.4", 2).first()
-            lithiumVersion2 = resolveModrinthVersionIds("lithium", "fabric", "1.21.4", 2).last()
-            sodiumVersion = resolveModrinthVersionIds("sodium", "fabric", "1.21.4").first()
             serverId = api.createServer(
                 CreateServerRequest(
                     name = "test-mods-${System.currentTimeMillis()}-${Random.nextInt(100000)}",
