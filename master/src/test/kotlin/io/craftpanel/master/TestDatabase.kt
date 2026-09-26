@@ -19,7 +19,8 @@ object TestDatabase {
                 Users, RefreshTokens, RecoveryCodes, Groups, GroupPermissions, UserGroupAssignments,
                 ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations,
                 MigrationStepLog, Backups, AlertThresholds, AlertEvents, ContainerMetrics, ServerMods,
-                SystemSettings, ServerJobs, ProxyBackends, ServerExtraPorts, TrustedDevices
+                SystemSettings, ServerJobs, ProxyBackends, ServerExtraPorts, TrustedDevices,
+                ServerStatusEvents
             )
             seedSystemGroups()
         }
@@ -33,6 +34,7 @@ object TestDatabase {
             listOf(
                 AlertEvents, AlertThresholds, Backups, ServerMods, ProxyBackends,
                 MigrationStepLog, ServerMigrations, PortRegistry, ContainerMetrics,
+                ServerStatusEvents,
                 NodeMetrics, ServerEnvVars, ServerJobs, ServerExtraPorts, Servers, Nodes, ServerNetworks,
                 SystemSettings, TrustedDevices, RefreshTokens, RecoveryCodes, UserGroupAssignments, Groups, Users
             ).forEach { it.deleteAll() }

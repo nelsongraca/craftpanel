@@ -21,6 +21,8 @@ import io.ktor.http.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
@@ -147,7 +149,8 @@ class ServersRoutesTest :
                     userRepository = UserRepositoryImpl(),
                     groupRepository = GroupRepositoryImpl(),
                     containerMetricsRepository = repos.containerMetricsRepository,
-                    migrationRepository = repos.migrationRepository
+                    migrationRepository = repos.migrationRepository,
+                    statusHistoryRepository = repos.statusHistoryRepository
                 ),
                 lifecycleService,
                 exposureService,
@@ -235,6 +238,14 @@ class ServersRoutesTest :
                 it[UserGroupAssignments.groupId] = groupId
                 it[UserGroupAssignments.scopeType] = "NETWORK"
                 it[UserGroupAssignments.scopeId] = networkId
+            }
+        }
+
+        fun seedStatusEvent(serverId: Uuid, status: String, recordedAt: String) = transaction {
+            ServerStatusEvents.insert {
+                it[ServerStatusEvents.serverId] = EntityID(serverId, Servers)
+                it[ServerStatusEvents.status] = status
+                it[ServerStatusEvents.recordedAt] = kotlinx.datetime.LocalDateTime.parse(recordedAt)
             }
         }
 
@@ -813,8 +824,43 @@ class ServersRoutesTest :
             }
         }
 
-        // ── PATCH /servers/{id} ──────────────────────────────────────────────────
+        test("GET server status-history returns transitions newest first") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Viewer")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "hist-srv")
+                seedStatusEvent(serverId, "STOPPED", "2025-01-01T00:00:00")
+                seedStatusEvent(serverId, "STARTING", "2025-01-01T00:01:00")
+                seedStatusEvent(serverId, "HEALTHY", "2025-01-01T00:02:00")
 
+                val resp = client.get("/api/servers/$serverId/status-history") { bearerAuth(tokenFor(userId)) }
+
+                resp.status shouldBe HttpStatusCode.OK
+                val body = resp.body<JsonObject>()
+                body["server_id"]!!.jsonPrimitive.content shouldBe serverId.toString()
+                val events = body["events"]!!.jsonArray
+                events.size shouldBe 3
+                events[0].jsonObject["status"]!!.jsonPrimitive.content shouldBe "HEALTHY"
+                events[2].jsonObject["status"]!!.jsonPrimitive.content shouldBe "STOPPED"
+            }
+        }
+
+        test("GET server status-history returns 403 for user with no permissions") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "hist-private-srv")
+                val resp = client.get("/api/servers/$serverId/status-history") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        // ── PATCH /servers/{id} ──────────────────────────────────────────────────
         test("PATCH server returns 403 without server-configure") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }

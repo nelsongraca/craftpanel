@@ -2,11 +2,12 @@ import {describe, it, expect, vi, beforeEach} from "vitest";
 import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const wsHandlers = vi.hoisted(() => ({} as Record<string, (payload: unknown) => void>));
+const wsHandlers = vi.hoisted(() => ({}) as Record<string, (payload: unknown) => void>);
 
 vi.mock("@/lib/generated/sdk.gen", () => ({
     getServer: vi.fn(),
     getServerMetrics: vi.fn(),
+    getServerStatusHistory: vi.fn(),
     getNode: vi.fn(),
     getNetwork: vi.fn(),
     listNetworks: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock("next/navigation", () => ({
 import {
     getServer,
     getServerMetrics,
+    getServerStatusHistory,
     getNode,
     getNetwork,
     listNetworks,
@@ -82,10 +84,7 @@ function detailServer(overrides: Record<string, unknown> = {}): Record<string, u
     };
 }
 
-async function renderDetail(
-    overrides: Record<string, unknown> = {},
-    permissions: string[] = [],
-) {
+async function renderDetail(overrides: Record<string, unknown> = {}, permissions: string[] = []) {
     vi.mocked(getServer).mockResolvedValue({
         data: detailServer(overrides),
         response: new Response(),
@@ -102,6 +101,10 @@ async function renderDetail(
         },
         response: new Response(),
     } as never);
+    vi.mocked(getServerStatusHistory).mockResolvedValue({
+        data: {server_id: "s1", events: []},
+        response: new Response(),
+    } as never);
     vi.mocked(getNode).mockResolvedValue({data: null, response: new Response()} as never);
     vi.mocked(getNetwork).mockResolvedValue({data: null, response: new Response()} as never);
     vi.mocked(listNetworks).mockResolvedValue({data: [], response: new Response()} as never);
@@ -109,7 +112,7 @@ async function renderDetail(
         user: {permissions, server_permissions: {}},
     });
 
-    render(<ServerDetailPage/>);
+    render(<ServerDetailPage />);
 
     await waitFor(() => {
         expect(screen.getAllByText("Survival").length).toBeGreaterThan(0);
@@ -136,28 +139,22 @@ describe("ServerDetailPage", () => {
         });
 
         it("hides the Start button for an expired stopped server even with server.start permission", async () => {
-            await renderDetail(
-                {status: "STOPPED", expires_at: "2024-01-01T00:00:00Z"},
-                ["server.start"],
-            );
+            await renderDetail({status: "STOPPED", expires_at: "2024-01-01T00:00:00Z"}, ["server.start"]);
 
             expect(screen.queryByRole("button", {name: "Start"})).not.toBeInTheDocument();
         });
 
         it("shows the Start button for a stopped server with a future expiry", async () => {
-            await renderDetail(
-                {status: "STOPPED", expires_at: "2999-01-01T00:00:00Z"},
-                ["server.start"],
-            );
+            await renderDetail({status: "STOPPED", expires_at: "2999-01-01T00:00:00Z"}, ["server.start"]);
 
             expect(screen.getByRole("button", {name: "Start"})).toBeInTheDocument();
         });
 
         it("hides Restart for an expired running server but keeps Stop", async () => {
-            await renderDetail(
-                {status: "HEALTHY", expires_at: "2024-01-01T00:00:00Z"},
-                ["server.restart", "server.stop"],
-            );
+            await renderDetail({status: "HEALTHY", expires_at: "2024-01-01T00:00:00Z"}, [
+                "server.restart",
+                "server.stop",
+            ]);
 
             expect(screen.queryByRole("button", {name: "Restart"})).not.toBeInTheDocument();
             expect(screen.getByRole("button", {name: "Stop"})).toBeInTheDocument();
@@ -172,19 +169,13 @@ describe("ServerDetailPage", () => {
         });
 
         it("hides the Start button for a disabled stopped server even with server.start permission", async () => {
-            await renderDetail(
-                {status: "STOPPED", disabled: true},
-                ["server.start"],
-            );
+            await renderDetail({status: "STOPPED", disabled: true}, ["server.start"]);
 
             expect(screen.queryByRole("button", {name: "Start"})).not.toBeInTheDocument();
         });
 
         it("hides Restart for a disabled running server but keeps Stop", async () => {
-            await renderDetail(
-                {status: "HEALTHY", disabled: true},
-                ["server.restart", "server.stop"],
-            );
+            await renderDetail({status: "HEALTHY", disabled: true}, ["server.restart", "server.stop"]);
 
             expect(screen.queryByRole("button", {name: "Restart"})).not.toBeInTheDocument();
             expect(screen.getByRole("button", {name: "Stop"})).toBeInTheDocument();
@@ -242,10 +233,7 @@ describe("ServerDetailPage", () => {
 
     describe("Export button", () => {
         it("shows Export button in overflow menu with server.export permission", async () => {
-            await renderDetail(
-                {status: "STOPPED"},
-                ["server.migrate", "server.export", "server.create"],
-            );
+            await renderDetail({status: "STOPPED"}, ["server.migrate", "server.export", "server.create"]);
 
             const user = userEvent.setup();
             await user.click(screen.getByRole("button"));
@@ -254,10 +242,7 @@ describe("ServerDetailPage", () => {
         });
 
         it("hides Export button without server.export permission", async () => {
-            await renderDetail(
-                {status: "STOPPED"},
-                ["server.migrate"],
-            );
+            await renderDetail({status: "STOPPED"}, ["server.migrate"]);
 
             const user = userEvent.setup();
             await user.click(screen.getByRole("button"));

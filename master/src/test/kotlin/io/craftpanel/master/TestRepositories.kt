@@ -14,6 +14,7 @@ class TestRepositories {
     val backupRepository = BackupRepositoryImpl()
     val proxyBackendRepository = ProxyBackendRepositoryImpl()
     val containerMetricsRepository = ContainerMetricsRepositoryImpl()
+    val statusHistoryRepository = ServerStatusHistoryRepositoryImpl()
     val serverJobRepository = ServerJobRepositoryImpl()
     val serverRepository = ServerRepositoryImpl()
 }

@@ -23,4 +23,7 @@ interface ContainerMetricsRepository {
     fun getContainerMetricsByRange(serverId: Uuid, from: kotlin.time.Instant, to: kotlin.time.Instant): List<ContainerMetricsRow>
     fun getLatestContainerMetrics(serverId: Uuid): ContainerMetricsRow?
     fun getLatestContainerMetricsForServers(serverIds: List<Uuid>): Map<Uuid, ContainerMetricsRow?>
+
+    /** Deletes samples recorded strictly before [cutoff]. Returns the number of rows removed. */
+    fun deleteOlderThan(cutoff: kotlin.time.Instant): Int
 }

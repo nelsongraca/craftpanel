@@ -53,6 +53,11 @@ class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
                 ?.toContainerMetricsRow()
         }
     }
+
+    override fun deleteOlderThan(cutoff: Instant): Int = transaction {
+        val cutoffLdt = cutoff.toLocalDateTime(TimeZone.UTC)
+        ContainerMetrics.deleteWhere { ContainerMetrics.recordedAt less cutoffLdt }
+    }
 }
 
 private fun ResultRow.toContainerMetricsRow() = ContainerMetricsRow(

@@ -3,12 +3,13 @@ package io.craftpanel.master.di
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.crypto.SecretCipher
+import io.craftpanel.master.dns.DnsProviderResolver
 import io.craftpanel.master.docker.MasterDockerClient
 import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.dns.DnsProviderResolver
 import io.craftpanel.master.grpc.*
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.scheduler.BackupJobHandler
+import io.craftpanel.master.scheduler.RetentionJanitor
 import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
@@ -31,6 +32,7 @@ val appModule = module {
     single<BackupRepository> { BackupRepositoryImpl() }
     single<ProxyBackendRepository> { ProxyBackendRepositoryImpl() }
     single<ContainerMetricsRepository> { ContainerMetricsRepositoryImpl() }
+    single<ServerStatusHistoryRepository> { ServerStatusHistoryRepositoryImpl() }
     single<ServerJobRepository> { ServerJobRepositoryImpl() }
     single<ServerRepository> {
         ServerRepositoryImpl()
@@ -124,6 +126,16 @@ val appModule = module {
             alertEvaluator = get(),
             containerMetricsRepository = get(),
             backupRepository = get()
+        ).also { it.start(get(named("appScope"))) }
+    }
+
+    // Bounded time-series: prunes status history + metrics past `metric_retention_days`.
+    single(createdAtStart = true) {
+        RetentionJanitor(
+            settingsProvider = get(),
+            statusHistoryRepository = get(),
+            containerMetricsRepository = get(),
+            nodeRepository = get()
         ).also { it.start(get(named("appScope"))) }
     }
 
@@ -250,7 +262,8 @@ val appModule = module {
             userRepository = get(),
             groupRepository = get(),
             containerMetricsRepository = get(),
-            migrationRepository = get()
+            migrationRepository = get(),
+            statusHistoryRepository = get()
         )
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get(), get(named("containerPrefix"))) }

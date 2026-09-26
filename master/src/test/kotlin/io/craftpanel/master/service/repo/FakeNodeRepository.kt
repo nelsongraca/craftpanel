@@ -2,6 +2,7 @@ package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
+import io.craftpanel.master.util.parseUtcInstant
 import kotlin.uuid.Uuid
 
 class FakeNodeRepository : NodeRepository {
@@ -53,7 +54,15 @@ class FakeNodeRepository : NodeRepository {
         allocatedCpu = cpu
     }
 
-    fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuMillicores: Int = 0, systemRamUsedMb: Int? = null, reservedRamMb: Int = 1024, reservedCpuMillicores: Int = 1024, systemCpuPercent: Double? = null) {
+    fun setCapacity(
+        id: Uuid,
+        totalRamMb: Int,
+        totalCpuMillicores: Int = 0,
+        systemRamUsedMb: Int? = null,
+        reservedRamMb: Int = 1024,
+        reservedCpuMillicores: Int = 1024,
+        systemCpuPercent: Double? = null
+    ) {
         nodes[id]?.let {
             it.totalRamMb = totalRamMb
             it.totalCpuMillicores = totalCpuMillicores
@@ -121,6 +130,12 @@ class FakeNodeRepository : NodeRepository {
     override fun getMetrics(nodeId: Uuid, limit: Int): List<NodeMetricsRow> = metrics.filter { it.nodeId == nodeId }
         .take(limit)
         .map { NodeMetricsRow(Uuid.random(), it.nodeId, it.recordedAt, it.cpuPercent, it.ramUsedMb, it.ramTotalMb, it.netInBytes, it.netOutBytes, it.diskUsedBytes, it.diskTotalBytes) }
+
+    override fun deleteMetricsOlderThan(cutoff: kotlin.time.Instant): Int {
+        val before = metrics.size
+        metrics.removeAll { parseUtcInstant(it.recordedAt)?.let { t -> t < cutoff } ?: false }
+        return before - metrics.size
+    }
 
     private fun MutableNode.toRow() = NodeRow(
         id,

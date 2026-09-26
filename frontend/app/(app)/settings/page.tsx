@@ -280,6 +280,9 @@ export default function SettingsPage() {
                                     required
                                 />
                             </Field>
+                            <p className="-mt-3 text-xs text-text-muted">
+                                Server status history and metric samples older than this are pruned daily.
+                            </p>
                             <Field label="Default Max Backup Count">
                                 <TextField
                                     type="number"

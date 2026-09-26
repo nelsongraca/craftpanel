@@ -43,7 +43,17 @@ type LiveMetrics = {
 };
 type LivePlayers = {count: number; list: string[]};
 
-const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Ports", "Migration"] as const;
+const TABS = [
+    "Overview",
+    "Metrics",
+    "Console",
+    "Files",
+    "Mods",
+    "Backups",
+    "Configuration",
+    "Ports",
+    "Migration",
+] as const;
 type Tab = (typeof TABS)[number];
 
 const HEADER_ACTION_BUTTONS = {
@@ -62,6 +72,7 @@ const ModsTab = dynamic(() => import("./mods-tab").then((m) => m.ModsTab), {ssr:
 const ConfigTab = dynamic(() => import("./config-tab").then((m) => m.ConfigTab), {ssr: false});
 const PortsTab = dynamic(() => import("./ports-tab").then((m) => m.PortsTab), {ssr: false});
 const MigrationTab = dynamic(() => import("./migration-tab").then((m) => m.MigrationTab), {ssr: false});
+const MetricsTab = dynamic(() => import("./metrics-tab").then((m) => m.MetricsTab), {ssr: false});
 
 export default function ServerDetailPage() {
     const params = useParams();
@@ -490,6 +501,9 @@ export default function ServerDetailPage() {
                         forceOpenGeneralSignal={generalOpenSignal}
                         onSaved={() => void fetchServer()}
                     />
+                </TabsContent>
+                <TabsContent value="Metrics" className="overflow-auto">
+                    <MetricsTab serverId={server.id} ramLimitMb={server.memory_mb} />
                 </TabsContent>
                 <TabsContent value="Console" className="min-h-0 flex-1 overflow-hidden">
                     <ConsoleTab serverId={server.id} serverStatus={server.status} />

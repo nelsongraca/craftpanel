@@ -115,12 +115,23 @@ class NodeObserver(
         transaction {
             Server.findById(serverId)
                 ?.let {
-                    it.status = event.status.toDb()
+                    val reported = event.status.toDb()
+                    // Record only transitions: the agent re-affirms the same status on reconnect /
+                    // periodic snapshots, and logging every repeat would drown the history.
+                    val changed = it.status != reported
+                    it.status = reported
                     it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
                     // A genuine (re)start applies the latest spec; clear the pending-restart marker.
                     // Only STARTING counts — a reconnect re-affirms HEALTHY via a NoOp converge
                     // without recreating, so clearing on HEALTHY would drop the marker spuriously.
                     if (event.status == ServerStatus.STARTING) it.restartPending = false
+                    if (changed) {
+                        ServerStatusEventRecord.new {
+                            this.serverId = EntityID(serverId, Servers)
+                            status = reported
+                            recordedAt = now.toLocalDateTime(TimeZone.UTC)
+                        }
+                    }
                 }
         }
     }

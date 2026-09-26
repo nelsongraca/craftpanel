@@ -18,6 +18,7 @@ class FakeRepositories {
     val backups = mutableMapOf<Uuid, FakeServerRepository.MutableBackup>()
     val proxyBackends = mutableMapOf<Uuid, MutableList<FakeServerRepository.MutableProxyBackend>>()
     val containerMetrics = mutableListOf<FakeServerRepository.MutableContainerMetrics>()
+    val statusHistory = mutableListOf<ServerStatusEventRow>()
     val serverJobs = mutableMapOf<Uuid, FakeServerRepository.MutableServerJob>()
 
     val serverRepository = FakeServerRepository(this)
@@ -28,5 +29,6 @@ class FakeRepositories {
     val backupRepository = FakeBackupRepository(this)
     val proxyBackendRepository = FakeProxyBackendRepository(this)
     val containerMetricsRepository = FakeContainerMetricsRepository(this)
+    val statusHistoryRepository = FakeServerStatusHistoryRepository(this)
     val serverJobRepository = FakeServerJobRepository(this)
 }

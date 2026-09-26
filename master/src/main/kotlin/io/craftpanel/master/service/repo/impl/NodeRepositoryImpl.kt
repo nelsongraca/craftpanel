@@ -4,6 +4,8 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -67,6 +69,11 @@ class NodeRepositoryImpl : NodeRepository {
                     diskTotalBytes = it[NodeMetrics.diskTotalBytes]
                 )
             }
+    }
+
+    override fun deleteMetricsOlderThan(cutoff: kotlin.time.Instant): Int = transaction {
+        val cutoffLdt = cutoff.toLocalDateTime(TimeZone.UTC)
+        NodeMetrics.deleteWhere { NodeMetrics.recordedAt less cutoffLdt }
     }
 }
 

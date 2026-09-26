@@ -54,6 +54,7 @@ object DatabaseFactory {
                 AlertThresholds,
                 AlertEvents,
                 ContainerMetrics,
+                ServerStatusEvents,
                 SystemSettings,
                 ServerJobs,
                 ServerExtraPorts,

@@ -4,6 +4,7 @@ import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.ContainerMetrics
 import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.ServerStatusEvents
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
@@ -79,6 +80,13 @@ class NodeObserverTest :
             Servers.update({ Servers.id eq serverId }) { it[Servers.restartPending] = value }
         }
 
+        fun historyStatuses(): List<String> = transaction {
+            ServerStatusEvents.selectAll()
+                .where { ServerStatusEvents.serverId eq serverId }
+                .orderBy(ServerStatusEvents.recordedAt)
+                .map { it[ServerStatusEvents.status] }
+        }
+
         fun observer(events: MutableSharedFlow<AgentEvent>) = NodeObserver(
             agentEvents = events,
             emitAgentEvent = {},
@@ -143,6 +151,59 @@ class NodeObserverTest :
                 delay(50.milliseconds)
 
                 dbRestartPending() shouldBe true
+                job.cancel()
+            }
+        }
+
+        // ── Status history ──────────────────────────────────────────────────
+
+        test("records a history row on a genuine status transition") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                // Server seeded as HEALTHY → UNHEALTHY is a transition.
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
+                delay(50.milliseconds)
+
+                historyStatuses() shouldBe listOf("UNHEALTHY")
+                job.cancel()
+            }
+        }
+
+        test("does not record a history row when the status is reaffirmed") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                // Server is already HEALTHY — a reconnect reaffirm must not spam history.
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
+                delay(50.milliseconds)
+
+                historyStatuses() shouldBe emptyList()
+                job.cancel()
+            }
+        }
+
+        test("records every distinct transition in order") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+                delay(50.milliseconds)
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STARTING))
+                delay(50.milliseconds)
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
+                delay(50.milliseconds)
+                // A repeat of the last status again must not add a row.
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
+                delay(50.milliseconds)
+
+                historyStatuses() shouldBe listOf("STOPPED", "STARTING", "HEALTHY")
                 job.cancel()
             }
         }

@@ -1,160 +1,165 @@
-import {describe, it, expect, vi} from 'vitest'
-import {render, screen} from '@testing-library/react'
-import {OverviewTab} from '../overview-tab'
-import type {Server, Node, Network} from '@/lib/types'
+import {describe, it, expect, vi} from "vitest";
+import {render, screen} from "@testing-library/react";
+import {OverviewTab} from "../overview-tab";
+import type {Server, Node, Network} from "@/lib/types";
 
-vi.mock('@/lib/permissions', () => ({
+vi.mock("@/lib/permissions", () => ({
     hasPermission: (perms: string[], node: string) => perms.includes(node),
-}))
+}));
 
-vi.mock('@/lib/utils/format', () => ({
-    timeAgo: () => '2h ago',
-    fmtMb: () => '1.0 GB',
-    fmtBytes: () => '1 KB',
-    fmtCpuLimit: (mc: number) => (mc === 0 ? 'Unlimited' : `${mc / 1000} cores`),
-}))
+// The panel owns its own data/WS wiring and is covered by status-history.test.tsx.
+vi.mock("../status-history", () => ({
+    StatusHistoryPanel: () => null,
+}));
+
+vi.mock("@/lib/utils/format", () => ({
+    timeAgo: () => "2h ago",
+    fmtMb: () => "1.0 GB",
+    fmtBytes: () => "1 KB",
+    fmtCpuLimit: (mc: number) => (mc === 0 ? "Unlimited" : `${mc / 1000} cores`),
+}));
 
 const makeServer = (overrides?: Partial<Server>): Server => ({
-    id: 's1',
-    display_name: 'Test Server',
-    description: 'A test',
-    server_type: 'PAPER',
-    mc_version: '1.21',
+    id: "s1",
+    display_name: "Test Server",
+    description: "A test",
+    server_type: "PAPER",
+    mc_version: "1.21",
     memory_mb: 2048,
     cpu_limit_millicores: 100,
-    config_mode: 'MANAGED',
-    host_port: '25565',
-    node_id: 'n1',
-    network_id: 'net1',
-    status: 'RUNNING',
-    created_at: '2026-01-01T00:00:00Z',
+    config_mode: "MANAGED",
+    host_port: "25565",
+    node_id: "n1",
+    network_id: "net1",
+    status: "RUNNING",
+    created_at: "2026-01-01T00:00:00Z",
     exposed_externally: false,
     public_subdomain: null,
     custom_hostname: null,
     canonical_hostname: null,
-    itzg_image_tag: 'latest',
+    itzg_image_tag: "latest",
     ...overrides,
-})
+});
 
 const makeNode = (): Node => ({
-    id: 'n1',
-    display_name: 'Node 1',
-    hostname: 'node1.example.com',
-    last_seen_at: '2026-09-07T00:00:00Z',
-    status: 'ONLINE',
-})
+    id: "n1",
+    display_name: "Node 1",
+    hostname: "node1.example.com",
+    last_seen_at: "2026-09-07T00:00:00Z",
+    status: "ONLINE",
+});
 
 const makeNetwork = (): Network => ({
-    id: 'net1',
-    name: 'Test Network',
-})
+    id: "net1",
+    name: "Test Network",
+});
 
-describe('OverviewTab', () => {
-    it('renders server info section', () => {
+describe("OverviewTab", () => {
+    it("renders server info section", () => {
         render(
             <OverviewTab
                 server={makeServer()}
                 node={makeNode()}
                 network={makeNetwork()}
-                permissions={['server.view']}
+                permissions={["server.view"]}
                 liveMetrics={null}
                 livePlayers={null}
                 onSaved={vi.fn()}
             />,
-        )
-        expect(screen.getByText('Server Info')).toBeInTheDocument()
-        expect(screen.getByText('PAPER')).toBeInTheDocument()
-        expect(screen.getByText('Node 1')).toBeInTheDocument()
-        expect(screen.getByText('Test Network')).toBeInTheDocument()
-    })
+        );
+        expect(screen.getByText("Server Info")).toBeInTheDocument();
+        expect(screen.getByText("PAPER")).toBeInTheDocument();
+        expect(screen.getByText("Node 1")).toBeInTheDocument();
+        expect(screen.getByText("Test Network")).toBeInTheDocument();
+    });
 
-    it('shows the canonical hostname', () => {
+    it("shows the canonical hostname", () => {
         render(
             <OverviewTab
-                server={makeServer({canonical_hostname: 'play.example.com'})}
+                server={makeServer({canonical_hostname: "play.example.com"})}
                 node={makeNode()}
                 network={makeNetwork()}
-                permissions={['server.view']}
+                permissions={["server.view"]}
                 liveMetrics={null}
                 livePlayers={null}
                 onSaved={vi.fn()}
             />,
-        )
-        expect(screen.getByText('play.example.com')).toBeInTheDocument()
-    })
+        );
+        expect(screen.getByText("play.example.com")).toBeInTheDocument();
+    });
 
-    it('renders General Settings when has server.configure permission', () => {
-        render(
-            <OverviewTab
-                server={makeServer()}
-                node={makeNode()}
-                network={makeNetwork()}
-                permissions={['server.configure']}
-                liveMetrics={null}
-                livePlayers={null}
-                onSaved={vi.fn()}
-            />,
-        )
-        expect(screen.getByText('General Settings')).toBeInTheDocument()
-    })
-
-    it('does not render General Settings without server.configure permission', () => {
+    it("renders General Settings when has server.configure permission", () => {
         render(
             <OverviewTab
                 server={makeServer()}
                 node={makeNode()}
                 network={makeNetwork()}
-                permissions={['server.view']}
+                permissions={["server.configure"]}
                 liveMetrics={null}
                 livePlayers={null}
                 onSaved={vi.fn()}
             />,
-        )
-        expect(screen.queryByText('General Settings')).not.toBeInTheDocument()
-    })
+        );
+        expect(screen.getByText("General Settings")).toBeInTheDocument();
+    });
 
-    it('renders Resources when has server.resources permission', () => {
+    it("does not render General Settings without server.configure permission", () => {
         render(
             <OverviewTab
                 server={makeServer()}
                 node={makeNode()}
                 network={makeNetwork()}
-                permissions={['server.resources']}
+                permissions={["server.view"]}
                 liveMetrics={null}
                 livePlayers={null}
                 onSaved={vi.fn()}
             />,
-        )
-        expect(screen.getByText('Resources')).toBeInTheDocument()
-    })
+        );
+        expect(screen.queryByText("General Settings")).not.toBeInTheDocument();
+    });
 
-    it('does not render Resources without server.resources permission', () => {
+    it("renders Resources when has server.resources permission", () => {
         render(
             <OverviewTab
                 server={makeServer()}
                 node={makeNode()}
                 network={makeNetwork()}
-                permissions={['server.view']}
+                permissions={["server.resources"]}
                 liveMetrics={null}
                 livePlayers={null}
                 onSaved={vi.fn()}
             />,
-        )
-        expect(screen.queryByText('Resources')).not.toBeInTheDocument()
-    })
+        );
+        expect(screen.getByText("Resources")).toBeInTheDocument();
+    });
 
-    it('renders Public Access when has server.configure permission', () => {
+    it("does not render Resources without server.resources permission", () => {
         render(
             <OverviewTab
                 server={makeServer()}
                 node={makeNode()}
                 network={makeNetwork()}
-                permissions={['server.configure']}
+                permissions={["server.view"]}
                 liveMetrics={null}
                 livePlayers={null}
                 onSaved={vi.fn()}
             />,
-        )
-        expect(screen.getByText('Public Access')).toBeInTheDocument()
-    })
-})
+        );
+        expect(screen.queryByText("Resources")).not.toBeInTheDocument();
+    });
+
+    it("renders Public Access when has server.configure permission", () => {
+        render(
+            <OverviewTab
+                server={makeServer()}
+                node={makeNode()}
+                network={makeNetwork()}
+                permissions={["server.configure"]}
+                liveMetrics={null}
+                livePlayers={null}
+                onSaved={vi.fn()}
+            />,
+        );
+        expect(screen.getByText("Public Access")).toBeInTheDocument();
+    });
+});

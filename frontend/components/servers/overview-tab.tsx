@@ -6,6 +6,7 @@ import {EditResources} from "./edit-resources";
 import {EditExposure} from "./edit-exposure";
 import {LiveMetricsCard, LiveMetricsStatCards} from "./live-metrics";
 import {PlayersPanel} from "./players-panel";
+import {StatusHistoryPanel} from "./status-history";
 import {hasPermission} from "@/lib/permissions";
 import {timeAgo} from "@/lib/utils/format";
 import type {Network, Node, Server} from "@/lib/types";
@@ -92,6 +93,8 @@ export function OverviewTab({
             </div>
 
             <PlayersPanel livePlayers={livePlayers} />
+
+            <StatusHistoryPanel serverId={server.id} />
         </div>
     );
 

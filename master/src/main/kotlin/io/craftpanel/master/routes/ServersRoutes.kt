@@ -327,6 +327,28 @@ fun Route.serversRoutes(
                 call.respond(queryService.getMetrics(auth.serverId, from, to))
             }
 
+            get("/{id}/status-history", {
+                operationId = "getServerStatusHistory"
+                summary = "Get recent server status transitions"
+                request {
+                    pathParameter<String>("id")
+                    queryParameter<Int>("limit") { required = false }
+                }
+                response {
+                    code(HttpStatusCode.OK) { body<ServerStatusHistoryResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val auth = call.requireServerPermission(Permission.SERVER_VIEW)
+                val limit = call.request.queryParameters["limit"]
+                    ?.toIntOrNull()
+                    ?.coerceIn(1, 500)
+                    ?: 50
+                call.respond(queryService.getStatusHistory(auth.serverId, limit))
+            }
+
             patch("/{id}/exposure", {
                 operationId = "updateServerExposure"
                 summary = "Update server exposure"

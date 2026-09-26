@@ -158,15 +158,13 @@ class ServerProvisioning(
             repeat(3) {
                 try {
                     return@run attemptCreate(spec, st, proto, expiryLocal, nodeKotlinId, networkKotlinId)
-                }
-                catch (ex: Exception) {
+                } catch (ex: Exception) {
                     val cause = generateSequence(ex as Throwable) { it.cause }
                         .filterIsInstance<java.sql.SQLException>()
                         .firstOrNull()
                     if (cause != null && cause.sqlState?.startsWith("23") == true) {
                         lastEx = cause
-                    }
-                    else {
+                    } else {
                         throw ex
                     }
                 }
@@ -243,7 +241,7 @@ class ServerProvisioning(
         when (capacityChecker.check(node, excludeServerId = null, memoryMb = spec.memoryMb, cpuLimitMillicores = spec.cpuLimitMillicores)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok              -> {}
+            CapacityResult.Ok -> {}
         }
 
         val port = portAllocator.allocate(nodeKotlinId)
@@ -291,8 +289,7 @@ class ServerProvisioning(
             spec.backupMaxCount?.let { entity.backupMaxCount = it }
             if (st.isProxy) {
                 entity.proxyMotd = spec.proxyMotd ?: "$serverTypeDisplay powered by $platformName"
-            }
-            else {
+            } else {
                 entity.proxyMotd = spec.proxyMotd
             }
             entity.proxyMaxPlayers = spec.proxyMaxPlayers
@@ -304,8 +301,7 @@ class ServerProvisioning(
             val envVars = spec.envVars
                 ?: if (!st.isProxy && !st.isCustom && !st.isPicolimbo) {
                     buildDefaultEnvVars(spec.mcVersion, serverTypeDisplay, platformName)
-                }
-                else {
+                } else {
                     emptyMap()
                 }
             envVars.forEach { (key, value) ->
@@ -395,5 +391,5 @@ internal fun buildDefaultEnvVars(mcVersion: String, serverTypeDisplay: String, p
     "FUNCTION_PERMISSION_LEVEL" to "2",
     "BROADCAST_CONSOLE_TO_OPS" to "true",
     "TZ" to "UTC",
-    "USE_AIKAR_FLAGS" to "true"
+    "USE_MEOWICE_FLAGS" to "true"
 )

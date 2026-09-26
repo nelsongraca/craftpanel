@@ -50,4 +50,7 @@ interface NodeRepository {
     fun calculateAllocatedCpuMillicores(id: Uuid): Int
 
     fun getMetrics(nodeId: Uuid, limit: Int): List<NodeMetricsRow>
+
+    /** Deletes metric samples recorded strictly before [cutoff]. Returns the number of rows removed. */
+    fun deleteMetricsOlderThan(cutoff: kotlin.time.Instant): Int
 }

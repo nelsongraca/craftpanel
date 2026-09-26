@@ -20,7 +20,8 @@ class ServerQueryServiceMetricsTest :
             userRepository = UserRepositoryImpl(),
             groupRepository = GroupRepositoryImpl(),
             containerMetricsRepository = repos.containerMetricsRepository,
-            migrationRepository = repos.migrationRepository
+            migrationRepository = repos.migrationRepository,
+            statusHistoryRepository = repos.statusHistoryRepository
         )
 
         lateinit var serverId: Uuid
