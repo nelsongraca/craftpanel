@@ -880,9 +880,7 @@ describe("Extra Variables", () => {
         await waitFor(() => expect(screen.queryByText("Loading…")).not.toBeInTheDocument());
 
         // Delete the extra var using the Trash2 button
-        const deleteButtons = screen
-            .getAllByRole("button")
-            .filter((btn) => btn.querySelector("svg") && btn.closest("td"));
+        const deleteButtons = screen.getAllByRole("button").filter((btn) => btn.querySelector(".lucide-trash-2"));
         await user.click(deleteButtons[0]);
 
         await user.click(screen.getByRole("button", {name: /^save$/i}));

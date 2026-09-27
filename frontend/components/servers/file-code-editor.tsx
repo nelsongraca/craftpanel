@@ -10,7 +10,6 @@ interface Props {
     onChange: (value: string) => void;
     onSave: () => void;
     path: string;
-    encoding?: string;
     wrap?: boolean;
 }
 
@@ -45,7 +44,7 @@ const editorChrome = EditorView.theme({
     },
 });
 
-export function FileCodeEditor({value, onChange, onSave, path, encoding, wrap = false}: Props) {
+export function FileCodeEditor({value, onChange, onSave, path, wrap = false}: Props) {
     const saveRef = useRef(onSave);
     useEffect(() => {
         saveRef.current = onSave;

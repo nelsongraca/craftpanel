@@ -8,9 +8,6 @@ vi.mock("@/components/servers/file-code-editor", () => ({
         value,
         onChange,
         onSave,
-        path,
-        encoding,
-        wrap,
     }: {
         value: string;
         onChange: (v: string) => void;

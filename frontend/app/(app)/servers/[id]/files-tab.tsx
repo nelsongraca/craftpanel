@@ -669,7 +669,6 @@ export function FilesTab({serverId}: Props) {
                                         }}
                                         onSave={saveFile}
                                         path={selectedPath}
-                                        encoding={fileEncoding}
                                         wrap={wrap}
                                     />
                                 )}

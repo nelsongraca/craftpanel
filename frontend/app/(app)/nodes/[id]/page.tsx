@@ -641,7 +641,7 @@ export default function NodeDetailPage() {
                             <TabsTrigger
                                 key={tab}
                                 value={tab}
-                                className="shrink-0 rounded-none border-none px-2 py-3 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bottom-0 after:h-0.5 after:bg-accent hover:text-text-primary sm:px-4 data-active:bg-transparent data-active:text-accent data-active:shadow-none"
+                                className="shrink-0 rounded-none border-none px-2 py-2 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bottom-0 after:h-0.5 after:bg-accent hover:text-text-primary sm:px-4 sm:py-3 data-active:bg-transparent data-active:text-accent data-active:shadow-none"
                             >
                                 {tab}
                                 {tab === "Servers" && servers.length > 0 && (
