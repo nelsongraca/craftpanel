@@ -331,12 +331,16 @@ export function ServerList({
                     </div>
                     <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
                 </div>
-                <div className="mt-2.5 flex items-center justify-between gap-3">
+                <div className="mt-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="flex items-center gap-4">
                         <RamBar total={server.memory_mb} used={ramUsage[server.id]} />
                         <CpuBar percent={cpuUsage[server.id]} limitMillicores={server.cpu_limit_millicores} />
                     </div>
-                    {renderActions && <div onClick={(e) => e.stopPropagation()}>{renderActions(server)}</div>}
+                    {renderActions && (
+                        <div className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            {renderActions(server)}
+                        </div>
+                    )}
                 </div>
             </div>
         );

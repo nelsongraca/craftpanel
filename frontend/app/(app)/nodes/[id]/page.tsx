@@ -89,7 +89,7 @@ function OverviewTab({
     const cpuUsagePct = node.system_cpu_percent != null ? Math.min(100, node.system_cpu_percent) : 0;
 
     return (
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-4 py-6">
             {/* Stat cards */}
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <StatCard label="RAM Allocated">
@@ -259,7 +259,7 @@ function MetricsTab({nodeId}: {nodeId: string}) {
 
     if (loading) {
         return (
-            <div className="space-y-4 px-6 py-6">
+            <div className="space-y-4 px-4 py-6">
                 {Array.from({length: 3}).map((_, i) => (
                     <Skeleton key={i} className="h-40 bg-surface" />
                 ))}
@@ -269,7 +269,7 @@ function MetricsTab({nodeId}: {nodeId: string}) {
 
     if (points.length === 0) {
         return (
-            <div className="px-6 py-10">
+            <div className="px-4 py-10">
                 <Empty className="rounded-md border-2 border-border py-10">
                     <EmptyDescription>No metrics available for the selected time range</EmptyDescription>
                 </Empty>
@@ -281,7 +281,7 @@ function MetricsTab({nodeId}: {nodeId: string}) {
     const lastDiskTotal = points.at(-1)?.diskTotal ?? 0;
 
     return (
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-4 py-6">
             {/* Time range selector */}
             <div className="flex items-center gap-1">
                 {(["1h", "6h", "24h"] as TimeRange[]).map((r) => (
@@ -518,7 +518,7 @@ export default function NodeDetailPage() {
 
     if (loading) {
         return (
-            <div className="space-y-4 px-6 pt-6">
+            <div className="space-y-4 px-4 pt-4">
                 <Skeleton className="h-4 w-40 bg-surface" />
                 <Skeleton className="h-8 w-64 bg-surface" />
                 <Skeleton className="h-4 w-48 bg-surface" />
@@ -546,7 +546,7 @@ export default function NodeDetailPage() {
     return (
         <div className="flex h-full min-h-0 flex-col">
             {/* ── Page header ── */}
-            <div className="shrink-0 border-b border-border px-6 pt-6 pb-5">
+            <div className="shrink-0 border-b border-border px-4 pt-4 pb-3">
                 {/* Breadcrumb */}
                 <div className="mb-4 flex items-center gap-1.5 font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
                     <Link href="/nodes" className="transition-colors hover:text-text-primary">
@@ -632,16 +632,16 @@ export default function NodeDetailPage() {
                 onValueChange={(value) => setActiveTab(value as Tab)}
                 className="min-h-0 flex-1 overflow-hidden"
             >
-                <div className="shrink-0 scrollbar-none overflow-x-auto border-b border-border bg-surface pb-[7px]">
+                <div className="shrink-0 border-b border-border bg-surface pb-[7px]">
                     <TabsList
                         variant="line"
-                        className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0"
+                        className="h-auto w-full flex-wrap justify-start rounded-none bg-transparent px-6 py-0 group-data-horizontal/tabs:h-auto"
                     >
                         {TABS.map((tab) => (
                             <TabsTrigger
                                 key={tab}
                                 value={tab}
-                                className="shrink-0 rounded-none border-none px-4 py-3 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bg-accent hover:text-text-primary data-active:bg-transparent data-active:text-accent data-active:shadow-none"
+                                className="shrink-0 rounded-none border-none px-2 py-3 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bottom-0 after:h-0.5 after:bg-accent hover:text-text-primary sm:px-4 data-active:bg-transparent data-active:text-accent data-active:shadow-none"
                             >
                                 {tab}
                                 {tab === "Servers" && servers.length > 0 && (
@@ -656,7 +656,7 @@ export default function NodeDetailPage() {
                     <OverviewTab node={node} servers={servers} onSaved={fetchNode} canEdit={canManage} />
                 </TabsContent>
                 <TabsContent value="Servers" className="overflow-auto">
-                    <div className="px-6 py-4">
+                    <div className="px-4 py-4">
                         <ServerList
                             servers={servers}
                             nodes={[node]}

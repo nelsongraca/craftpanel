@@ -99,7 +99,7 @@ export function OverviewTab({
     );
 
     return (
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-4 py-6">
             <LiveMetricsStatCards liveMetrics={liveMetrics} livePlayers={livePlayers} server={server} node={node} />
 
             {hasForms ? (

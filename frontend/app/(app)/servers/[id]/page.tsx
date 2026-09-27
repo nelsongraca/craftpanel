@@ -258,7 +258,7 @@ export default function ServerDetailPage() {
 
     if (loading) {
         return (
-            <div className="space-y-4 px-6 pt-6">
+            <div className="space-y-4 px-4 pt-4">
                 <Skeleton className="h-4 w-40 bg-surface" />
                 <Skeleton className="h-8 w-64 bg-surface" />
                 <Skeleton className="h-4 w-48 bg-surface" />
@@ -292,7 +292,7 @@ export default function ServerDetailPage() {
     return (
         <div className="flex h-full min-h-0 flex-col">
             {/* Page header */}
-            <div className="shrink-0 border-b border-border px-6 pt-6 pb-5">
+            <div className="shrink-0 border-b border-border px-4 pt-4 pb-3">
                 {/* Breadcrumb */}
                 <div className="mb-4 flex items-center gap-1.5 font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
                     <Link href="/servers" className="transition-colors hover:text-text-primary">
@@ -441,7 +441,7 @@ export default function ServerDetailPage() {
 
             {/* Restart required banner */}
             {server.restart_pending && sStatus !== "STOPPED" && (
-                <div className="mx-6 mt-4 flex items-center justify-between rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                <div className="mx-5 mt-4 flex items-center justify-between rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
                     <span>Settings saved. Restart the server for changes to take effect.</span>
                     {allowedActions(server).includes("restart") && (
                         <button
@@ -456,7 +456,7 @@ export default function ServerDetailPage() {
 
             {/* Error banner */}
             {actionError && (
-                <div className="mx-6 mt-4 flex items-center justify-between rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
+                <div className="mx-5 mt-4 flex items-center justify-between rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
                     <span>{actionError}</span>
                     <button onClick={() => setActionError(null)} className="ml-4 hover:opacity-70">
                         <X size={13} />
@@ -470,10 +470,10 @@ export default function ServerDetailPage() {
                 onValueChange={(value) => setActiveTab(value as Tab)}
                 className="min-h-0 flex-1 overflow-hidden"
             >
-                <div className="shrink-0 scrollbar-none overflow-x-auto border-b border-border bg-surface pb-[7px]">
+                <div className="shrink-0 border-b border-border bg-surface pb-[7px]">
                     <TabsList
                         variant="line"
-                        className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0"
+                        className="h-auto w-full flex-wrap justify-start rounded-none bg-transparent px-6 py-0 group-data-horizontal/tabs:h-auto"
                     >
                         {TABS.filter(
                             (tab) =>
@@ -482,7 +482,7 @@ export default function ServerDetailPage() {
                             <TabsTrigger
                                 key={tab}
                                 value={tab}
-                                className="shrink-0 rounded-none border-none px-4 py-3 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bg-accent hover:text-text-primary data-active:bg-transparent data-active:text-accent data-active:shadow-none"
+                                className="shrink-0 rounded-none border-none px-2 py-3 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bottom-0 after:h-0.5 after:bg-accent hover:text-text-primary sm:px-4 data-active:bg-transparent data-active:text-accent data-active:shadow-none"
                             >
                                 {tab === "Mods" && !isModServerType ? "Plugins" : tab}
                             </TabsTrigger>
@@ -547,7 +547,7 @@ export default function ServerDetailPage() {
                 </TabsContent>
                 {!isProxy && (
                     <TabsContent value="Migration" className="overflow-auto">
-                        <div className="px-6 py-6">
+                        <div className="px-4 py-6">
                             <MigrationTab
                                 serverId={server.id}
                                 nodeId={server.node_id}

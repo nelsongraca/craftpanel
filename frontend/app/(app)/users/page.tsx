@@ -30,39 +30,67 @@ async function loadUsers() {
     return {data: data?.users};
 }
 
-
 // ── Columns ───────────────────────────────────────────────────────────────────
 
 const USER_COLUMNS: SmartListColumn<User>[] = [
-    {key: 'username', header: 'Username', render: (u) => <span className="font-medium text-text-primary">{u.username}</span>},
-    {key: 'email', header: 'Email', render: (u) => <span className="text-text-dim">{u.email}</span>},
-    {key: 'status', header: 'Status', render: (u) => (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
-            {u.is_active ? "Active" : "Inactive"}
-        </span>
-    )},
-    {key: 'groups', header: 'Groups', render: (u) => (
-        <div className="flex flex-wrap gap-1">
-            {u.groups?.length === 0
-                ? <span className="text-text-muted text-xs">—</span>
-                : u.groups?.map((g) => (
-                    <span key={g} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider bg-surface-higher text-text-dim border border-border">
-                        {g}
-                    </span>
-                ))}
-        </div>
-    )},
-    {key: 'last_login', header: 'Last Login', render: (u) => (
-        <span className="text-text-muted font-mono text-xs">
-            {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : "—"}
-        </span>
-    )},
-    {key: 'created', header: 'Created', render: (u) => <span className="text-text-muted font-mono text-xs">{new Date(u.created_at).toLocaleDateString()}</span>},
-]
+    {
+        key: "username",
+        header: "Username",
+        render: (u) => <span className="font-medium text-text-primary">{u.username}</span>,
+    },
+    {key: "email", header: "Email", render: (u) => <span className="text-text-dim">{u.email}</span>},
+    {
+        key: "status",
+        header: "Status",
+        render: (u) => (
+            <span
+                className={`inline-flex items-center rounded border px-2 py-0.5 font-heading text-xs font-bold tracking-wider uppercase ${u.is_active ? "border-healthy/30 bg-healthy/10 text-healthy" : "border-border bg-surface-high text-text-muted"}`}
+            >
+                {u.is_active ? "Active" : "Inactive"}
+            </span>
+        ),
+    },
+    {
+        key: "groups",
+        header: "Groups",
+        render: (u) => (
+            <div className="flex flex-wrap gap-1">
+                {u.groups?.length === 0 ? (
+                    <span className="text-xs text-text-muted">—</span>
+                ) : (
+                    u.groups?.map((g) => (
+                        <span
+                            key={g}
+                            className="inline-flex items-center rounded border border-border bg-surface-higher px-2 py-0.5 font-heading text-xs font-bold tracking-wider text-text-dim uppercase"
+                        >
+                            {g}
+                        </span>
+                    ))
+                )}
+            </div>
+        ),
+    },
+    {
+        key: "last_login",
+        header: "Last Login",
+        render: (u) => (
+            <span className="font-mono text-xs text-text-muted">
+                {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : "—"}
+            </span>
+        ),
+    },
+    {
+        key: "created",
+        header: "Created",
+        render: (u) => (
+            <span className="font-mono text-xs text-text-muted">{new Date(u.created_at).toLocaleDateString()}</span>
+        ),
+    },
+];
 
 // ── Create User Modal ─────────────────────────────────────────────────────────
 
-function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () => void }) {
+function CreateUserModal({onClose, onDone}: {onClose: () => void; onDone: () => void}) {
     const [form, setForm] = useState({username: "", email: "", password: "", forcePasswordChange: false});
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
@@ -83,40 +111,60 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
     return (
         <Dialog open onOpenChange={(o) => !o && onClose()}>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader><DialogTitle>Create User</DialogTitle></DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <Field label="Username">
-                    <TextField value={form.username} onChange={(e) => setForm((f) => ({...f, username: e.target.value}))} required/>
-                </Field>
-                <Field label="Email">
-                    <TextField type="email" value={form.email} onChange={(e) => setForm((f) => ({...f, email: e.target.value}))} required/>
-                </Field>
-                <Field label="Password">
-                    <TextField type="password" value={form.password} onChange={(e) => setForm((f) => ({...f, password: e.target.value}))} required/>
-                </Field>
-                <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={form.forcePasswordChange}
-                        onChange={(e) => setForm((f) => ({...f, forcePasswordChange: e.target.checked}))}
-                        className="accent-accent"
-                    />
-                    <span className="text-sm text-text-dim">Require password change on next login</span>
-                </label>
-                {error && <p className="text-xs text-error">{error}</p>}
-                <div className="flex justify-end gap-2 pt-1">
-                    <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
-                    <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Creating…" : "Create"}</button>
-                </div>
-            </form>
-        </DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create User</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <Field label="Username">
+                        <TextField
+                            value={form.username}
+                            onChange={(e) => setForm((f) => ({...f, username: e.target.value}))}
+                            required
+                        />
+                    </Field>
+                    <Field label="Email">
+                        <TextField
+                            type="email"
+                            value={form.email}
+                            onChange={(e) => setForm((f) => ({...f, email: e.target.value}))}
+                            required
+                        />
+                    </Field>
+                    <Field label="Password">
+                        <TextField
+                            type="password"
+                            value={form.password}
+                            onChange={(e) => setForm((f) => ({...f, password: e.target.value}))}
+                            required
+                        />
+                    </Field>
+                    <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={form.forcePasswordChange}
+                            onChange={(e) => setForm((f) => ({...f, forcePasswordChange: e.target.checked}))}
+                            className="accent-accent"
+                        />
+                        <span className="text-sm text-text-dim">Require password change on next login</span>
+                    </label>
+                    {error && <p className="text-xs text-error">{error}</p>}
+                    <div className="flex justify-end gap-2 pt-1">
+                        <button type="button" className={BTN_GHOST} onClick={onClose}>
+                            Cancel
+                        </button>
+                        <button type="submit" className={BTN_PRIMARY} disabled={saving}>
+                            {saving ? "Creating…" : "Create"}
+                        </button>
+                    </div>
+                </form>
+            </DialogContent>
         </Dialog>
     );
 }
 
 // ── Edit User Modal ───────────────────────────────────────────────────────────
 
-function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => void; onDone: () => void }) {
+function EditUserModal({user, onClose, onDone}: {user: User; onClose: () => void; onDone: () => void}) {
     const [form, setForm] = useState({
         username: user.username,
         email: user.email,
@@ -144,39 +192,54 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
     return (
         <Dialog open onOpenChange={(o) => !o && onClose()}>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <Field label="Username">
-                    <TextField value={form.username} onChange={(e) => setForm((f) => ({...f, username: e.target.value}))} required/>
-                </Field>
-                <Field label="Email">
-                    <TextField type="email" value={form.email} onChange={(e) => setForm((f) => ({...f, email: e.target.value}))} required/>
-                </Field>
-                <Field label="Active">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={form.isActive}
-                            onChange={(e) => setForm((f) => ({...f, isActive: e.target.checked}))}
-                            className="accent-accent"
+                <DialogHeader>
+                    <DialogTitle>Edit User</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <Field label="Username">
+                        <TextField
+                            value={form.username}
+                            onChange={(e) => setForm((f) => ({...f, username: e.target.value}))}
+                            required
                         />
-                        <span className="text-sm text-text-dim">User is active</span>
-                    </label>
-                </Field>
-                {error && <p className="text-xs text-error">{error}</p>}
-                <div className="flex justify-end gap-2 pt-1">
-                    <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
-                    <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
-                </div>
-            </form>
-        </DialogContent>
+                    </Field>
+                    <Field label="Email">
+                        <TextField
+                            type="email"
+                            value={form.email}
+                            onChange={(e) => setForm((f) => ({...f, email: e.target.value}))}
+                            required
+                        />
+                    </Field>
+                    <Field label="Active">
+                        <label className="flex cursor-pointer items-center gap-2">
+                            <input
+                                type="checkbox"
+                                checked={form.isActive}
+                                onChange={(e) => setForm((f) => ({...f, isActive: e.target.checked}))}
+                                className="accent-accent"
+                            />
+                            <span className="text-sm text-text-dim">User is active</span>
+                        </label>
+                    </Field>
+                    {error && <p className="text-xs text-error">{error}</p>}
+                    <div className="flex justify-end gap-2 pt-1">
+                        <button type="button" className={BTN_GHOST} onClick={onClose}>
+                            Cancel
+                        </button>
+                        <button type="submit" className={BTN_PRIMARY} disabled={saving}>
+                            {saving ? "Saving…" : "Save"}
+                        </button>
+                    </div>
+                </form>
+            </DialogContent>
         </Dialog>
     );
 }
 
 // ── Reset Password Modal ──────────────────────────────────────────────────────
 
-function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () => void; onDone: () => void }) {
+function ResetPasswordModal({user, onClose, onDone}: {user: User; onClose: () => void; onDone: () => void}) {
     const [password, setPassword] = useState("");
     const [confirm, setConfirm] = useState("");
     const [forcePasswordChange, setForcePasswordChange] = useState(true);
@@ -195,7 +258,10 @@ function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () =
             return;
         }
         setSaving(true);
-        const {error} = await resetUserPassword({path: {id: user.id}, body: {password, force_password_change: forcePasswordChange}});
+        const {error} = await resetUserPassword({
+            path: {id: user.id},
+            body: {password, force_password_change: forcePasswordChange},
+        });
         setSaving(false);
         if (error) {
             setError(error.message ?? "Failed to reset password");
@@ -207,52 +273,66 @@ function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () =
     return (
         <Dialog open onOpenChange={(o) => !o && onClose()}>
             <DialogContent className="sm:max-w-md">
-                <DialogHeader><DialogTitle>{`Reset Password - ${user.username}`}</DialogTitle></DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <p className="text-xs text-text-muted -mt-1">This will set a new password
-                    for {user.username}. {forcePasswordChange ? "The user will be required to change it on next login and all existing sessions will be signed out." : "Any active sessions for this user will remain signed in."}</p>
-                <Field label="New Password">
-                    <TextField type="password" value={password} onChange={(e) => setPassword(e.target.value)} required/>
-                </Field>
-                <Field label="Confirm New Password">
-                    <TextField type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required/>
-                </Field>
-                <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={forcePasswordChange}
-                        onChange={(e) => setForcePasswordChange(e.target.checked)}
-                        className="accent-accent"
-                    />
-                    <span className="text-sm text-text-dim">Require password change on next login</span>
-                </label>
-                {error && <p className="text-xs text-error">{error}</p>}
-                <div className="flex justify-end gap-2 pt-1">
-                    <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
-                    <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Resetting…" : "Reset Password"}</button>
-                </div>
-            </form>
-        </DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{`Reset Password - ${user.username}`}</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <p className="-mt-1 text-xs text-text-muted">
+                        This will set a new password for {user.username}.{" "}
+                        {forcePasswordChange
+                            ? "The user will be required to change it on next login and all existing sessions will be signed out."
+                            : "Any active sessions for this user will remain signed in."}
+                    </p>
+                    <Field label="New Password">
+                        <TextField
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                        />
+                    </Field>
+                    <Field label="Confirm New Password">
+                        <TextField
+                            type="password"
+                            value={confirm}
+                            onChange={(e) => setConfirm(e.target.value)}
+                            required
+                        />
+                    </Field>
+                    <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={forcePasswordChange}
+                            onChange={(e) => setForcePasswordChange(e.target.checked)}
+                            className="accent-accent"
+                        />
+                        <span className="text-sm text-text-dim">Require password change on next login</span>
+                    </label>
+                    {error && <p className="text-xs text-error">{error}</p>}
+                    <div className="flex justify-end gap-2 pt-1">
+                        <button type="button" className={BTN_GHOST} onClick={onClose}>
+                            Cancel
+                        </button>
+                        <button type="submit" className={BTN_PRIMARY} disabled={saving}>
+                            {saving ? "Resetting…" : "Reset Password"}
+                        </button>
+                    </div>
+                </form>
+            </DialogContent>
         </Dialog>
     );
 }
 
 // ── Assignments Modal ─────────────────────────────────────────────────────────
 
-function AssignmentsModal({
-                              user, groups, onClose,
-                          }: {
-    user: User;
-    groups: Group[];
-    onClose: () => void;
-}) {
+function AssignmentsModal({user, groups, onClose}: {user: User; groups: Group[]; onClose: () => void}) {
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [loading, setLoading] = useState(true);
     const [newGroup, setNewGroup] = useState("");
     const [newScope, setNewScope] = useState("GLOBAL");
     const [newScopeId, setNewScopeId] = useState("");
-    const [servers, setServers] = useState<{ id: string; display_name: string }[]>([]);
-    const [networks, setNetworks] = useState<{ id: string; name: string }[]>([]);
+    const [servers, setServers] = useState<{id: string; display_name: string}[]>([]);
+    const [networks, setNetworks] = useState<{id: string; name: string}[]>([]);
     const [addError, setAddError] = useState("");
 
     const loadAssignments = useCallback(async () => {
@@ -306,83 +386,124 @@ function AssignmentsModal({
 
     function scopeLabel(a: Assignment) {
         if (a.scope_type === "GLOBAL") return "Global";
-        const target = a.scope_type === "SERVER"
-            ? servers.find((s) => s.id === a.scope_id)?.display_name
-            : networks.find((n) => n.id === a.scope_id)?.name;
+        const target =
+            a.scope_type === "SERVER"
+                ? servers.find((s) => s.id === a.scope_id)?.display_name
+                : networks.find((n) => n.id === a.scope_id)?.name;
         return `${a.scope_type}: ${target ?? a.scope_id?.slice(0, 8) ?? "-"}`;
     }
 
     return (
         <Dialog open onOpenChange={(o) => !o && onClose()}>
             <DialogContent className="sm:max-w-2xl">
-                <DialogHeader><DialogTitle>{`Groups - ${user.username}`}</DialogTitle></DialogHeader>
-            <div className="space-y-5">
-                {/* Current assignments */}
-                <div>
-                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-2">Current Assignments</p>
-                    {loading ? (
-                        <p className="text-xs text-text-muted">Loading…</p>
-                    ) : assignments.length === 0 ? (
-                        <p className="text-xs text-text-muted">No assignments.</p>
-                    ) : (
-                        <ul className="space-y-1">
-                            {assignments.map((a) => (
-                                <li key={a.id} className="flex items-center justify-between bg-surface-high rounded px-3 py-2">
-                                    <div>
-                                        <span className="text-xs text-text-primary">{groupName(a.group_id)}</span>
-                                        <span className="ml-2 text-xs text-text-muted">{scopeLabel(a)}</span>
-                                    </div>
-                                    <button onClick={() => handleRemove(a.id)} className="text-text-muted hover:text-error transition-colors ml-2">
-                                        <Trash2 size={13}/>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+                <DialogHeader>
+                    <DialogTitle>{`Groups - ${user.username}`}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-5">
+                    {/* Current assignments */}
+                    <div>
+                        <p className="mb-2 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
+                            Current Assignments
+                        </p>
+                        {loading ? (
+                            <p className="text-xs text-text-muted">Loading…</p>
+                        ) : assignments.length === 0 ? (
+                            <p className="text-xs text-text-muted">No assignments.</p>
+                        ) : (
+                            <ul className="space-y-1">
+                                {assignments.map((a) => (
+                                    <li
+                                        key={a.id}
+                                        className="flex items-center justify-between rounded bg-surface-high px-3 py-2"
+                                    >
+                                        <div>
+                                            <span className="text-xs text-text-primary">{groupName(a.group_id)}</span>
+                                            <span className="ml-2 text-xs text-text-muted">{scopeLabel(a)}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => handleRemove(a.id)}
+                                            className="ml-2 text-text-muted transition-colors hover:text-error"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
 
-                {/* Add assignment */}
-                <div className="border-t border-border pt-4 space-y-3">
-                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Add Assignment</p>
-                    <Field label="Group">
-                        <SelectField className="w-full" value={newGroup} onChange={(e) => setNewGroup(e.target.value)}>
-                            <option value="">Select…</option>
-                            {groups.map((g) => (
-                                <option key={g.id} value={g.id}>{g.name}</option>
-                            ))}
-                        </SelectField>
-                    </Field>
-                    <Field label="Scope">
-                        <SelectField className="w-full" value={newScope} onChange={(e) => {
-                            setNewScope(e.target.value);
-                            setNewScopeId("");
-                        }}>
-                            <option value="GLOBAL">Global</option>
-                            <option value="SERVER">Server</option>
-                            <option value="NETWORK">Network</option>
-                        </SelectField>
-                    </Field>
-                    {newScope === "SERVER" && (
-                        <Field label="Server">
-                            <SelectField className="w-full" value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
+                    {/* Add assignment */}
+                    <div className="space-y-3 border-t border-border pt-4">
+                        <p className="font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
+                            Add Assignment
+                        </p>
+                        <Field label="Group">
+                            <SelectField
+                                className="w-full"
+                                value={newGroup}
+                                onChange={(e) => setNewGroup(e.target.value)}
+                            >
                                 <option value="">Select…</option>
-                                {servers.map((s) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
+                                {groups.map((g) => (
+                                    <option key={g.id} value={g.id}>
+                                        {g.name}
+                                    </option>
+                                ))}
                             </SelectField>
                         </Field>
-                    )}
-                    {newScope === "NETWORK" && (
-                        <Field label="Network">
-                            <SelectField className="w-full" value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
-                                <option value="">Select…</option>
-                                {networks.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
+                        <Field label="Scope">
+                            <SelectField
+                                className="w-full"
+                                value={newScope}
+                                onChange={(e) => {
+                                    setNewScope(e.target.value);
+                                    setNewScopeId("");
+                                }}
+                            >
+                                <option value="GLOBAL">Global</option>
+                                <option value="SERVER">Server</option>
+                                <option value="NETWORK">Network</option>
                             </SelectField>
                         </Field>
-                    )}
-                    {addError && <p className="text-xs text-error">{addError}</p>}
-                    <button className={BTN_PRIMARY} onClick={handleAdd}>Add</button>
+                        {newScope === "SERVER" && (
+                            <Field label="Server">
+                                <SelectField
+                                    className="w-full"
+                                    value={newScopeId}
+                                    onChange={(e) => setNewScopeId(e.target.value)}
+                                >
+                                    <option value="">Select…</option>
+                                    {servers.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.display_name}
+                                        </option>
+                                    ))}
+                                </SelectField>
+                            </Field>
+                        )}
+                        {newScope === "NETWORK" && (
+                            <Field label="Network">
+                                <SelectField
+                                    className="w-full"
+                                    value={newScopeId}
+                                    onChange={(e) => setNewScopeId(e.target.value)}
+                                >
+                                    <option value="">Select…</option>
+                                    {networks.map((n) => (
+                                        <option key={n.id} value={n.id}>
+                                            {n.name}
+                                        </option>
+                                    ))}
+                                </SelectField>
+                            </Field>
+                        )}
+                        {addError && <p className="text-xs text-error">{addError}</p>}
+                        <button className={BTN_PRIMARY} onClick={handleAdd}>
+                            Add
+                        </button>
+                    </div>
                 </div>
-            </div>
-        </DialogContent>
+            </DialogContent>
         </Dialog>
     );
 }
@@ -426,13 +547,13 @@ export default function UsersPage() {
                 subtitle="Manage platform users"
                 action={
                     <button onClick={() => setShowCreate(true)} className={BTN_PRIMARY + " flex items-center gap-1.5"}>
-                        <Plus size={13} strokeWidth={2.5}/>
+                        <Plus size={13} strokeWidth={2.5} />
                         New User
                     </button>
                 }
             />
 
-            <div className="p-6">
+            <div className="px-4 py-6">
                 <SmartList
                     items={users}
                     columns={USER_COLUMNS}
@@ -441,13 +562,21 @@ export default function UsersPage() {
                     empty="No users yet."
                     actions={(u) => (
                         <>
-                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(u)}/>
-                            <IconActionButton icon={<Users2 size={13}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
+                            <IconActionButton icon={<Pencil size={13} />} label="Edit" onClick={() => setEditing(u)} />
+                            <IconActionButton
+                                icon={<Users2 size={13} />}
+                                label="Manage groups"
+                                onClick={() => setManagingGroups(u)}
+                            />
                             {u.id !== currentUser?.id && (
-                                <IconActionButton icon={<KeyRound size={13}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
+                                <IconActionButton
+                                    icon={<KeyRound size={13} />}
+                                    label="Reset password"
+                                    onClick={() => setResettingPassword(u)}
+                                />
                             )}
                             <IconActionButton
-                                icon={<Trash2 size={13}/>}
+                                icon={<Trash2 size={13} />}
                                 label="Delete"
                                 danger
                                 onClick={() => requestDelete(u)}
@@ -458,25 +587,36 @@ export default function UsersPage() {
             </div>
 
             {showCreate && (
-                <CreateUserModal onClose={() => setShowCreate(false)} onDone={() => {
-                    setShowCreate(false);
-                    load();
-                }}/>
+                <CreateUserModal
+                    onClose={() => setShowCreate(false)}
+                    onDone={() => {
+                        setShowCreate(false);
+                        load();
+                    }}
+                />
             )}
 
             {editing && (
-                <EditUserModal user={editing} onClose={() => setEditing(null)} onDone={() => {
-                    setEditing(null);
-                    load();
-                }}/>
+                <EditUserModal
+                    user={editing}
+                    onClose={() => setEditing(null)}
+                    onDone={() => {
+                        setEditing(null);
+                        load();
+                    }}
+                />
             )}
 
             {managingGroups && (
-                <AssignmentsModal user={managingGroups} groups={groups} onClose={() => setManagingGroups(null)}/>
+                <AssignmentsModal user={managingGroups} groups={groups} onClose={() => setManagingGroups(null)} />
             )}
 
             {resettingPassword && (
-                <ResetPasswordModal user={resettingPassword} onClose={() => setResettingPassword(null)} onDone={() => setResettingPassword(null)}/>
+                <ResetPasswordModal
+                    user={resettingPassword}
+                    onClose={() => setResettingPassword(null)}
+                    onDone={() => setResettingPassword(null)}
+                />
             )}
 
             {dialog}

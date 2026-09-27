@@ -75,35 +75,42 @@ export default function AccountPage() {
 
     return (
         <div>
-            <PageHeader title="Account" subtitle="Your profile and sign-in security"/>
+            <PageHeader title="Account" subtitle="Your profile and sign-in security" />
 
-            <div className="p-6 max-w-4xl space-y-6">
+            <div className="max-w-4xl space-y-6 px-4 py-6">
                 {/* ── Profile ─────────────────────────────────────────────── */}
-                <section className="bg-surface border border-border rounded-md p-5 space-y-4">
-                    <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                <section className="space-y-4 rounded-md border border-border bg-surface p-5">
+                    <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                         Profile
                     </h2>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Username</p>
-                            <p className="text-sm text-text-primary mt-1">{user?.username ?? "—"}</p>
+                            <p className="font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
+                                Username
+                            </p>
+                            <p className="mt-1 text-sm text-text-primary">{user?.username ?? "—"}</p>
                         </div>
                         <div>
-                            <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Email</p>
-                            <p className="text-sm text-text-primary mt-1">{user?.email ?? "—"}</p>
+                            <p className="font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
+                                Email
+                            </p>
+                            <p className="mt-1 text-sm text-text-primary">{user?.email ?? "—"}</p>
                         </div>
                     </div>
                 </section>
 
                 {/* ── Password ────────────────────────────────────────────── */}
-                <section className="bg-surface border border-border rounded-md p-5 space-y-4">
-                    <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                <section className="space-y-4 rounded-md border border-border bg-surface p-5">
+                    <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                         Password
                     </h2>
 
                     {pwChanged ? (
                         <div className="space-y-4">
-                            <p className="text-sm text-text-dim">Your password has been changed. You can continue using the panel, or sign out to test your new password.</p>
+                            <p className="text-sm text-text-dim">
+                                Your password has been changed. You can continue using the panel, or sign out to test
+                                your new password.
+                            </p>
                             <div className="flex justify-end">
                                 <button className={BTN_PRIMARY} onClick={() => setPwChanged(false)}>
                                     Change password again
@@ -111,15 +118,33 @@ export default function AccountPage() {
                             </div>
                         </div>
                     ) : (
-                        <form onSubmit={handlePasswordSubmit} className="space-y-4 max-w-md">
+                        <form onSubmit={handlePasswordSubmit} className="max-w-md space-y-4">
                             <Field label="Current Password">
-                                <TextField type="password" value={pwOld} onChange={(e) => setPwOld(e.target.value)} required autoComplete="current-password"/>
+                                <TextField
+                                    type="password"
+                                    value={pwOld}
+                                    onChange={(e) => setPwOld(e.target.value)}
+                                    required
+                                    autoComplete="current-password"
+                                />
                             </Field>
                             <Field label="New Password">
-                                <TextField type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} required autoComplete="new-password"/>
+                                <TextField
+                                    type="password"
+                                    value={pwNew}
+                                    onChange={(e) => setPwNew(e.target.value)}
+                                    required
+                                    autoComplete="new-password"
+                                />
                             </Field>
                             <Field label="Confirm New Password">
-                                <TextField type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} required autoComplete="new-password"/>
+                                <TextField
+                                    type="password"
+                                    value={pwConfirm}
+                                    onChange={(e) => setPwConfirm(e.target.value)}
+                                    required
+                                    autoComplete="new-password"
+                                />
                             </Field>
                             {pwError && <p className="text-xs text-error">{pwError}</p>}
                             <div className="flex justify-end">
@@ -132,8 +157,8 @@ export default function AccountPage() {
                 </section>
 
                 {/* ── Two-factor authentication ───────────────────────────── */}
-                <section className="bg-surface border border-border rounded-md p-5 space-y-4">
-                    <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                <section className="space-y-4 rounded-md border border-border bg-surface p-5">
+                    <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                         Two-Factor Authentication
                     </h2>
 
@@ -142,9 +167,9 @@ export default function AccountPage() {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             {status?.enabled ? (
-                                <CheckCircle2 size={16} className="text-healthy"/>
+                                <CheckCircle2 size={16} className="text-healthy" />
                             ) : (
-                                <ShieldAlert size={16} className="text-text-muted"/>
+                                <ShieldAlert size={16} className="text-text-muted" />
                             )}
                             <p className={`text-sm ${status?.enabled ? "text-healthy" : "text-text-muted"}`}>
                                 {status ? (status.enabled ? "TOTP is enabled" : "TOTP is disabled") : "…"}
@@ -152,7 +177,8 @@ export default function AccountPage() {
                         </div>
                         {status?.enabled && (
                             <span className="text-xs text-text-muted">
-                                {status.recovery_codes_remaining} recovery code{status.recovery_codes_remaining === 1 ? "" : "s"} remaining
+                                {status.recovery_codes_remaining} recovery code
+                                {status.recovery_codes_remaining === 1 ? "" : "s"} remaining
                             </span>
                         )}
                     </div>
@@ -196,16 +222,22 @@ export default function AccountPage() {
                                     placeholder="123456"
                                     autoComplete="one-time-code"
                                     autoFocus
-                                    className="font-mono tracking-[0.3em] text-center"
+                                    className="text-center font-mono tracking-[0.3em]"
                                 />
-                                <p className="text-xs text-text-muted mt-1">Enter a code from your authenticator app to confirm.</p>
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Enter a code from your authenticator app to confirm.
+                                </p>
                             </Field>
                             {error && <p className="text-xs text-error">{error}</p>}
                             <div className="flex justify-end gap-2">
                                 <button type="button" className={BTN_GHOST} onClick={() => setDisableOpen(false)}>
                                     Cancel
                                 </button>
-                                <button type="submit" className={BTN_PRIMARY} disabled={busy || code.trim().length !== 6}>
+                                <button
+                                    type="submit"
+                                    className={BTN_PRIMARY}
+                                    disabled={busy || code.trim().length !== 6}
+                                >
                                     {busy ? "Disabling…" : "Disable 2FA"}
                                 </button>
                             </div>
@@ -213,14 +245,13 @@ export default function AccountPage() {
                     )}
                 </section>
 
-
                 {setupOpen && (
-                    <TotpSetupModal onClose={() => setSetupOpen(false)} onEnabled={() => void loadStatus()}/>
+                    <TotpSetupModal onClose={() => setSetupOpen(false)} onEnabled={() => void loadStatus()} />
                 )}
 
                 {/* ── Sessions ────────────────────────────────────────────── */}
-                <section className="bg-surface border border-border rounded-md p-5 space-y-4">
-                    <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                <section className="space-y-4 rounded-md border border-border bg-surface p-5">
+                    <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                         Sessions
                     </h2>
                     <p className="text-sm text-text-dim">

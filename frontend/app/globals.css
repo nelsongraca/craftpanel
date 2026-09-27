@@ -70,6 +70,8 @@
 }
 
 :root {
+    /* Header height including the standalone-PWA top safe-area inset (0px in a browser). */
+    --header-h: calc(48px + env(safe-area-inset-top));
     /* CraftPanel raw tokens (used by @theme inline above and directly in CSS) */
     --bg: #0e0d0c;
     --surface: #1c1917;

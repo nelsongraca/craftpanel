@@ -11,22 +11,23 @@ export const serverHandlers = [
 
     http.get("/api/servers/:id/mods/search", () => HttpResponse.json({hits: fakeModSearchHits})),
 
-    http.get("/api/servers/:id/metrics", ({params}) =>
-        HttpResponse.json({
+    http.get("/api/servers/:id/metrics", ({params}) => {
+        const t = new Date(Date.now() - 60_000).toISOString();
+        return HttpResponse.json({
             server_id: params.id,
             series: {
-                cpu_percent: [],
-                ram_used_mb: [],
-                net_in_bytes: [],
-                net_out_bytes: [],
+                cpu_percent: [{t, v: 12}],
+                ram_used_mb: [{t, v: 1024}],
+                net_in_bytes: [{t, v: 2048}],
+                net_out_bytes: [{t, v: 4096}],
                 block_in_bytes: [],
                 block_out_bytes: [],
-                heap_used_bytes: [],
-                heap_max_bytes: [],
-                non_heap_used_bytes: [],
+                heap_used_bytes: [{t, v: 512 * 1024 * 1024}],
+                heap_max_bytes: [{t, v: 1536 * 1024 * 1024}],
+                non_heap_used_bytes: [{t, v: 128 * 1024 * 1024}],
             },
-        }),
-    ),
+        });
+    }),
 
     http.get("/api/servers/:id/status-history", ({params}) => HttpResponse.json({server_id: params.id, events: []})),
 

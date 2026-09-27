@@ -121,7 +121,7 @@ export function MetricsTab({serverId, ramLimitMb}: {serverId: string; ramLimitMb
 
     if (loading) {
         return (
-            <div className="space-y-4 px-6 py-6">
+            <div className="space-y-4 px-4 py-6">
                 {Array.from({length: 3}).map((_, i) => (
                     <Skeleton key={i} className="h-40 bg-surface" />
                 ))}
@@ -131,7 +131,7 @@ export function MetricsTab({serverId, ramLimitMb}: {serverId: string; ramLimitMb
 
     if (points.length === 0) {
         return (
-            <div className="px-6 py-10">
+            <div className="px-4 py-10">
                 <Empty className="rounded-md border-2 border-border py-10">
                     <EmptyDescription>No metrics available for the selected time range</EmptyDescription>
                 </Empty>
@@ -142,7 +142,7 @@ export function MetricsTab({serverId, ramLimitMb}: {serverId: string; ramLimitMb
     const lastHeapMax = heapPoints.at(-1)?.heapMax ?? null;
 
     return (
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-4 py-6">
             <div className="flex items-center gap-1">
                 {(["1h", "6h", "24h"] as TimeRange[]).map((r) => (
                     <button

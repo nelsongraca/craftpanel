@@ -171,7 +171,7 @@ export default function SettingsPage() {
         return (
             <div>
                 <PageHeader title="Settings" subtitle="Runtime configuration" />
-                <div className="p-6 text-sm text-text-muted">
+                <div className="px-4 py-6 text-sm text-text-muted">
                     You do not have permission to view or edit system settings.
                 </div>
             </div>
@@ -185,7 +185,7 @@ export default function SettingsPage() {
                 subtitle="Runtime configuration - changes take effect immediately unless noted"
             />
 
-            <div className="p-6">
+            <div className="px-4 py-6">
                 {loading ? (
                     <div className="space-y-3" data-testid="settings-loading">
                         <Skeleton className="h-4 w-48 bg-surface" />

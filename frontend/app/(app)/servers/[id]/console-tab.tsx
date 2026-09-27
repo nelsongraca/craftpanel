@@ -11,7 +11,7 @@ interface Props {
     serverStatus: string;
 }
 
-function ServerLogView({serverId}: { serverId: string }) {
+function ServerLogView({serverId}: {serverId: string}) {
     const [html, setHtml] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -35,18 +35,16 @@ function ServerLogView({serverId}: { serverId: string }) {
         };
     }, [serverId]);
 
-    const fallback = (msg: string) => (
-        <p className="text-text-muted text-xs font-mono">{msg}</p>
-    );
+    const fallback = (msg: string) => <p className="font-mono text-xs text-text-muted">{msg}</p>;
 
     return (
-        <div className="px-6 py-6 flex flex-col gap-2 h-full min-h-0">
-            {error && <p className="text-error text-xs font-mono shrink-0">{error}</p>}
+        <div className="flex h-full min-h-0 flex-col gap-2 px-4 py-6">
+            {error && <p className="shrink-0 font-mono text-xs text-error">{error}</p>}
             {!error && html === null && fallback("Loading\u2026")}
             {!error && html !== null && html === "" && fallback("No log output available")}
             {!error && html !== null && html !== "" && (
                 <pre
-                    className="rounded border border-border bg-surface p-3 text-xs font-mono overflow-auto whitespace-pre-wrap leading-relaxed flex-1 min-h-0"
+                    className="min-h-0 flex-1 overflow-auto rounded border border-border bg-surface p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap"
                     dangerouslySetInnerHTML={{__html: html}}
                 />
             )}
@@ -76,7 +74,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
     const onMessage = (evt: MessageEvent) => {
         try {
-            const msg = JSON.parse(evt.data as string) as { type: string; data?: string; reason?: string };
+            const msg = JSON.parse(evt.data as string) as {type: string; data?: string; reason?: string};
             if (msg.type === "console.ready") {
                 setStatusMsg("");
             } else if (msg.type === "console.output") {
@@ -86,8 +84,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
                 termRef.current?.write(`\r\n\x1b[33m[${reason}]\x1b[0m\r\n`);
                 setStatusMsg(reason);
             }
-        } catch {
-        }
+        } catch {}
     };
 
     const onOpen = () => {
@@ -238,21 +235,14 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     }, [serverId, serverStatus, socketRef]);
 
     if (serverStatus !== "HEALTHY") {
-        return <ServerLogView serverId={serverId}/>;
+        return <ServerLogView serverId={serverId} />;
     }
 
     return (
-        <div className="px-6 py-6 flex flex-col gap-2 h-full min-h-0">
-            {error && (
-                <p className="text-error text-xs font-mono shrink-0">{error}</p>
-            )}
-            {statusMsg && !error && (
-                <p className="text-text-muted text-xs font-mono shrink-0">{statusMsg}</p>
-            )}
-            <div
-                ref={containerRef}
-                className="rounded border border-border overflow-hidden flex-1 min-h-0"
-            />
+        <div className="flex h-full min-h-0 flex-col gap-2 px-4 py-6">
+            {error && <p className="shrink-0 font-mono text-xs text-error">{error}</p>}
+            {statusMsg && !error && <p className="shrink-0 font-mono text-xs text-text-muted">{statusMsg}</p>}
+            <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden rounded border border-border" />
         </div>
     );
 }

@@ -21,9 +21,7 @@ export const serverDetailHandlers = [
         return new HttpResponse(null, {status: 404});
     }),
 
-    http.get("/api/networks/:id", () =>
-        HttpResponse.json(fakeNetwork)
-    ),
+    http.get("/api/networks/:id", () => HttpResponse.json(fakeNetwork)),
 
     // Lifecycle actions
     http.post("/api/servers/:id/start", ({params}) => HttpResponse.json(patched(params.id, {status: "STARTING"}))),
@@ -33,19 +31,19 @@ export const serverDetailHandlers = [
 
     // Edits
     http.patch("/api/servers/:id", async ({params, request}) =>
-        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>))
+        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>)),
     ),
     http.patch("/api/servers/:id/resources", async ({params, request}) =>
-        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>))
+        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>)),
     ),
     http.patch("/api/servers/:id/exposure", async ({params, request}) =>
-        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>))
+        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>)),
     ),
     http.patch("/api/servers/:id/expiration", async ({params, request}) =>
-        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>))
+        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>)),
     ),
     http.patch("/api/servers/:id/disabled", async ({params, request}) =>
-        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>))
+        HttpResponse.json(patched(params.id, (await request.json()) as Partial<ServerResponse>)),
     ),
     http.patch("/api/servers/:id/data-dir", () => new HttpResponse(null, {status: 204})),
 
@@ -56,7 +54,7 @@ export const serverDetailHandlers = [
                 "\u001b[32m[12:00:00] [main/INFO]: Starting minecraft server\u001b[0m\n",
                 "\u001b[31m[12:00:03] [main/FATAL]: Server crashed\u001b[0m\n",
             ],
-        })
+        }),
     ),
 
     // Export (blob download)
@@ -73,19 +71,4 @@ export const serverDetailHandlers = [
 
     // Delete
     http.delete("/api/servers/:id", () => new HttpResponse(null, {status: 204})),
-
-    // Metrics
-    http.get("/api/servers/:id/metrics", ({params}) => {
-        const server = find(params.id);
-        const t = new Date(Date.now() - 60_000).toISOString();
-        return HttpResponse.json({
-            server_id: server.id,
-            series: {
-                cpu_percent: [{t, v: 12}],
-                ram_used_mb: [{t, v: 1024}],
-                net_in_bytes: [{t, v: 2048}],
-                net_out_bytes: [{t, v: 4096}],
-            },
-        });
-    }),
 ];

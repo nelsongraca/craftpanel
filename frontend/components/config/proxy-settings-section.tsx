@@ -59,7 +59,7 @@ export function ProxySettingsSection({serverId, serverType}: {serverId: string; 
     }
 
     if (loading) {
-        return <div className="px-6 py-10 text-center text-sm text-text-muted">Loading{"\u2026"}</div>;
+        return <div className="px-4 py-10 text-center text-sm text-text-muted">Loading{"\u2026"}</div>;
     }
 
     return (

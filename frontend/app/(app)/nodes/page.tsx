@@ -32,18 +32,15 @@ const STATUS_FILTER_OPTIONS = [
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function MiniBar({used, total, fmt = fmtMb}: { used: number; total: number; fmt?: (n: number) => string }) {
+function MiniBar({used, total, fmt = fmtMb}: {used: number; total: number; fmt?: (n: number) => string}) {
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
     return (
         <div className="flex flex-col gap-1">
-      <span className="font-mono text-xs text-text-muted whitespace-nowrap">
-        {fmt(used)} / {fmt(total)}
-      </span>
-            <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
-                <div
-                    className="h-full rounded-full"
-                    style={{width: `${pct}%`, background: fillColor(pct)}}
-                />
+            <span className="font-mono text-xs whitespace-nowrap text-text-muted">
+                {fmt(used)} / {fmt(total)}
+            </span>
+            <div className="h-1 w-20 rounded-full" style={{background: "var(--border)"}}>
+                <div className="h-full rounded-full" style={{width: `${pct}%`, background: fillColor(pct)}} />
             </div>
         </div>
     );
@@ -67,7 +64,18 @@ export default function NodesPage() {
     const [editNode, setEditNode] = useState<Node | null>(null);
     const [tokenKey, setTokenKey] = useState<string | null>(null);
 
-    const {allowedActions, trust, reject, rotate, shutdown, decommission, pendingFor, actionError, setActionError, dialog} = useNodeActions({
+    const {
+        allowedActions,
+        trust,
+        reject,
+        rotate,
+        shutdown,
+        decommission,
+        pendingFor,
+        actionError,
+        setActionError,
+        dialog,
+    } = useNodeActions({
         onChanged: reloadNodes,
         onTokenRotated: setTokenKey,
     });
@@ -86,9 +94,7 @@ export default function NodesPage() {
 
     useEffect(() => {
         return subscribe("node.status", (payload) => {
-            setNodes((prev) =>
-                prev.map((n) => n.id === payload.node_id ? {...n, health: payload.health} : n),
-            );
+            setNodes((prev) => prev.map((n) => (n.id === payload.node_id ? {...n, health: payload.health} : n)));
         });
     }, [subscribe, setNodes]);
 
@@ -114,10 +120,10 @@ export default function NodesPage() {
 
     return (
         <div>
-            <PageHeader title="Nodes" subtitle={subtitle}/>
+            <PageHeader title="Nodes" subtitle={subtitle} />
 
             {/* Filter bar */}
-            <div className="flex items-center gap-2 px-6 py-3 border-b border-border bg-surface">
+            <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-3">
                 <SelectField
                     surface="surface-higher"
                     fieldSize="sm"
@@ -126,31 +132,33 @@ export default function NodesPage() {
                     onChange={(e) => setFilterStatus(e.target.value)}
                 >
                     {STATUS_FILTER_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
+                        <option key={o.value} value={o.value}>
+                            {o.label}
+                        </option>
                     ))}
                 </SelectField>
             </div>
 
             {/* Pending callout */}
             {!initialLoad && pendingNodes.length > 0 && (
-                <div className="mx-6 mt-4 flex items-center gap-3 bg-warning/10 border border-warning/30 rounded px-4 py-2.5 text-warning text-xs font-heading font-bold uppercase tracking-wider">
-                    <span className="w-2 h-2 rounded-full bg-warning shrink-0"/>
+                <div className="mx-4 mt-4 flex items-center gap-3 rounded border border-warning/30 bg-warning/10 px-4 py-2.5 font-heading text-xs font-bold tracking-wider text-warning uppercase">
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-warning" />
                     {pendingNodes.length} node{pendingNodes.length !== 1 ? "s" : ""} awaiting approval - review below
                 </div>
             )}
 
             {/* Error banner */}
             {actionError && (
-                <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
+                <div className="mx-4 mt-4 flex items-center justify-between rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
                     <span>{actionError}</span>
                     <button onClick={() => setActionError(null)} className="ml-4 hover:opacity-70" aria-label="Dismiss">
-                        <X size={13}/>
+                        <X size={13} />
                     </button>
                 </div>
             )}
 
             {/* List */}
-            <div className="px-6 py-4">
+            <div className="px-4 py-4">
                 {(() => {
                     const NODE_COLUMNS: SmartListColumn<Node>[] = [
                         {
@@ -159,10 +167,10 @@ export default function NodesPage() {
                             title: true,
                             render: (n) => (
                                 <>
-                                    <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
+                                    <p className="font-heading text-sm leading-none font-bold text-text-primary transition-colors group-hover:text-accent">
                                         {n.display_name}
                                     </p>
-                                    <p className="mt-0.5 font-mono text-xs text-text-muted leading-none">
+                                    <p className="mt-0.5 font-mono text-xs leading-none text-text-muted">
                                         {n.hostname}
                                     </p>
                                 </>
@@ -183,28 +191,33 @@ export default function NodesPage() {
                             header: "RAM",
                             label: "RAM",
                             render: (n) => (
-                                <MiniBar used={Math.max(n.allocated_ram_mb, n.system_ram_used_mb ?? 0)} total={n.total_ram_mb}/>
+                                <MiniBar
+                                    used={Math.max(n.allocated_ram_mb, n.system_ram_used_mb ?? 0)}
+                                    total={n.total_ram_mb}
+                                />
                             ),
                         },
                         {
                             key: "cpu",
                             header: "CPU",
                             label: "CPU",
-                            render: (n) => (
-                                <MiniBar used={n.system_cpu_percent ?? 0} total={100} fmt={fmtPct}/>
-                            ),
+                            render: (n) => <MiniBar used={n.system_cpu_percent ?? 0} total={100} fmt={fmtPct} />,
                         },
                         {
                             key: "servers",
                             header: "Servers",
                             label: "Servers",
-                            render: (n) => <span className="font-mono text-xs text-text-dim">{serverCounts[n.id] ?? 0}</span>,
+                            render: (n) => (
+                                <span className="font-mono text-xs text-text-dim">{serverCounts[n.id] ?? 0}</span>
+                            ),
                         },
                         {
                             key: "version",
                             header: "Version",
                             label: "Version",
-                            render: (n) => <AgentVersion version={n.agent_version} masterVersion={health?.masterVersion}/>,
+                            render: (n) => (
+                                <AgentVersion version={n.agent_version} masterVersion={health?.masterVersion} />
+                            ),
                         },
                         {
                             key: "lastSeen",
@@ -212,9 +225,7 @@ export default function NodesPage() {
                             label: "Last seen",
                             render: (n) => {
                                 const lastSeen = n.last_seen_at;
-                                const stale = lastSeen
-                                    ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
-                                    : true;
+                                const stale = lastSeen ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300 : true;
                                 return (
                                     <span className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}>
                                         {lastSeen ? timeAgo(lastSeen) : "never"}
@@ -240,29 +251,36 @@ export default function NodesPage() {
                     const renderMobileCard = (node: Node) => {
                         const servers = serverCounts[node.id] ?? 0;
                         const lastSeen = node.last_seen_at;
-                        const stale = lastSeen
-                            ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
-                            : true;
+                        const stale = lastSeen ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300 : true;
                         return (
                             <div
                                 onClick={() => router.push(`/nodes/${node.id}`)}
-                                className="p-3 cursor-pointer active:bg-surface-high transition-colors"
+                                className="cursor-pointer p-3 transition-colors active:bg-surface-high"
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="min-w-0">
-                                        <p className="text-sm font-heading font-bold text-text-primary truncate">{node.display_name}</p>
-                                        <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{node.hostname}</p>
+                                        <p className="truncate font-heading text-sm font-bold text-text-primary">
+                                            {node.display_name}
+                                        </p>
+                                        <p className="mt-0.5 truncate font-mono text-xs text-text-muted">
+                                            {node.hostname}
+                                        </p>
                                     </div>
-                                    <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
+                                    <Badge variant={nodeStatusVariant(node.status, node.health)}>
+                                        {nodeStatusLabel(node.status, node.health)}
+                                    </Badge>
                                 </div>
                                 <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5">
                                     <div>
                                         <p className="text-xs text-text-muted">RAM</p>
-                                        <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
+                                        <MiniBar
+                                            used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)}
+                                            total={node.total_ram_mb}
+                                        />
                                     </div>
                                     <div>
                                         <p className="text-xs text-text-muted">CPU</p>
-                                        <MiniBar used={node.system_cpu_percent ?? 0} total={100} fmt={fmtPct}/>
+                                        <MiniBar used={node.system_cpu_percent ?? 0} total={100} fmt={fmtPct} />
                                     </div>
                                     <div>
                                         <p className="text-xs text-text-muted">Servers</p>
@@ -270,12 +288,17 @@ export default function NodesPage() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-text-muted">Last seen</p>
-                                        <p className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}>{lastSeen ? timeAgo(lastSeen) : "never"}</p>
+                                        <p className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}>
+                                            {lastSeen ? timeAgo(lastSeen) : "never"}
+                                        </p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-text-muted">Version</p>
                                         <p className="font-mono text-xs text-text-dim">
-                                            <AgentVersion version={node.agent_version} masterVersion={health?.masterVersion}/>
+                                            <AgentVersion
+                                                version={node.agent_version}
+                                                masterVersion={health?.masterVersion}
+                                            />
                                         </p>
                                     </div>
                                 </div>
@@ -293,9 +316,11 @@ export default function NodesPage() {
                             keyFor={(n) => n.id}
                             loading={initialLoad}
                             skeletonRows={4}
-                            empty={nodes.length === 0
-                                ? "No nodes registered yet - start an agent with a bootstrap token"
-                                : "No nodes match the current filter"}
+                            empty={
+                                nodes.length === 0
+                                    ? "No nodes registered yet - start an agent with a bootstrap token"
+                                    : "No nodes match the current filter"
+                            }
                             actions={renderActions}
                             actionsHeader=""
                             onRowClick={(n) => router.push(`/nodes/${n.id}`)}
@@ -306,16 +331,8 @@ export default function NodesPage() {
             </div>
 
             {/* Modals */}
-            {editNode && (
-                <EditNodeModal
-                    node={editNode}
-                    onClose={() => setEditNode(null)}
-                    onSaved={reloadNodes}
-                />
-            )}
-            {tokenKey && (
-                <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)}/>
-            )}
+            {editNode && <EditNodeModal node={editNode} onClose={() => setEditNode(null)} onSaved={reloadNodes} />}
+            {tokenKey && <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)} />}
             {dialog}
         </div>
     );

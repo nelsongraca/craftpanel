@@ -8,12 +8,12 @@ import {TagChip} from "@/components/ui/tag-chip";
 import type {FieldDef} from "./field-types";
 
 function ToggleField({
-                         fieldKey,
-                         value,
-                         onChange,
-                         form,
-                         setField,
-                     }: {
+    fieldKey,
+    value,
+    onChange,
+    form,
+    setField,
+}: {
     fieldKey: string;
     value: string;
     onChange: (val: string) => void;
@@ -32,22 +32,16 @@ function ToggleField({
         }
     }
 
-    return (
-        <Switch
-            checked={checked}
-            onCheckedChange={handleChange}
-        />
-    );
+    return <Switch checked={checked} onCheckedChange={handleChange} />;
 }
 
-function TagInput({
-                      value,
-                      onChange,
-                  }: {
-    value: string;
-    onChange: (val: string) => void;
-}) {
-    const tags = value ? value.split(",").map((t) => t.trim()).filter(Boolean) : [];
+function TagInput({value, onChange}: {value: string; onChange: (val: string) => void}) {
+    const tags = value
+        ? value
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
+        : [];
     const [inputVal, setInputVal] = useState("");
 
     function addTag() {
@@ -66,7 +60,7 @@ function TagInput({
         <div className="space-y-2">
             <div className="flex flex-wrap gap-1">
                 {tags.map((tag) => (
-                    <TagChip key={tag} label={tag} onRemove={() => removeTag(tag)}/>
+                    <TagChip key={tag} label={tag} onRemove={() => removeTag(tag)} />
                 ))}
             </div>
             <div className="flex gap-2">
@@ -75,13 +69,10 @@ function TagInput({
                     onChange={(e) => setInputVal(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
                     placeholder="Add entry…"
-                    className="bg-surface-higher border border-border rounded px-2 py-1 text-xs font-mono text-text-primary w-48 focus:border-accent/50 focus:outline-none"
+                    className="w-48 rounded border border-border bg-surface-higher px-2 py-1 font-mono text-xs text-text-primary focus:border-accent/50 focus:outline-none"
                 />
-                <button
-                    onClick={addTag}
-                    className="p-1 text-text-muted hover:text-text-primary transition-colors"
-                >
-                    <Plus className="w-3.5 h-3.5"/>
+                <button onClick={addTag} className="p-1 text-text-muted transition-colors hover:text-text-primary">
+                    <Plus className="h-3.5 w-3.5" />
                 </button>
             </div>
         </div>
@@ -89,12 +80,12 @@ function TagInput({
 }
 
 export function FieldRow({
-                             field,
-                             value,
-                             onChange,
-                             form,
-                             setField,
-                         }: {
+    field,
+    value,
+    onChange,
+    form,
+    setField,
+}: {
     field: FieldDef;
     value: string;
     onChange: (val: string) => void;
@@ -102,14 +93,12 @@ export function FieldRow({
     setField: (key: string, value: string) => void;
 }) {
     return (
-        <div className="px-4 py-3 flex items-start gap-4">
-            <div className="w-56 shrink-0 pt-0.5">
-                <p className="text-xs text-text-primary font-medium">{field.label}</p>
-                {field.hint && (
-                    <p className="text-xs text-text-muted mt-0.5">{field.hint}</p>
-                )}
+        <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:gap-4">
+            <div className="w-full shrink-0 pt-0.5 sm:w-56">
+                <p className="text-xs font-medium text-text-primary">{field.label}</p>
+                {field.hint && <p className="mt-0.5 text-xs text-text-muted">{field.hint}</p>}
             </div>
-            <div className="flex-1">
+            <div className="w-full flex-1">
                 {field.type === "toggle" && (
                     <ToggleField
                         fieldKey={field.key}
@@ -125,7 +114,7 @@ export function FieldRow({
                         onChange={(e) => onChange(e.target.value)}
                         surface="surface-higher"
                         fieldSize="sm"
-                        className="w-48"
+                        className="w-full sm:w-48"
                     >
                         {field.options?.map((opt) => (
                             <option key={opt} value={opt}>
@@ -164,9 +153,7 @@ export function FieldRow({
                         className="w-full max-w-lg resize-y"
                     />
                 )}
-                {field.type === "tag-input" && (
-                    <TagInput value={value} onChange={onChange}/>
-                )}
+                {field.type === "tag-input" && <TagInput value={value} onChange={onChange} />}
             </div>
         </div>
     );

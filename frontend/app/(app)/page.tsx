@@ -99,7 +99,7 @@ export default function Dashboard() {
     return (
         <div>
             <PageHeader title="Dashboard" subtitle="Platform overview" />
-            <div className="max-w-[1600px] space-y-6 p-6">
+            <div className="max-w-[1600px] space-y-6 px-4 py-6">
                 {/* Stat cards */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <StatCard label="Servers" value={totalServers} sub={`${healthyServers} healthy`} href="/servers" />
@@ -130,7 +130,7 @@ export default function Dashboard() {
                             </h2>
                         </div>
                         {loading ? (
-                            <div className="p-6 text-xs text-text-muted">Loading…</div>
+                            <div className="px-4 py-6 text-xs text-text-muted">Loading…</div>
                         ) : nodes.length === 0 ? (
                             <Empty>
                                 <EmptyDescription>No nodes registered.</EmptyDescription>
@@ -194,7 +194,7 @@ export default function Dashboard() {
                             </h2>
                         </div>
                         {loading ? (
-                            <div className="p-6 text-xs text-text-muted">Loading…</div>
+                            <div className="px-4 py-6 text-xs text-text-muted">Loading…</div>
                         ) : recentServers.length === 0 ? (
                             <Empty>
                                 <EmptyDescription>No servers found.</EmptyDescription>

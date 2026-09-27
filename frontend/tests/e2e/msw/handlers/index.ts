@@ -8,6 +8,7 @@ import {configHandlers} from "./config";
 import {serverDetailHandlers} from "./server-detail";
 import {adminHandlers} from "./admin";
 import {modHandlers} from "./mods";
+import {brandingHandlers} from "./branding";
 
 // WS handlers are NOT included by default — they cause @msw/playwright to
 // install routeWebSocket(MATCH_ALL) which intercepts Turbopack's HMR WebSocket
@@ -23,6 +24,7 @@ export const handlers = [
     ...serverDetailHandlers,
     ...adminHandlers,
     ...modHandlers,
+    ...brandingHandlers,
 ];
 
 export {dashboardWsHandlers, consoleWsHandlers, migrationWsHandlers} from "./websockets";

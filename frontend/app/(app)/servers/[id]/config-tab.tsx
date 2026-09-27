@@ -50,7 +50,7 @@ export function ConfigTab({
 }
 
 function ConfigLoading() {
-    return <div className="px-6 py-10 text-center text-sm text-text-muted">Loading{"\u2026"}</div>;
+    return <div className="px-4 py-10 text-center text-sm text-text-muted">Loading{"\u2026"}</div>;
 }
 
 function ConfigError({message}: {message: string | null}) {
@@ -80,7 +80,7 @@ function ProxyServerConfigSection({
     if (config.loading) return <ConfigLoading />;
 
     return (
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-4 py-6">
             <p className="text-xs text-text-muted">
                 Configuration changes take effect on the next server start or restart.
             </p>
@@ -138,7 +138,7 @@ function GameServerConfigSection({
     const isManual = configMode === "MANUAL";
 
     return (
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-4 py-6">
             <ConfigModeToggle
                 serverId={serverId}
                 configMode={configMode}
@@ -183,7 +183,7 @@ function CustomServerConfigSection({serverId, stopCommand}: {serverId: string; s
     if (config.loading) return <ConfigLoading />;
 
     return (
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-4 py-6">
             <p className="text-xs text-text-dim">
                 CUSTOM servers run a user-supplied jar as-is. Configuration is manual — the jar is not auto-configured,
                 and environment variables below are passed straight to the container.

@@ -2,8 +2,15 @@
 
 import {useCallback, useEffect, useState} from "react";
 import {Clock, Download, Play, RefreshCw, Trash2} from "lucide-react";
-import {deleteBackup, downloadBackup, getBackupSchedule, listBackups, triggerBackup, updateBackupSchedule,} from "@/lib/generated/sdk.gen";
-import type {BackupResponse as Backup, BackupScheduleResponse as Schedule,} from "@/lib/generated/types.gen";
+import {
+    deleteBackup,
+    downloadBackup,
+    getBackupSchedule,
+    listBackups,
+    triggerBackup,
+    updateBackupSchedule,
+} from "@/lib/generated/sdk.gen";
+import type {BackupResponse as Backup, BackupScheduleResponse as Schedule} from "@/lib/generated/types.gen";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {fmtBytes} from "@/lib/utils/format";
 import {useWs} from "@/lib/ws-context";
@@ -18,7 +25,7 @@ const STATUS_CLASSES: Record<string, string> = {
     FAILED: "text-error border border-error/30 bg-error/10",
 };
 
-export function BackupsTab({serverId}: { serverId: string }) {
+export function BackupsTab({serverId}: {serverId: string}) {
     const [backups, setBackups] = useState<Backup[]>([]);
     const [schedule, setSchedule] = useState<Schedule | null>(null);
     const [loading, setLoading] = useState(true);
@@ -84,7 +91,7 @@ export function BackupsTab({serverId}: { serverId: string }) {
         setTriggering(true);
         setError(null);
         const res = await triggerBackup({path: {id: serverId}});
-        if (res.error) setError((res.error as { message?: string })?.message ?? "Failed to trigger backup");
+        if (res.error) setError((res.error as {message?: string})?.message ?? "Failed to trigger backup");
         else await load();
         setTriggering(false);
     }
@@ -93,7 +100,7 @@ export function BackupsTab({serverId}: { serverId: string }) {
         setError(null);
         const res = await downloadBackup({path: {id: serverId, backupId}});
         if (res.error) {
-            setError((res.error as { message?: string })?.message ?? "Failed to download backup");
+            setError((res.error as {message?: string})?.message ?? "Failed to download backup");
             return;
         }
         const blob = res.data as Blob;
@@ -109,7 +116,7 @@ export function BackupsTab({serverId}: { serverId: string }) {
         setDeleting(backupId);
         setError(null);
         const res = await deleteBackup({path: {id: serverId, backupId}});
-        if (res.error) setError((res.error as { message?: string })?.message ?? "Failed to delete backup");
+        if (res.error) setError((res.error as {message?: string})?.message ?? "Failed to delete backup");
         else setBackups((prev) => prev.filter((b) => b.id !== backupId));
         setDeleting(null);
     }
@@ -125,7 +132,7 @@ export function BackupsTab({serverId}: { serverId: string }) {
             },
         });
         if (res.error) {
-            setScheduleError((res.error as { message?: string })?.message ?? "Failed to save schedule");
+            setScheduleError((res.error as {message?: string})?.message ?? "Failed to save schedule");
         } else {
             setEditingSchedule(false);
             await load();
@@ -134,26 +141,26 @@ export function BackupsTab({serverId}: { serverId: string }) {
     }
 
     if (loading) {
-        return <div className="text-text-dim text-sm p-4">Loading backups…</div>;
+        return <div className="p-4 text-sm text-text-dim">Loading backups…</div>;
     }
 
     return (
-        <div className="px-6 py-6 space-y-6">
+        <div className="space-y-6 px-4 py-6">
             {error && (
-                <div className="text-error text-sm bg-error/10 border border-error/30 rounded px-3 py-2">{error}</div>
+                <div className="rounded border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">{error}</div>
             )}
 
             {/* Backup schedule */}
-            <div className="bg-surface rounded-lg border border-border p-4">
-                <div className="flex items-center justify-between mb-3">
+            <div className="rounded-lg border border-border bg-surface p-4">
+                <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-text-dim"/>
+                        <Clock className="h-4 w-4 text-text-dim" />
                         <span className="text-sm font-medium text-text-primary">Backup Schedule</span>
                     </div>
                     {!editingSchedule && (
                         <button
                             onClick={() => setEditingSchedule(true)}
-                            className="text-xs text-accent hover:text-accent-bright transition-colors"
+                            className="text-xs text-accent transition-colors hover:text-accent-bright"
                         >
                             Edit
                         </button>
@@ -161,7 +168,7 @@ export function BackupsTab({serverId}: { serverId: string }) {
                 </div>
 
                 {!editingSchedule ? (
-                    <div className="text-sm text-text-dim space-y-1">
+                    <div className="space-y-1 text-sm text-text-dim">
                         <div>
                             <span className="text-text-muted">Cron: </span>
                             {schedule?.backup_schedule ? (
@@ -178,32 +185,32 @@ export function BackupsTab({serverId}: { serverId: string }) {
                 ) : (
                     <div className="space-y-3">
                         <div>
-                            <label className="block text-xs text-text-muted mb-1">Cron expression (leave empty to disable)</label>
+                            <label className="mb-1 block text-xs text-text-muted">
+                                Cron expression (leave empty to disable)
+                            </label>
                             <input
                                 value={scheduleInput}
                                 onChange={(e) => setScheduleInput(e.target.value)}
                                 placeholder="0 2 * * *"
-                                className="w-full bg-bg border border-border rounded px-3 py-1.5 text-sm font-mono text-text-primary focus:outline-none focus:border-accent"
+                                className="w-full rounded border border-border bg-bg px-3 py-1.5 font-mono text-sm text-text-primary focus:border-accent focus:outline-none"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-text-muted mb-1">Max backups to keep</label>
+                            <label className="mb-1 block text-xs text-text-muted">Max backups to keep</label>
                             <input
                                 type="number"
                                 min={1}
                                 value={maxCountInput}
                                 onChange={(e) => setMaxCountInput(e.target.value)}
-                                className="w-24 bg-bg border border-border rounded px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-accent"
+                                className="w-24 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text-primary focus:border-accent focus:outline-none"
                             />
                         </div>
-                        {scheduleError && (
-                            <div className="text-error text-xs">{scheduleError}</div>
-                        )}
+                        {scheduleError && <div className="text-xs text-error">{scheduleError}</div>}
                         <div className="flex gap-2">
                             <button
                                 onClick={handleSaveSchedule}
                                 disabled={savingSchedule}
-                                className="px-3 py-1.5 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors disabled:opacity-50"
+                                className="rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
                             >
                                 {savingSchedule ? "Saving…" : "Save"}
                             </button>
@@ -212,7 +219,7 @@ export function BackupsTab({serverId}: { serverId: string }) {
                                     setEditingSchedule(false);
                                     setScheduleError(null);
                                 }}
-                                className="px-3 py-1.5 border border-border text-text-dim text-xs rounded hover:text-text-primary transition-colors"
+                                className="rounded border border-border px-3 py-1.5 text-xs text-text-dim transition-colors hover:text-text-primary"
                             >
                                 Cancel
                             </button>
@@ -223,21 +230,23 @@ export function BackupsTab({serverId}: { serverId: string }) {
 
             {/* Manual trigger */}
             <div className="flex items-center justify-between">
-                <span className="text-sm text-text-dim">{backups.length} backup{backups.length !== 1 ? "s" : ""}</span>
+                <span className="text-sm text-text-dim">
+                    {backups.length} backup{backups.length !== 1 ? "s" : ""}
+                </span>
                 <div className="flex gap-2">
                     <button
                         onClick={load}
-                        className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-xs text-text-dim hover:text-text-primary transition-colors"
+                        className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs text-text-dim transition-colors hover:text-text-primary"
                     >
-                        <RefreshCw className="w-3 h-3"/>
+                        <RefreshCw className="h-3 w-3" />
                         Refresh
                     </button>
                     <button
                         onClick={handleTrigger}
                         disabled={triggering}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
                     >
-                        <Play className="w-3 h-3"/>
+                        <Play className="h-3 w-3" />
                         {triggering ? "Triggering…" : "Trigger Backup"}
                     </button>
                 </div>
@@ -253,16 +262,16 @@ export function BackupsTab({serverId}: { serverId: string }) {
                     {backups.map((backup) => (
                         <div
                             key={backup.id}
-                            className="flex items-center justify-between bg-surface border border-border rounded-lg px-4 py-3"
+                            className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3"
                         >
-                            <div className="flex items-center gap-3 min-w-0">
-                <span
-                    className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${STATUS_CLASSES[backup.status] ?? "text-text-dim"}`}
-                >
-                  {backup.status}
-                </span>
+                            <div className="flex min-w-0 items-center gap-3">
+                                <span
+                                    className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${STATUS_CLASSES[backup.status] ?? "text-text-dim"}`}
+                                >
+                                    {backup.status}
+                                </span>
                                 <div className="min-w-0">
-                                    <div className="text-xs text-text-dim truncate">
+                                    <div className="truncate text-xs text-text-dim">
                                         {fmtDate(backup.created_at)}
                                         {backup.trigger === "SCHEDULED" && (
                                             <span className="ml-2 text-text-muted">(scheduled)</span>
@@ -272,18 +281,15 @@ export function BackupsTab({serverId}: { serverId: string }) {
                                         <div className="text-xs text-text-muted">{fmtBytes(backup.size_bytes)}</div>
                                     )}
                                     {backup.error_message && (
-                                        <div className="text-xs text-error truncate">{backup.error_message}</div>
+                                        <div className="truncate text-xs text-error">{backup.error_message}</div>
                                     )}
                                     {backup.status === "IN_PROGRESS" && (
                                         <div className="mt-1.5 w-full">
-                                            <div
-                                                className="flex items-center justify-between text-xs text-text-muted mb-0.5">
+                                            <div className="mb-0.5 flex items-center justify-between text-xs text-text-muted">
                                                 <span>Backing up…</span>
-                                                {progress[backup.id!] != null && (
-                                                    <span>{progress[backup.id!]}%</span>
-                                                )}
+                                                {progress[backup.id!] != null && <span>{progress[backup.id!]}%</span>}
                                             </div>
-                                            <div className="h-1 bg-surface-high rounded overflow-hidden">
+                                            <div className="h-1 overflow-hidden rounded bg-surface-high">
                                                 <div
                                                     className="h-full bg-accent transition-all duration-300"
                                                     style={{width: `${progress[backup.id!] ?? 0}%`}}
@@ -294,13 +300,13 @@ export function BackupsTab({serverId}: { serverId: string }) {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0 ml-3">
+                            <div className="ml-3 flex shrink-0 items-center gap-2">
                                 {backup.status === "COMPLETED" && (
                                     <button
                                         onClick={() => handleDownload(backup.id!)}
-                                        className="flex items-center gap-1 px-2 py-1 text-xs border border-border rounded text-text-dim hover:text-text-primary transition-colors"
+                                        className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-text-dim transition-colors hover:text-text-primary"
                                     >
-                                        <Download className="w-3 h-3"/>
+                                        <Download className="h-3 w-3" />
                                         Download
                                     </button>
                                 )}
@@ -308,10 +314,10 @@ export function BackupsTab({serverId}: { serverId: string }) {
                                     <button
                                         onClick={() => handleDelete(backup.id!)}
                                         disabled={deleting === backup.id}
-                                        className="p-1.5 rounded text-text-muted hover:text-error transition-colors disabled:opacity-50"
+                                        className="rounded p-1.5 text-text-muted transition-colors hover:text-error disabled:opacity-50"
                                         title="Delete backup"
                                     >
-                                        <Trash2 className="w-3.5 h-3.5"/>
+                                        <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                 )}
                             </div>

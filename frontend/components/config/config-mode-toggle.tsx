@@ -6,12 +6,12 @@ import type {ConfigMode} from "@/lib/types";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 
 export function ConfigModeToggle({
-                                      serverId,
-                                      configMode,
-                                      onChanged,
-                                      manualDescription,
-                                      managedDescription,
-                                  }: {
+    serverId,
+    configMode,
+    onChanged,
+    manualDescription,
+    managedDescription,
+}: {
     serverId: string;
     configMode: string;
     onChanged: (next: string) => void;
@@ -29,7 +29,7 @@ export function ConfigModeToggle({
         setError(null);
         const res = await updateConfigMode({path: {id: serverId}, body: {config_mode: next as ConfigMode}});
         if (res.error) {
-            setError((res.error as { message?: string }).message ?? "Failed to update config mode");
+            setError((res.error as {message?: string}).message ?? "Failed to update config mode");
         } else {
             onChanged(next);
         }
@@ -41,7 +41,8 @@ export function ConfigModeToggle({
         if (!isManual) {
             confirm({
                 title: "Disable Managed Env Vars?",
-                description: "Existing vars are preserved but won't be applied to server.properties until you switch back.",
+                description:
+                    "Existing vars are preserved but won't be applied to server.properties until you switch back.",
                 onConfirm: () => void applyToggleMode(next),
             });
             return;
@@ -51,28 +52,24 @@ export function ConfigModeToggle({
 
     return (
         <>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
+                    <p className="mb-1 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                         Config Mode
                     </p>
-                    <p className="text-xs text-text-dim">
-                        {isManual ? manualDescription : managedDescription}
-                    </p>
+                    <p className="text-xs text-text-dim">{isManual ? manualDescription : managedDescription}</p>
                 </div>
                 <button
                     onClick={handleToggleMode}
                     disabled={togglingMode}
-                    className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest border border-border text-text-dim hover:border-text-muted transition-colors disabled:opacity-40"
+                    className="shrink-0 self-start rounded border border-border px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-text-dim uppercase transition-colors hover:border-text-muted disabled:opacity-40 sm:self-auto"
                 >
                     {togglingMode ? "Switching…" : isManual ? "Switch to Managed" : "Switch to Manual"}
                 </button>
             </div>
 
             {error && (
-                <div className="text-xs text-error bg-error/10 border border-error/30 rounded px-3 py-2">
-                    {error}
-                </div>
+                <div className="rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">{error}</div>
             )}
 
             {dialog}

@@ -4,7 +4,15 @@ import {useRef, useState} from "react";
 import Link from "next/link";
 import {Download, Pencil, Plus, Trash2, Upload} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
-import {createNetwork, deleteNetwork, exportNetwork, importNetwork, listNetworks, listNodes, updateNetwork} from "@/lib/generated/sdk.gen";
+import {
+    createNetwork,
+    deleteNetwork,
+    exportNetwork,
+    importNetwork,
+    listNetworks,
+    listNodes,
+    updateNetwork,
+} from "@/lib/generated/sdk.gen";
 import type {Network, Node} from "@/lib/types";
 import type {ServerExportData, NetworkExportData} from "@/lib/generated/types.gen";
 import {useAuth} from "@/lib/auth-context";
@@ -20,21 +28,33 @@ import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/
 // ── Columns ───────────────────────────────────────────────────────────────────
 
 const NETWORK_COLUMNS: SmartListColumn<Network>[] = [
-    {key: 'name', header: 'Name', render: (n) => (
-        <Link
-            href={`/servers?network=${n.id}`}
-            className="font-medium text-text-primary hover:text-accent transition-colors"
-        >
-            {n.name}
-        </Link>
-    )},
-    {key: 'servers', header: 'Servers', render: (n) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold bg-surface-higher border border-border text-text-dim">
-            {n.server_count}
-        </span>
-    )},
-    {key: 'description', header: 'Description', render: (n) => <span className="text-text-muted truncate max-w-[200px] block">{n.description ?? "-"}</span>},
-]
+    {
+        key: "name",
+        header: "Name",
+        render: (n) => (
+            <Link
+                href={`/servers?network=${n.id}`}
+                className="font-medium text-text-primary transition-colors hover:text-accent"
+            >
+                {n.name}
+            </Link>
+        ),
+    },
+    {
+        key: "servers",
+        header: "Servers",
+        render: (n) => (
+            <span className="inline-flex items-center rounded border border-border bg-surface-higher px-2 py-0.5 font-heading text-xs font-bold text-text-dim">
+                {n.server_count}
+            </span>
+        ),
+    },
+    {
+        key: "description",
+        header: "Description",
+        render: (n) => <span className="block max-w-[200px] truncate text-text-muted">{n.description ?? "-"}</span>,
+    },
+];
 
 // ── Network form ──────────────────────────────────────────────────────────────
 
@@ -44,11 +64,11 @@ interface NetworkFormState {
 }
 
 function NetworkForm({
-                         initial,
-                         onSubmit,
-                         onCancel,
-                         submitLabel,
-                     }: {
+    initial,
+    onSubmit,
+    onCancel,
+    submitLabel,
+}: {
     initial?: Partial<NetworkFormState>;
     onSubmit: (s: NetworkFormState) => Promise<void>;
     onCancel: () => void;
@@ -77,16 +97,30 @@ function NetworkForm({
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <Field label="Name" htmlFor="network-name">
-                <TextField id="network-name" value={form.name} onChange={(e) => setForm((f) => ({...f, name: e.target.value}))} required/>
+                <TextField
+                    id="network-name"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({...f, name: e.target.value}))}
+                    required
+                />
             </Field>
             <Field label="Description" htmlFor="network-description">
-                <TextField id="network-description" value={form.description} placeholder="Optional" onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}/>
+                <TextField
+                    id="network-description"
+                    value={form.description}
+                    placeholder="Optional"
+                    onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}
+                />
             </Field>
 
             {error && <p className="text-xs text-error">{error}</p>}
             <div className="flex justify-end gap-2 pt-1">
-                <button type="button" className={BTN_GHOST} onClick={onCancel}>Cancel</button>
-                <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Saving…" : submitLabel}</button>
+                <button type="button" className={BTN_GHOST} onClick={onCancel}>
+                    Cancel
+                </button>
+                <button type="submit" className={BTN_PRIMARY} disabled={saving}>
+                    {saving ? "Saving…" : submitLabel}
+                </button>
             </div>
         </form>
     );
@@ -104,7 +138,7 @@ export default function NetworksPage() {
     const [showImport, setShowImport] = useState(false);
     const [nodes, setNodes] = useState<Node[]>([]);
     const importFileRef = useRef<HTMLInputElement>(null);
-    const [importData, setImportData] = useState<{ name: string; serverCount: number } | null>(null);
+    const [importData, setImportData] = useState<{name: string; serverCount: number} | null>(null);
     const [importRaw, setImportRaw] = useState<NetworkExportData | null>(null);
     const [importNodeAssignments, setImportNodeAssignments] = useState<Record<string, string>>({});
     const [importError, setImportError] = useState("");
@@ -158,7 +192,7 @@ export default function NetworksPage() {
         setImporting(true);
         const {error} = await importNetwork({body: {data: importRaw, node_assignments: importNodeAssignments}});
         if (error) {
-            setImportError((error as { message?: string }).message ?? "Failed to import network");
+            setImportError((error as {message?: string}).message ?? "Failed to import network");
             setImporting(false);
             return;
         }
@@ -176,7 +210,7 @@ export default function NetworksPage() {
                 description: form.description || undefined,
             },
         });
-        if (res.error) throw new Error((res.error as { message?: string }).message ?? "Failed to create network");
+        if (res.error) throw new Error((res.error as {message?: string}).message ?? "Failed to create network");
         setShowCreate(false);
         load();
     }
@@ -190,7 +224,7 @@ export default function NetworksPage() {
                 description: form.description || undefined,
             },
         });
-        if (res.error) throw new Error((res.error as { message?: string }).message ?? "Failed to update network");
+        if (res.error) throw new Error((res.error as {message?: string}).message ?? "Failed to update network");
         setEditing(null);
         load();
     }
@@ -203,7 +237,7 @@ export default function NetworksPage() {
             confirmLabel: "Delete",
             onConfirm: async () => {
                 const res = await deleteNetwork({path: {id: network.id}});
-                if (res.error) throw new Error((res.error as { message?: string }).message ?? "Failed to delete network");
+                if (res.error) throw new Error((res.error as {message?: string}).message ?? "Failed to delete network");
                 load();
             },
         });
@@ -217,14 +251,20 @@ export default function NetworksPage() {
                 action={
                     <div className="flex items-center gap-2">
                         {hasPermission(user?.permissions ?? [], "network.create") && (
-                            <button onClick={() => setShowImport(true)} className={BTN_GHOST + " flex items-center gap-1.5"}>
-                                <Upload size={13} strokeWidth={2.5}/>
+                            <button
+                                onClick={() => setShowImport(true)}
+                                className={BTN_GHOST + " flex items-center gap-1.5"}
+                            >
+                                <Upload size={13} strokeWidth={2.5} />
                                 Import
                             </button>
                         )}
                         {canCreate ? (
-                            <button onClick={() => setShowCreate(true)} className={BTN_PRIMARY + " flex items-center gap-1.5"}>
-                                <Plus size={13} strokeWidth={2.5}/>
+                            <button
+                                onClick={() => setShowCreate(true)}
+                                className={BTN_PRIMARY + " flex items-center gap-1.5"}
+                            >
+                                <Plus size={13} strokeWidth={2.5} />
                                 New Network
                             </button>
                         ) : undefined}
@@ -232,7 +272,7 @@ export default function NetworksPage() {
                 }
             />
 
-            <div className="p-6">
+            <div className="px-4 py-6">
                 <SmartList
                     items={networks}
                     columns={NETWORK_COLUMNS}
@@ -244,14 +284,22 @@ export default function NetworksPage() {
                         return (
                             <>
                                 {hasPermission(perms, "network.view") && (
-                                    <IconActionButton icon={<Download size={13}/>} label="Export" onClick={() => void doExportNetwork(n)}/>
+                                    <IconActionButton
+                                        icon={<Download size={13} />}
+                                        label="Export"
+                                        onClick={() => void doExportNetwork(n)}
+                                    />
                                 )}
                                 {hasPermission(perms, "network.configure") && (
-                                    <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(n)}/>
+                                    <IconActionButton
+                                        icon={<Pencil size={13} />}
+                                        label="Edit"
+                                        onClick={() => setEditing(n)}
+                                    />
                                 )}
                                 {hasPermission(perms, "network.delete") && (
                                     <IconActionButton
-                                        icon={<Trash2 size={13}/>}
+                                        icon={<Trash2 size={13} />}
                                         label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
                                         danger
                                         disabled={n.server_count > 0}
@@ -267,8 +315,14 @@ export default function NetworksPage() {
             {showCreate && (
                 <Dialog open onOpenChange={(o) => !o && setShowCreate(false)}>
                     <DialogContent className="sm:max-w-md">
-                        <DialogHeader><DialogTitle>New Network</DialogTitle></DialogHeader>
-                        <NetworkForm onSubmit={handleCreate} onCancel={() => setShowCreate(false)} submitLabel="Create"/>
+                        <DialogHeader>
+                            <DialogTitle>New Network</DialogTitle>
+                        </DialogHeader>
+                        <NetworkForm
+                            onSubmit={handleCreate}
+                            onCancel={() => setShowCreate(false)}
+                            submitLabel="Create"
+                        />
                     </DialogContent>
                 </Dialog>
             )}
@@ -276,7 +330,9 @@ export default function NetworksPage() {
             {editing && (
                 <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
                     <DialogContent className="sm:max-w-md">
-                        <DialogHeader><DialogTitle>Edit Network</DialogTitle></DialogHeader>
+                        <DialogHeader>
+                            <DialogTitle>Edit Network</DialogTitle>
+                        </DialogHeader>
                         <NetworkForm
                             initial={{
                                 name: editing.name,
@@ -295,62 +351,92 @@ export default function NetworksPage() {
             {showImport && (
                 <Dialog open onOpenChange={(o) => !o && setShowImport(false)}>
                     <DialogContent className="sm:max-w-2xl">
-                        <DialogHeader><DialogTitle>Import Network</DialogTitle></DialogHeader>
-                    <div className="space-y-4">
-                        <input
-                            ref={importFileRef}
-                            type="file"
-                            accept=".json"
-                            onChange={handleImportFile}
-                            className="block w-full text-xs text-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-heading file:font-bold file:uppercase file:tracking-wider file:bg-surface-high file:text-text-primary hover:file:bg-surface-higher"
-                        />
+                        <DialogHeader>
+                            <DialogTitle>Import Network</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <input
+                                ref={importFileRef}
+                                type="file"
+                                accept=".json"
+                                onChange={handleImportFile}
+                                className="block w-full text-xs text-text-muted file:mr-3 file:rounded file:border-0 file:bg-surface-high file:px-3 file:py-1.5 file:font-heading file:text-xs file:font-bold file:tracking-wider file:text-text-primary file:uppercase hover:file:bg-surface-higher"
+                            />
 
-                        {importError && <p className="text-xs text-error">{importError}</p>}
+                            {importError && <p className="text-xs text-error">{importError}</p>}
 
-                        {importData && (
-                            <div className="space-y-4">
-                                <p className="text-sm text-text-dim">
-                                    Network: <span className="text-text-primary font-medium">{importData.name}</span>
-                                    {importData.serverCount > 0 && (
-                                        <> — {importData.serverCount} server{importData.serverCount > 1 ? "s" : ""}</>
+                            {importData && (
+                                <div className="space-y-4">
+                                    <p className="text-sm text-text-dim">
+                                        Network:{" "}
+                                        <span className="font-medium text-text-primary">{importData.name}</span>
+                                        {importData.serverCount > 0 && (
+                                            <>
+                                                {" "}
+                                                — {importData.serverCount} server{importData.serverCount > 1 ? "s" : ""}
+                                            </>
+                                        )}
+                                    </p>
+
+                                    {importRaw?.servers && importRaw.servers.length > 0 && nodes.length > 0 && (
+                                        <div className="space-y-2">
+                                            <p className="font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
+                                                Assign Nodes
+                                            </p>
+                                            {importRaw.servers.map((s: ServerExportData) => (
+                                                <div key={s.name} className="flex items-center gap-2">
+                                                    <span className="w-32 truncate text-xs text-text-primary">
+                                                        {s.display_name ?? s.name}
+                                                    </span>
+                                                    <SelectField
+                                                        value={importNodeAssignments[s.name] ?? ""}
+                                                        onChange={(e) =>
+                                                            setImportNodeAssignments((prev) => ({
+                                                                ...prev,
+                                                                [s.name]: e.target.value,
+                                                            }))
+                                                        }
+                                                        className="flex-1"
+                                                    >
+                                                        <option value="">Select node…</option>
+                                                        {nodes.map((node) => (
+                                                            <option key={node.id} value={node.id}>
+                                                                {node.display_name}
+                                                            </option>
+                                                        ))}
+                                                    </SelectField>
+                                                </div>
+                                            ))}
+                                        </div>
                                     )}
-                                </p>
 
-                                {importRaw?.servers && importRaw.servers.length > 0 && nodes.length > 0 && (
-                                    <div className="space-y-2">
-                                        <p className="text-xs text-text-muted font-heading font-bold uppercase tracking-wider">Assign Nodes</p>
-                                        {importRaw.servers.map((s: ServerExportData) => (
-                                            <div key={s.name} className="flex items-center gap-2">
-                                                <span className="text-xs text-text-primary w-32 truncate">{s.display_name ?? s.name}</span>
-                                                <SelectField
-                                                    value={importNodeAssignments[s.name] ?? ""}
-                                                    onChange={(e) => setImportNodeAssignments((prev) => ({...prev, [s.name]: e.target.value}))}
-                                                    className="flex-1"
-                                                >
-                                                    <option value="">Select node…</option>
-                                                    {nodes.map((node) => (
-                                                        <option key={node.id} value={node.id}>{node.display_name}</option>
-                                                    ))}
-                                                </SelectField>
-                                            </div>
-                                        ))}
+                                    {importData.serverCount > 0 && nodes.length === 0 && (
+                                        <p className="text-xs text-warning">Loading nodes…</p>
+                                    )}
+
+                                    {importError && <p className="text-xs text-error">{importError}</p>}
+                                    <div className="flex justify-end gap-2 pt-1">
+                                        <button className={BTN_GHOST} onClick={() => setShowImport(false)}>
+                                            Cancel
+                                        </button>
+                                        <button
+                                            className={BTN_PRIMARY}
+                                            disabled={
+                                                importing ||
+                                                (importRaw?.servers
+                                                    ? importRaw.servers.length > 0 &&
+                                                      Object.keys(importNodeAssignments).length <
+                                                          importRaw.servers.length
+                                                    : false)
+                                            }
+                                            onClick={doImport}
+                                        >
+                                            {importing ? "Importing…" : "Import"}
+                                        </button>
                                     </div>
-                                )}
-
-                                {importData.serverCount > 0 && nodes.length === 0 && (
-                                    <p className="text-xs text-warning">Loading nodes…</p>
-                                )}
-
-                                {importError && <p className="text-xs text-error">{importError}</p>}
-                                <div className="flex justify-end gap-2 pt-1">
-                                    <button className={BTN_GHOST} onClick={() => setShowImport(false)}>Cancel</button>
-                                    <button className={BTN_PRIMARY} disabled={importing || (importRaw?.servers ? importRaw.servers.length > 0 && Object.keys(importNodeAssignments).length < importRaw.servers.length : false)} onClick={doImport}>
-                                        {importing ? "Importing…" : "Import"}
-                                    </button>
                                 </div>
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
                     </DialogContent>
                 </Dialog>
             )}

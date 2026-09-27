@@ -152,7 +152,7 @@ export default function NewServerPage() {
 
     if (!hasPermission(permissions, "server.create")) {
         return (
-            <div className="px-6 py-10 text-center text-sm text-text-muted">
+            <div className="px-4 py-10 text-center text-sm text-text-muted">
                 You do not have permission to create servers.{" "}
                 <Link href="/servers" className="text-accent hover:underline">
                     Back to servers
@@ -208,7 +208,7 @@ export default function NewServerPage() {
     }
 
     return (
-        <div className="mx-auto max-w-2xl px-6 py-8">
+        <div className="mx-auto max-w-2xl px-4 py-8">
             {/* Header */}
             <div className="mb-8">
                 <Link

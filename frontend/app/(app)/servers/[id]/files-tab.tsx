@@ -392,14 +392,14 @@ export function FilesTab({serverId}: Props) {
                 <div key={node.path}>
                     <div
                         className={[
-                            "group flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-sm select-none",
+                            "group flex cursor-pointer items-center gap-1.5 rounded py-1 pr-2 text-sm select-none",
                             isSelected
                                 ? "bg-surface-higher text-text-primary"
                                 : isCurrent
                                   ? "bg-surface-high text-accent"
                                   : "text-text-dim hover:bg-surface-high hover:text-text-primary",
                         ].join(" ")}
-                        style={{paddingLeft: `${8 + depth * 16}px`}}
+                        style={{paddingLeft: `${12 + depth * 16}px`}}
                         onClick={() => {
                             if (node.isDirectory) void toggleDir(node);
                             else void openFile(node);
@@ -567,11 +567,11 @@ export function FilesTab({serverId}: Props) {
 
     return (
         <>
-            <div className="flex h-full min-h-0">
+            <div className="flex h-full min-h-0 gap-4 p-4">
                 {/* ── Tree ── On mobile it is a full-screen list until a file is picked; on md+ it
-                    is the fixed side pane and is always shown. */}
+                        is the fixed side pane and is always shown. */}
                 <div
-                    className={`${selectedPath ? "hidden md:flex" : "flex"} w-full shrink-0 flex-col overflow-hidden border-r border-border md:w-64`}
+                    className={`${selectedPath ? "hidden md:flex" : "flex"} w-full shrink-0 flex-col overflow-hidden rounded-md border border-border bg-surface md:w-64`}
                 >
                     <div className="flex items-center gap-1 border-b border-border px-3 py-2">
                         <span className="flex-1 font-heading text-xs font-bold tracking-wider text-text-muted uppercase">

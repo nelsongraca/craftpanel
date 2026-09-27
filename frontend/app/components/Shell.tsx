@@ -104,7 +104,7 @@ export default function Shell({children}: {children: React.ReactNode}) {
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             {/* Top bar — brand + user menu */}
-            <header className="flex h-[48px] shrink-0 items-center justify-between border-b border-border bg-surface px-5">
+            <header className="flex min-h-[var(--header-h)] shrink-0 items-center justify-between border-b border-border bg-surface px-6 pt-[env(safe-area-inset-top)]">
                 {/* Logo + hamburger (hamburger only < md) */}
                 <div className="flex items-center gap-3">
                     <button
@@ -154,11 +154,11 @@ export default function Shell({children}: {children: React.ReactNode}) {
             </header>
 
             {/* Body: sidebar + content */}
-            <div className="relative mx-auto flex min-h-0 w-full max-w-[1800px] flex-1">
+            <div className="relative mx-auto flex min-h-0 w-full max-w-[1800px] flex-1 pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
                 {/* Backdrop — only < md, only when drawer open */}
                 {drawerOpen && (
                     <div
-                        className="fixed inset-0 top-[48px] z-30 bg-bg/70 md:hidden"
+                        className="fixed inset-0 top-[var(--header-h)] z-30 bg-bg/70 md:hidden"
                         onClick={() => setDrawerOpen(false)}
                     />
                 )}
@@ -166,7 +166,7 @@ export default function Shell({children}: {children: React.ReactNode}) {
                 <aside
                     className={[
                         "flex w-[208px] shrink-0 flex-col overflow-y-auto border-r border-border bg-surface py-3",
-                        "max-md:fixed max-md:top-[48px] max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:transition-transform",
+                        "max-md:fixed max-md:top-[var(--header-h)] max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:transition-transform",
                         drawerOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full",
                     ].join(" ")}
                 >

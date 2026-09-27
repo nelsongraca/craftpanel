@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Radio, Server, AlertTriangle, Pencil } from "lucide-react";
-import { getServerPorts, addServerExtraPort, deleteServerExtraPort, updateServer } from "@/lib/generated/sdk.gen";
-import type { ServerPortsResponse, ServerExtraPortResponse } from "@/lib/generated/types.gen";
-import { Badge } from "@/components/ui/badge";
-import { useConfirmDialog } from "@/lib/hooks/useConfirmDialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {useCallback, useEffect, useState} from "react";
+import {Plus, Trash2, Radio, Server, AlertTriangle, Pencil} from "lucide-react";
+import {getServerPorts, addServerExtraPort, deleteServerExtraPort, updateServer} from "@/lib/generated/sdk.gen";
+import type {ServerPortsResponse, ServerExtraPortResponse} from "@/lib/generated/types.gen";
+import {Badge} from "@/components/ui/badge";
+import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/dialog";
 import {Empty, EmptyDescription, EmptyMedia} from "@/components/ui/empty";
 import {isProxyType} from "@/lib/server-types";
 
@@ -38,12 +38,12 @@ export function PortsTab({
     const [savingPrimary, setSavingPrimary] = useState(false);
     const [primaryError, setPrimaryError] = useState<string | null>(null);
 
-    const { confirm, dialog } = useConfirmDialog();
+    const {confirm, dialog} = useConfirmDialog();
 
     const fetchPorts = useCallback(async () => {
         try {
-            const { data, error } = await getServerPorts({
-                path: { id: serverId },
+            const {data, error} = await getServerPorts({
+                path: {id: serverId},
             });
             if (error) {
                 setError("Failed to load ports");
@@ -77,8 +77,8 @@ export function PortsTab({
 
         setSubmitting(true);
         try {
-            const { data, error } = await addServerExtraPort({
-                path: { id: serverId },
+            const {data, error} = await addServerExtraPort({
+                path: {id: serverId},
                 body: {
                     name: formName.trim(),
                     container_port: containerPort,
@@ -125,8 +125,8 @@ export function PortsTab({
                 setSavingPrimary(false);
                 return;
             }
-            const { error: saveErr } = await updateServer({
-                path: { id: serverId },
+            const {error: saveErr} = await updateServer({
+                path: {id: serverId},
                 body: body as Parameters<typeof updateServer>[0]["body"],
             });
             if (saveErr) {
@@ -148,8 +148,8 @@ export function PortsTab({
             description: `Are you sure you want to delete host port ${port.host_port} (${port.protocol}) mapped to container port ${port.container_port}?`,
             destructive: true,
             onConfirm: async () => {
-                const { error } = await deleteServerExtraPort({
-                    path: { id: serverId, portId: port.id },
+                const {error} = await deleteServerExtraPort({
+                    path: {id: serverId, portId: port.id},
                 });
                 if (error) {
                     setError("Failed to delete port");
@@ -162,9 +162,9 @@ export function PortsTab({
 
     if (loading) {
         return (
-            <div className="p-6 space-y-4">
-                <div className="h-24 bg-surface-high animate-pulse rounded border border-border" />
-                <div className="h-48 bg-surface-high animate-pulse rounded border border-border" />
+            <div className="space-y-4 px-4 py-6">
+                <div className="h-24 animate-pulse rounded border border-border bg-surface-high" />
+                <div className="h-48 animate-pulse rounded border border-border bg-surface-high" />
             </div>
         );
     }
@@ -173,20 +173,18 @@ export function PortsTab({
     const extraPorts = portsData?.extra_ports ?? [];
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="space-y-6 px-4 py-6">
             {dialog}
             {error && (
-                <div className="bg-error/10 border border-error/30 text-error rounded px-4 py-3 text-xs">
-                    {error}
-                </div>
+                <div className="rounded border border-error/30 bg-error/10 px-4 py-3 text-xs text-error">{error}</div>
             )}
 
             {/* Primary Server Port Section */}
-            <div className="bg-surface border border-border rounded p-5 space-y-3">
+            <div className="space-y-3 rounded border border-border bg-surface p-5">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Server size={18} className="text-accent" />
-                        <h2 className="text-sm font-heading font-bold uppercase tracking-wider text-text-primary">
+                        <h2 className="font-heading text-sm font-bold tracking-wider text-text-primary uppercase">
                             Primary Server Port
                         </h2>
                     </div>
@@ -197,7 +195,7 @@ export function PortsTab({
                         {!editingPrimary && (
                             <button
                                 onClick={openEditPrimary}
-                                className="text-text-muted hover:text-accent transition-colors"
+                                className="text-text-muted transition-colors hover:text-accent"
                                 title="Edit primary port"
                             >
                                 <Pencil size={14} strokeWidth={2} />
@@ -207,43 +205,41 @@ export function PortsTab({
                 </div>
 
                 {!editingPrimary ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono pt-2">
-                        <div className="bg-surface-high border border-border p-3 rounded">
-                            <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
+                    <div className="grid grid-cols-1 gap-4 pt-2 font-mono text-xs md:grid-cols-3">
+                        <div className="rounded border border-border bg-surface-high p-3">
+                            <span className="mb-1 block font-heading text-[10px] tracking-wider text-text-muted uppercase">
                                 Host Port
                             </span>
-                            <span className="text-text-primary font-bold text-base">
+                            <span className="text-base font-bold text-text-primary">
                                 {primaryPort?.host_port ?? "N/A"}
                             </span>
                         </div>
-                        <div className="bg-surface-high border border-border p-3 rounded">
-                            <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
+                        <div className="rounded border border-border bg-surface-high p-3">
+                            <span className="mb-1 block font-heading text-[10px] tracking-wider text-text-muted uppercase">
                                 Container Internal Port
                             </span>
-                            <span className="text-text-primary font-bold text-base">
+                            <span className="text-base font-bold text-text-primary">
                                 {primaryPort?.container_port ?? "N/A"}
                             </span>
                         </div>
-                        <div className="bg-surface-high border border-border p-3 rounded">
-                            <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
+                        <div className="rounded border border-border bg-surface-high p-3">
+                            <span className="mb-1 block font-heading text-[10px] tracking-wider text-text-muted uppercase">
                                 Protocol
                             </span>
-                            <span className="text-accent font-bold text-base">
-                                {primaryPort?.protocol ?? "TCP"}
-                            </span>
+                            <span className="text-base font-bold text-accent">{primaryPort?.protocol ?? "TCP"}</span>
                         </div>
                     </div>
                 ) : (
                     <div className="space-y-3 pt-1">
                         {primaryError && (
-                            <div className="bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs flex items-center gap-2">
+                            <div className="flex items-center gap-2 rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
                                 <AlertTriangle size={14} className="shrink-0" />
                                 <span>{primaryError}</span>
                             </div>
                         )}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
-                                <label className="block text-text-dim font-heading uppercase tracking-wider mb-1 text-xs">
+                                <label className="mb-1 block font-heading text-xs tracking-wider text-text-dim uppercase">
                                     Container Internal Port
                                 </label>
                                 <input
@@ -251,20 +247,20 @@ export function PortsTab({
                                     value={editContainerPort}
                                     onChange={(e) => setEditContainerPort(e.target.value)}
                                     placeholder={isProxyType(serverType) ? "25577" : "25565"}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono text-xs focus:outline-none focus:border-accent"
+                                    className="w-full rounded border border-border bg-surface-high px-3 py-2 font-mono text-xs text-text-primary focus:border-accent focus:outline-none"
                                     min={1}
                                     max={65535}
                                 />
-                                <p className="text-[11px] text-text-muted mt-1">Leave empty for default.</p>
+                                <p className="mt-1 text-[11px] text-text-muted">Leave empty for default.</p>
                             </div>
                             <div>
-                                <label className="block text-text-dim font-heading uppercase tracking-wider mb-1 text-xs">
+                                <label className="mb-1 block font-heading text-xs tracking-wider text-text-dim uppercase">
                                     Protocol
                                 </label>
                                 <select
                                     value={editProtocol}
                                     onChange={(e) => setEditProtocol(e.target.value)}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono text-xs focus:outline-none focus:border-accent"
+                                    className="w-full rounded border border-border bg-surface-high px-3 py-2 font-mono text-xs text-text-primary focus:border-accent focus:outline-none"
                                 >
                                     <option value="TCP">TCP</option>
                                     <option value="UDP">UDP</option>
@@ -274,14 +270,14 @@ export function PortsTab({
                         <div className="flex justify-end gap-2 pt-1">
                             <button
                                 onClick={() => setEditingPrimary(false)}
-                                className="px-3 py-1.5 rounded border border-border text-text-dim hover:text-text-primary transition-colors font-heading text-xs font-bold uppercase tracking-wider"
+                                className="rounded border border-border px-3 py-1.5 font-heading text-xs font-bold tracking-wider text-text-dim uppercase transition-colors hover:text-text-primary"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={() => void handleSavePrimary()}
                                 disabled={savingPrimary}
-                                className="px-4 py-1.5 rounded bg-accent text-bg font-heading text-xs font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
+                                className="rounded bg-accent px-4 py-1.5 font-heading text-xs font-bold tracking-wider text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
                             >
                                 {savingPrimary ? "Saving..." : "Save"}
                             </button>
@@ -291,19 +287,19 @@ export function PortsTab({
             </div>
 
             {/* Extra Exposed Ports Section */}
-            <div className="bg-surface border border-border rounded p-5 space-y-4">
-                <div className="flex items-center justify-between">
+            <div className="space-y-4 rounded border border-border bg-surface p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h2 className="text-sm font-heading font-bold uppercase tracking-wider text-text-primary">
+                        <h2 className="font-heading text-sm font-bold tracking-wider text-text-primary uppercase">
                             Extra Exposed Ports
                         </h2>
-                        <p className="text-xs text-text-muted mt-0.5">
+                        <p className="mt-0.5 text-xs text-text-muted">
                             Additional ports exposed for plugins (Dynmap, Geyser, Votifier, etc.).
                         </p>
                     </div>
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent text-bg font-heading text-xs font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors"
+                        className="flex shrink-0 items-center gap-1.5 self-start rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-wider text-bg uppercase transition-colors hover:bg-accent-bright sm:self-auto"
                     >
                         <Plus size={14} strokeWidth={2.5} />
                         Add Extra Port
@@ -312,13 +308,15 @@ export function PortsTab({
 
                 {extraPorts.length === 0 ? (
                     <Empty>
-                            <EmptyMedia variant="icon"><Radio size={20} /></EmptyMedia>
-                            <EmptyDescription>No extra ports exposed for this server.</EmptyDescription>
-                        </Empty>
+                        <EmptyMedia variant="icon">
+                            <Radio size={20} />
+                        </EmptyMedia>
+                        <EmptyDescription>No extra ports exposed for this server.</EmptyDescription>
+                    </Empty>
                 ) : (
-                    <div className="overflow-x-auto border border-border rounded">
-                        <table className="w-full text-left text-xs font-mono">
-                            <thead className="bg-surface-high text-text-muted uppercase text-[10px] tracking-wider border-b border-border font-heading">
+                    <div className="overflow-x-auto rounded border border-border">
+                        <table className="w-full text-left font-mono text-xs">
+                            <thead className="border-b border-border bg-surface-high font-heading text-[10px] tracking-wider text-text-muted uppercase">
                                 <tr>
                                     <th className="px-4 py-2.5">Name</th>
                                     <th className="px-4 py-2.5">Container Port</th>
@@ -336,14 +334,14 @@ export function PortsTab({
                                         <td className="px-4 py-3">{port.container_port}</td>
                                         <td className="px-4 py-3 font-bold text-accent">{port.host_port}</td>
                                         <td className="px-4 py-3">
-                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                            <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
                                                 {port.protocol}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <button
                                                 onClick={() => handleDeletePort(port)}
-                                                className="p-1 text-text-muted hover:text-error transition-colors rounded hover:bg-surface-high"
+                                                className="rounded p-1 text-text-muted transition-colors hover:bg-surface-high hover:text-error"
                                                 title="Delete port"
                                             >
                                                 <Trash2 size={14} />
@@ -361,80 +359,82 @@ export function PortsTab({
             {showAddModal && (
                 <Dialog open onOpenChange={(o) => !o && setShowAddModal(false)}>
                     <DialogContent className="sm:max-w-md">
-                        <DialogHeader><DialogTitle>Add Extra Port</DialogTitle></DialogHeader>
-                    {formError && (
-                        <div className="bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs flex items-center gap-2 mb-4">
-                            <AlertTriangle size={14} className="shrink-0" />
-                            <span>{formError}</span>
-                        </div>
-                    )}
+                        <DialogHeader>
+                            <DialogTitle>Add Extra Port</DialogTitle>
+                        </DialogHeader>
+                        {formError && (
+                            <div className="mb-4 flex items-center gap-2 rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
+                                <AlertTriangle size={14} className="shrink-0" />
+                                <span>{formError}</span>
+                            </div>
+                        )}
 
-                    <form onSubmit={handleAddPort} className="space-y-4 text-xs">
-                        <div>
-                            <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
-                                Name / Purpose
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="e.g. Dynmap, Geyser, Votifier"
-                                value={formName}
-                                onChange={(e) => setFormName(e.target.value)}
-                                className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary focus:outline-none focus:border-accent"
-                                required
-                            />
-                        </div>
+                        <form onSubmit={handleAddPort} className="space-y-4 text-xs">
+                            <div>
+                                <label className="mb-1 block font-heading tracking-wider text-text-dim uppercase">
+                                    Name / Purpose
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Dynmap, Geyser, Votifier"
+                                    value={formName}
+                                    onChange={(e) => setFormName(e.target.value)}
+                                    className="w-full rounded border border-border bg-surface-high px-3 py-2 text-text-primary focus:border-accent focus:outline-none"
+                                    required
+                                />
+                            </div>
 
-                        <div>
-                            <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
-                                Container Internal Port
-                            </label>
-                            <input
-                                type="number"
-                                placeholder="e.g. 8123, 19132"
-                                value={formContainerPort}
-                                onChange={(e) => setFormContainerPort(e.target.value)}
-                                className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono focus:outline-none focus:border-accent"
-                                required
-                                min={1}
-                                max={65535}
-                            />
-                        </div>
+                            <div>
+                                <label className="mb-1 block font-heading tracking-wider text-text-dim uppercase">
+                                    Container Internal Port
+                                </label>
+                                <input
+                                    type="number"
+                                    placeholder="e.g. 8123, 19132"
+                                    value={formContainerPort}
+                                    onChange={(e) => setFormContainerPort(e.target.value)}
+                                    className="w-full rounded border border-border bg-surface-high px-3 py-2 font-mono text-text-primary focus:border-accent focus:outline-none"
+                                    required
+                                    min={1}
+                                    max={65535}
+                                />
+                            </div>
 
-                        <div>
-                            <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
-                                Protocol
-                            </label>
-                            <select
-                                value={formProtocol}
-                                onChange={(e) => setFormProtocol(e.target.value)}
-                                className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono focus:outline-none focus:border-accent"
-                            >
-                                <option value="TCP">TCP (Dynmap, BlueMap HTTP, Votifier)</option>
-                                <option value="UDP">UDP (Geyser Bedrock, Query)</option>
-                            </select>
-                        </div>
+                            <div>
+                                <label className="mb-1 block font-heading tracking-wider text-text-dim uppercase">
+                                    Protocol
+                                </label>
+                                <select
+                                    value={formProtocol}
+                                    onChange={(e) => setFormProtocol(e.target.value)}
+                                    className="w-full rounded border border-border bg-surface-high px-3 py-2 font-mono text-text-primary focus:border-accent focus:outline-none"
+                                >
+                                    <option value="TCP">TCP (Dynmap, BlueMap HTTP, Votifier)</option>
+                                    <option value="UDP">UDP (Geyser Bedrock, Query)</option>
+                                </select>
+                            </div>
 
-                        <p className="text-[11px] text-text-muted">
-                            A free host port will be automatically allocated from node port range.
-                        </p>
+                            <p className="text-[11px] text-text-muted">
+                                A free host port will be automatically allocated from node port range.
+                            </p>
 
-                        <div className="flex justify-end gap-2 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setShowAddModal(false)}
-                                className="px-3 py-1.5 rounded border border-border text-text-dim hover:text-text-primary transition-colors font-heading text-xs font-bold uppercase tracking-wider"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={submitting}
-                                className="px-4 py-1.5 rounded bg-accent text-bg font-heading text-xs font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
-                            >
-                                {submitting ? "Adding..." : "Add Port"}
-                            </button>
-                        </div>
-                    </form>
+                            <div className="flex justify-end gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddModal(false)}
+                                    className="rounded border border-border px-3 py-1.5 font-heading text-xs font-bold tracking-wider text-text-dim uppercase transition-colors hover:text-text-primary"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="rounded bg-accent px-4 py-1.5 font-heading text-xs font-bold tracking-wider text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
+                                >
+                                    {submitting ? "Adding..." : "Add Port"}
+                                </button>
+                            </div>
+                        </form>
                     </DialogContent>
                 </Dialog>
             )}

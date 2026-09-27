@@ -286,21 +286,21 @@ export function ModsTab({
     }
 
     return (
-        <div className="space-y-6 px-6 py-6">
+        <div className="space-y-6 px-4 py-6">
             {error && (
                 <div className="rounded border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">{error}</div>
             )}
 
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-text-dim">
                     {mods.length} {itemLabel}
                     {mods.length !== 1 ? "s" : ""}
                 </span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <button
                         onClick={load}
-                        className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs text-text-dim transition-colors hover:text-text-primary"
+                        className="flex shrink-0 items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs whitespace-nowrap text-text-dim transition-colors hover:text-text-primary"
                     >
                         <RefreshCw className="h-3 w-3" />
                         Refresh
@@ -308,7 +308,7 @@ export function ModsTab({
                     {mods.length > 0 && (
                         <button
                             onClick={() => setShowCompatCheck(!showCompatCheck)}
-                            className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs text-text-dim transition-colors hover:text-text-primary"
+                            className="flex shrink-0 items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs whitespace-nowrap text-text-dim transition-colors hover:text-text-primary"
                         >
                             <GitCompare className="h-3 w-3" />
                             Check Version
@@ -316,7 +316,7 @@ export function ModsTab({
                     )}
                     <button
                         onClick={() => setShowSearch(!showSearch)}
-                        className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright"
+                        className="flex shrink-0 items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs whitespace-nowrap text-bg transition-colors hover:bg-accent-bright"
                     >
                         <Plus className="h-3 w-3" />
                         Add {isMod ? "Mod" : "Plugin"}
