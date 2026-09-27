@@ -21,7 +21,7 @@ class McRouterProvisionerTest :
     FunSpec({
 
         context("routerContainerDrift") {
-            val goodEnv = listOf("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true")
+            val goodEnv = listOf("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true", "LOG_LEVEL=warn")
 
             test("no drift when env, socket group and image all match") {
                 routerContainerDrift(goodEnv, listOf("48"), "router:1", "router:1", "48") shouldBe emptyList()
@@ -33,7 +33,7 @@ class McRouterProvisionerTest :
 
             test("flags missing IN_DOCKER=true") {
                 routerContainerDrift(
-                    listOf("DYNAMIC_PROXY_PROTOCOL=true"),
+                    listOf("DYNAMIC_PROXY_PROTOCOL=true", "LOG_LEVEL=warn"),
                     listOf("48"),
                     "router:1",
                     "router:1",
@@ -43,12 +43,38 @@ class McRouterProvisionerTest :
 
             test("flags missing DYNAMIC_PROXY_PROTOCOL=true") {
                 routerContainerDrift(
-                    listOf("IN_DOCKER=true"),
+                    listOf("IN_DOCKER=true", "LOG_LEVEL=warn"),
                     listOf("48"),
                     "router:1",
                     "router:1",
                     "48"
                 ) shouldBe listOf("dynamicProxyProtocol")
+            }
+
+            test("flags missing LOG_LEVEL=warn") {
+                routerContainerDrift(
+                    listOf("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true"),
+                    listOf("48"),
+                    "router:1",
+                    "router:1",
+                    "48"
+                ) shouldBe listOf("logLevel")
+            }
+
+            test("flags a non-default configured log level") {
+                routerContainerDrift(goodEnv, listOf("48"), "router:1", "router:1", "48", "debug") shouldBe
+                    listOf("logLevel")
+            }
+
+            test("no log-level drift when a non-default level matches") {
+                routerContainerDrift(
+                    listOf("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true", "LOG_LEVEL=debug"),
+                    listOf("48"),
+                    "router:1",
+                    "router:1",
+                    "48",
+                    "debug"
+                ) shouldBe emptyList()
             }
 
             test("flags a socket GID missing from group_add") {
@@ -63,7 +89,7 @@ class McRouterProvisionerTest :
 
             test("reports every failing check") {
                 routerContainerDrift(emptyList(), null, null, "new-router:2", "48") shouldBe
-                    listOf("autoDiscovery", "dynamicProxyProtocol", "socketGroup", "image")
+                    listOf("autoDiscovery", "dynamicProxyProtocol", "logLevel", "socketGroup", "image")
             }
         }
 
@@ -81,7 +107,11 @@ class McRouterProvisionerTest :
                 every { existing.id } returns "old-id"
                 every { existing.config } returns containerConfig
                 every { containerConfig.image } returns "old-router:1"
-                every { containerConfig.env } returns arrayOf("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true")
+                every { containerConfig.env } returns arrayOf(
+                    "IN_DOCKER=true",
+                    "DYNAMIC_PROXY_PROTOCOL=true",
+                    "LOG_LEVEL=warn"
+                )
                 every { existing.hostConfig } returns hostConfig
                 every { hostConfig.groupAdd } returns null
                 every { existing.state } returns containerState
@@ -91,9 +121,15 @@ class McRouterProvisionerTest :
                 every { docker.inspectImageCmd("new-router:2") } throws NotFoundException("absent")
                 val pullCmd = mockk<PullImageCmd>(relaxed = true)
                 val pullCallback = mockk<PullImageResultCallback>(relaxed = true)
+                val createCmd = mockk<CreateContainerCmd>(relaxed = true)
                 every { docker.pullImageCmd("new-router:2") } returns pullCmd
                 every { pullCmd.exec(any<PullImageResultCallback>()) } returns pullCallback
-                every { docker.createContainerCmd("new-router:2") } returns mockk<CreateContainerCmd>(relaxed = true)
+                every { docker.createContainerCmd("new-router:2") } returns createCmd
+                every { createCmd.withName(any()) } returns createCmd
+                every { createCmd.withExposedPorts(*anyVararg()) } returns createCmd
+                every { createCmd.withEnv(*anyVararg()) } returns createCmd
+                every { createCmd.withHostConfig(any()) } returns createCmd
+                every { createCmd.withLabels(any()) } returns createCmd
                 every { docker.startContainerCmd(any<String>()) } returns mockk<StartContainerCmd>(relaxed = true)
 
                 McRouterProvisioner(docker, "new-router:2", updateOnStart = false).ensureRunning()
@@ -101,6 +137,7 @@ class McRouterProvisionerTest :
                 verify { docker.removeContainerCmd("old-id") }
                 verify { docker.pullImageCmd("new-router:2") }
                 verify { docker.createContainerCmd("new-router:2") }
+                verify { createCmd.withEnv("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true", "LOG_LEVEL=warn") }
             }
         }
     })

@@ -86,7 +86,8 @@ val agentModule = module {
             get<AgentConfig>().mcRouterImage,
             get<AgentConfig>().mcRouterUpdateOnStart,
             get<AgentConfig>().craftpanelNetwork,
-            get<AgentConfig>().mcRouterContainerName
+            get<AgentConfig>().mcRouterContainerName,
+            logLevel = get<AgentConfig>().mcRouterLogLevel
         )
     }
     single {

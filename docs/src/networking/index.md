@@ -35,7 +35,7 @@ mc-router is attached to the `craftpanel` infra network **and** to every server 
 The **agent** provisions and manages the mc-router container automatically — no manual setup is required on the node. In a background supervisor loop (and, for exposed servers, synchronously before a
 start) the agent:
 
-1. Recreates the container when it drifts from the configured image (controlled by `MCROUTER_IMAGE`, default `itzg/mc-router:latest`) or is missing the required env flags / docker.sock group
+1. Recreates the container when it drifts from the configured image (controlled by `MCROUTER_IMAGE`, default `itzg/mc-router:latest`) or is missing the required env flags / configured log level / docker.sock group
 2. Otherwise starts it if it is not running, or leaves it in place if it is
 3. Attaches mc-router to every server network bridge/overlay that exists locally — and re-attaches after a recreate, which otherwise loses all per-server attachments
 
@@ -172,7 +172,7 @@ Duplicates within the submitted list are collapsed.
 
 ### mc-router auto-discovery labels
 
-mc-router runs with `IN_DOCKER=true` and `DYNAMIC_PROXY_PROTOCOL=true` so it subscribes to the Docker event stream and routes by these container labels (set by the agent at container creation):
+mc-router runs with `IN_DOCKER=true`, `DYNAMIC_PROXY_PROTOCOL=true` and `LOG_LEVEL=warn` (configurable via `MCROUTER_LOG_LEVEL`) so it subscribes to the Docker event stream and routes by these container labels (set by the agent at container creation):
 
 | Label | Value | Purpose |
 |---|---|---|
@@ -180,7 +180,7 @@ mc-router runs with `IN_DOCKER=true` and `DYNAMIC_PROXY_PROTOCOL=true` so it sub
 | `mc-router.port` | `25565` | container-internal Minecraft port |
 | `mc-router.network` | the container's own server network | which Docker network mc-router dials the backend on |
 
-The label key is `mc-router.host` (not `hostname`) and `IN_DOCKER=true` is required — without it the mounted Docker socket is unused and labels are ignored. `DYNAMIC_PROXY_PROTOCOL=true` makes mc-router accept connections with or without the HAProxy PROXY protocol and forward the header to the backend when one is present.
+The label key is `mc-router.host` (not `hostname`) and `IN_DOCKER=true` is required — without it the mounted Docker socket is unused and labels are ignored. `DYNAMIC_PROXY_PROTOCOL=true` makes mc-router accept connections with or without the HAProxy PROXY protocol and forward the header to the backend when one is present. `LOG_LEVEL=warn` (override via `MCROUTER_LOG_LEVEL`) keeps the router's per-connection info chatter out of the node logs.
 
 !!! note "Backends must opt in"
     A backend that receives a forwarded PROXY header (a Velocity/BungeeCord proxy behind mc-router) must be configured to read it, or the connection is rejected. Managed proxies expose a **PROXY Protocol** toggle in their Configuration tab that writes Velocity's `haproxy-protocol` / Bungee's `listeners[0].proxy_protocol`. Enable it only when a PROXY-protocol source (an L4 load balancer) sits in front of mc-router — enabling it without one can break direct player connections. See [Proxy Configuration](../servers/configuration.md#proxy-protocol).

@@ -76,6 +76,7 @@ the table below mirrors it with extra protocol context.
 | `MCROUTER_UPDATE_ON_START`      | `true`                        | Pull the mc-router image on every agent startup. Set to `false` to skip the pull and use the locally cached image.                                                                                                                        |
 | `MCROUTER_CONTAINER_NAME`       | `craftpanel-mc-router`        | Overrides the mc-router container name.                                                                                                                                                                                                   |
 | `MCROUTER_ENABLED`              | `true`                        | When `false`, the agent never provisions, attaches, detaches, or metrics-queries mc-router.                                                                                                                                               |
+| `MCROUTER_LOG_LEVEL`            | `warn`                        | mc-router's `LOG_LEVEL` (`debug`, `info`, `warn`, `error`). Defaults to `warn` to suppress the router's per-connection info chatter; set to `info` or `debug` to troubleshoot routing.                                                    |
 | `SYSTEM_RESERVED_RAM_MB`        | `0`                           | Megabytes of RAM the agent will not offer to servers. Reported to master alongside the node's physical total and withheld from allocatable capacity (`total − reserved`). On a co-located node running master + PostgreSQL, `1024`–`2048` is typical. |
 | `SYSTEM_RESERVED_CPU_MILLICORES` | `0`                          | CPU millicores the agent will not offer to servers (1000 millicores per core). Reported to master alongside the node's total and withheld from allocatable capacity (`total − reserved`).                                                     |
 
@@ -146,7 +147,7 @@ The directory must exist before the agent starts; the agent does not create it.
 
 ### mc-router provisioning
 
-On startup the agent automatically provisions a single `craftpanel-mc-router` container on the local Docker daemon, running with `IN_DOCKER=true` and `DYNAMIC_PROXY_PROTOCOL=true` so it discovers backends from the Docker event stream.
+On startup the agent automatically provisions a single `craftpanel-mc-router` container on the local Docker daemon, running with `IN_DOCKER=true`, `DYNAMIC_PROXY_PROTOCOL=true` and `LOG_LEVEL=warn` (configurable via `MCROUTER_LOG_LEVEL`) so it discovers backends from the Docker event stream.
 This container routes incoming Minecraft TCP connections to the correct game server container using Docker label-based hostname matching (label `mc-router.host=<hostname>`, plus `mc-router.port` and
 `mc-router.network`).
 
@@ -158,7 +159,7 @@ The image is pulled whenever the container is created or recreated: with `MCROUT
 absent locally. Set `false` in environments where image pulls are restricted or where a pinned digest is baked into `MCROUTER_IMAGE`.
 
 The agent reconciles the running container against its configured image and env on every check. If the container was built from a **different image** (e.g. `MCROUTER_IMAGE` changed), or is missing
-`IN_DOCKER=true` / `DYNAMIC_PROXY_PROTOCOL=true`, or the docker.sock group membership, it is removed and recreated with the configured image; an already-matching container is left as-is.
+`IN_DOCKER=true` / `DYNAMIC_PROXY_PROTOCOL=true` / the configured `MCROUTER_LOG_LEVEL`, or the docker.sock group membership, it is removed and recreated with the configured image; an already-matching container is left as-is.
 
 ### mc-router health and recovery
 

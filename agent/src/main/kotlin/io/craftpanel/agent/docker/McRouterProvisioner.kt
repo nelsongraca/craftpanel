@@ -9,7 +9,18 @@ import com.github.dockerjava.api.model.*
 import io.craftpanel.common.DockerLabels
 import org.slf4j.LoggerFactory
 
-class McRouterProvisioner(private val docker: DockerClient, private val image: String, private val updateOnStart: Boolean, private val networkName: String = "", containerNameOverride: String = "") {
+class McRouterProvisioner(
+    private val docker: DockerClient,
+    private val image: String,
+    private val updateOnStart: Boolean,
+    private val networkName: String = "",
+    containerNameOverride: String = "",
+    private val logLevel: String = DEFAULT_LOG_LEVEL
+) {
+
+    companion object {
+        const val DEFAULT_LOG_LEVEL = "warn"
+    }
 
     private val log = LoggerFactory.getLogger(McRouterProvisioner::class.java)
 
@@ -32,6 +43,8 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
             // auto-discovery. Without it mc-router ignores container labels and routes nothing.
             // Also recreate if DYNAMIC_PROXY_PROTOCOL=true is missing — the fork flag that makes
             // mc-router emit PROXY protocol to backends that advertise support for it.
+            // Also recreate if the configured LOG_LEVEL is missing — the container was created
+            // before the log-level setting existed, or the configured level changed.
             // Also recreate if the docker.sock GID isn't in group_add — a container created by
             // an older agent build predates the group_add fix and will crash-loop forever on
             // permission-denied, and restarting it (the "exists but not running" branch below)
@@ -49,7 +62,8 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
                 groupAdd = existing.hostConfig?.groupAdd,
                 containerImage = existing.config?.image,
                 expectedImage = image,
-                socketGid = socketGid
+                socketGid = socketGid,
+                expectedLogLevel = logLevel
             )
             if (drift.isNotEmpty()) {
                 log.info("mc-router drift (${drift.joinToString(", ")}) — recreating")
@@ -106,7 +120,9 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
                 // Without it the mounted docker socket is never used and labels are ignored.
                 // DYNAMIC_PROXY_PROTOCOL=true lets the fork send PROXY protocol to backends that
                 // advertise support for it, preserving the real client IP at the backend.
-                .withEnv("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true")
+                // LOG_LEVEL drops mc-router's default `info` verbosity to `warn` (configurable via
+                // MCROUTER_LOG_LEVEL) so per-connection routing chatter is not emitted.
+                .withEnv("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true", "LOG_LEVEL=$logLevel")
                 .withHostConfig(hostConfig)
                 .withLabels(mapOf(DockerLabels.MANAGED to DockerLabels.MANAGED_VALUE))
                 .exec().id
@@ -220,13 +236,21 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
 
 /**
  * Names of the configuration checks an existing mc-router container fails; empty when it matches the
- * agent's configured router. Covers the label-based auto-discovery env flags, the docker.sock group
- * membership, and the container image. Pure so the drift matrix is table-testable — a non-empty
- * result means the container must be recreated.
+ * agent's configured router. Covers the label-based auto-discovery env flags, the configured log
+ * level, the docker.sock group membership, and the container image. Pure so the drift matrix is
+ * table-testable — a non-empty result means the container must be recreated.
  */
-internal fun routerContainerDrift(env: List<String>, groupAdd: List<String>?, containerImage: String?, expectedImage: String, socketGid: String?): List<String> = buildList {
+internal fun routerContainerDrift(
+    env: List<String>,
+    groupAdd: List<String>?,
+    containerImage: String?,
+    expectedImage: String,
+    socketGid: String?,
+    expectedLogLevel: String = McRouterProvisioner.DEFAULT_LOG_LEVEL
+): List<String> = buildList {
     if (env.none { it == "IN_DOCKER=true" }) add("autoDiscovery")
     if (env.none { it == "DYNAMIC_PROXY_PROTOCOL=true" }) add("dynamicProxyProtocol")
+    if (env.none { it == "LOG_LEVEL=$expectedLogLevel" }) add("logLevel")
     if (socketGid != null && groupAdd?.contains(socketGid) != true) add("socketGroup")
     if (containerImage != expectedImage) add("image")
 }

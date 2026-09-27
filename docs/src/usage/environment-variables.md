@@ -123,6 +123,7 @@ registration protocol and data-path rules.
 | `MCROUTER_UPDATE_ON_START`          | No             | `true`                           | Whether to pull a fresh mc-router image on agent start. Set `false` to use the cached image.                    |
 | `MCROUTER_CONTAINER_NAME`           | No             | `craftpanel-mc-router`           | Overrides the mc-router container name.                                                                        |
 | `MCROUTER_ENABLED`                  | No             | `true`                           | When `false`, the agent never provisions, attaches, detaches, or metrics-queries mc-router.                    |
+| `MCROUTER_LOG_LEVEL`                | No             | `warn`                           | mc-router log level (`debug`, `info`, `warn`, `error`); raise to `info`/`debug` to troubleshoot routing.       |
 | `PULL_MAX_IMAGE_AGE_HOURS`          | No             | `24`                             | Max age of a locally-cached image before a fresh pull is attempted.                                            |
 | `HEARTBEAT_FILE`                    | No             | `/tmp/agent-heartbeat`           | Internal — path the agent touches on successful auth and every metrics tick; used by the container healthcheck. |
 

@@ -26,6 +26,9 @@ data class AgentConfig(
     val mcRouterContainerName: String,
     // When false, the agent never provisions, attaches, detaches, or metrics-queries mc-router.
     val mcRouterEnabled: Boolean = true,
+    // mc-router's LOG_LEVEL (debug|info|warn|error). Defaults to `warn` to suppress the router's
+    // per-connection info chatter; set MCROUTER_LOG_LEVEL=info|debug to troubleshoot routing.
+    val mcRouterLogLevel: String = "warn",
     val publicIpUrl: String,
     val hostnameOverride: String,
     val systemReservedRamMb: Int,
@@ -89,6 +92,10 @@ data class AgentConfig(
                 mcRouterContainerName = System.getenv("MCROUTER_CONTAINER_NAME") ?: "",
                 mcRouterEnabled = System.getenv("MCROUTER_ENABLED")
                     ?.lowercase() != "false",
+                mcRouterLogLevel = System.getenv("MCROUTER_LOG_LEVEL")
+                    ?.trim()
+                    ?.ifBlank { null }
+                    ?.lowercase() ?: "warn",
                 publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
                 hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
                 systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")

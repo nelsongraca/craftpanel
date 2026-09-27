@@ -164,7 +164,7 @@ class McRouterRoutingTest : BaseSystemTest() {
 
         context("mc-router provisioning") {
 
-            should("start the router with IN_DOCKER and DYNAMIC_PROXY_PROTOCOL enabled") {
+            should("start the router with IN_DOCKER, DYNAMIC_PROXY_PROTOCOL and LOG_LEVEL enabled") {
                 val env = withContext(Dispatchers.IO) {
                     SharedStack.dockerClient.inspectContainerCmd(SharedStack.mcRouterContainerName)
                         .exec()
@@ -174,6 +174,7 @@ class McRouterRoutingTest : BaseSystemTest() {
                 }
                 env shouldContain "IN_DOCKER=true"
                 env shouldContain "DYNAMIC_PROXY_PROTOCOL=true"
+                env shouldContain "LOG_LEVEL=warn"
             }
         }
     }

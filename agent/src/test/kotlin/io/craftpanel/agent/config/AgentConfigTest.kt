@@ -74,6 +74,10 @@ class AgentConfigTest :
             config().publicIpOverride shouldBe ""
         }
 
+        test("mcRouterLogLevel defaults to warn") {
+            config().mcRouterLogLevel shouldBe "warn"
+        }
+
         test("data class equality holds for identical configs") {
             val a = config()
             val b = config()
