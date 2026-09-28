@@ -573,7 +573,7 @@ export default function NodeDetailPage() {
                         <Badge variant={nodeStatusVariant(node.status, node.health)}>
                             {nodeStatusLabel(node.status, node.health)}
                         </Badge>
-                        {node.router_update_available && <Badge variant="amber">Router update available</Badge>}
+                        {node.router_update_available && <Badge variant="warning">Router update available</Badge>}
                     </div>
 
                     {canManage && (
