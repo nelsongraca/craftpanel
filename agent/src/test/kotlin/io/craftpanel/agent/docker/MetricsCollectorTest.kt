@@ -95,6 +95,14 @@ class MetricsCollectorTest :
             parseMcMonitorStatus("""{"server_info":{"players":{"online":0,"Sample":null}}}""")?.names shouldBe emptyList()
         }
 
+        test("parseMcMonitorStatus collapses repeated names from hidden identities") {
+            val json =
+                """{"server_info":{"players":{"online":3,"Sample":[{"name":"Anonymous Player","id":"x"},{"name":"Anonymous Player","id":"y"},{"name":"Steve","id":"z"},{"name":"Anonymous Player","id":"w"}]}}}"""
+            val status = parseMcMonitorStatus(json)
+            status?.count shouldBe 3
+            status?.names shouldBe listOf("Anonymous Player", "Steve")
+        }
+
         test("parseMcMonitorStatus returns null on non-status payloads") {
             parseMcMonitorStatus("not json") shouldBe null
             parseMcMonitorStatus("""{"host":"localhost"}""") shouldBe null

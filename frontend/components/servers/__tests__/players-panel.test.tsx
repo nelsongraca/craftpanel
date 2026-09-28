@@ -19,4 +19,10 @@ describe('PlayersPanel', () => {
         expect(screen.getByText('Steve')).toBeInTheDocument()
         expect(screen.getByText('Alex')).toBeInTheDocument()
     })
+
+    it('collapses repeated names into a single chip', () => {
+        render(<PlayersPanel livePlayers={{count: 3, list: ['Anonymous Player', 'Anonymous Player', 'Anonymous Player']}}/>)
+        expect(screen.getByText('Online Players (3)')).toBeInTheDocument()
+        expect(screen.getAllByText('Anonymous Player')).toHaveLength(1)
+    })
 })

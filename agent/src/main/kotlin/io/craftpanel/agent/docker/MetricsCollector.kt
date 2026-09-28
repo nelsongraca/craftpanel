@@ -407,8 +407,11 @@ internal fun parseMcMonitorStatus(json: String): PlayerStatus? = runCatching {
         ?.get("players")?.jsonObject ?: return null
     val online = players["online"]?.jsonPrimitive?.intOrNull ?: return null
     val sample = players["Sample"] ?: players["sample"]
+    // Servers report a player with "Allow Server Listings" OFF as "Anonymous Player", so the
+    // sample can contain many identical entries; keep one of each name.
     val names = (sample as? JsonArray)
         ?.mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.contentOrNull }
+        ?.distinct()
         ?: emptyList()
     PlayerStatus(online, names)
 }.getOrNull()
