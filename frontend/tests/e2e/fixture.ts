@@ -5,6 +5,7 @@ import {handlers} from "./msw/handlers";
 import {resetConfig} from "./msw/handlers/config";
 import {resetMods} from "./msw/handlers/mods";
 import {resetBackups} from "./msw/handlers/backups";
+import {resetScheduledJobs} from "./msw/handlers/jobs";
 import {startJSCoverage, stopJSCoverage} from "./coverage";
 
 interface Fixtures {
@@ -45,6 +46,7 @@ test.beforeEach(() => {
     resetConfig();
     resetMods();
     resetBackups();
+    resetScheduledJobs();
 });
 
 export {expect} from "@playwright/test";

@@ -232,17 +232,18 @@ Records which backend game servers a proxy server connects to, used in managed (
 
 ## `server_jobs`
 
-Holds cron-based job definitions tied to a server. Currently used for scheduled backups; extensible for future job types.
+Holds user-defined cron-based job definitions tied to a server. Managed via `/api/servers/{id}/jobs` with the `server.cron` permission. Scheduled **backups** are *not* stored here — they use the dedicated `servers.backup_schedule` columns.
 
-| Column            | Type         | Description                                                          |
-|-------------------|--------------|----------------------------------------------------------------------|
-| `id`              | UUID         | Primary key                                                          |
-| `server_id`       | UUID         | FK → `servers`, CASCADE DELETE                                       |
-| `type`            | VARCHAR(50)  | Job type identifier, e.g. `backup`                                   |
-| `cron_expression` | VARCHAR(64)  | Cron schedule for the job                                            |
-| `enabled`         | BOOLEAN      | Whether the job is active; default `true`                            |
-| `last_fired_at`   | TIMESTAMPTZ  | When the job last triggered; `NULL` if never fired                   |
-| `created_at`      | TIMESTAMPTZ  |                                                                      |
-| `updated_at`      | TIMESTAMPTZ  |                                                                      |
+| Column            | Type         | Description                                                                 |
+|-------------------|--------------|-----------------------------------------------------------------------------|
+| `id`              | UUID         | Primary key                                                                 |
+| `server_id`       | UUID         | FK → `servers`, CASCADE DELETE                                              |
+| `type`            | VARCHAR(50)  | Job type: `START`, `STOP`, `RESTART`, or `RCON_COMMAND`                     |
+| `cron_expression` | VARCHAR(64)  | Cron schedule for the job                                                   |
+| `payload`         | VARCHAR(512) | Type-specific argument — the console command for `RCON_COMMAND`, else `NULL` |
+| `enabled`         | BOOLEAN      | Whether the job is active; default `true`                                   |
+| `last_fired_at`   | TIMESTAMPTZ  | When the job last triggered; `NULL` if never fired                          |
+| `created_at`      | TIMESTAMPTZ  |                                                                             |
+| `updated_at`      | TIMESTAMPTZ  |                                                                             |
 
 **Primary key:** `(id)`

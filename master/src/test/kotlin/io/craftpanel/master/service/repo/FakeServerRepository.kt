@@ -73,7 +73,15 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         val nonHeapUsedBytes: Long? = null
     )
 
-    data class MutableServerJob(val id: Uuid, val serverId: Uuid, val type: String, val cronExpression: String, var enabled: Boolean = true, var lastFiredAt: String? = null)
+    data class MutableServerJob(
+        val id: Uuid,
+        val serverId: Uuid,
+        val type: String,
+        var cronExpression: String,
+        var payload: String? = null,
+        var enabled: Boolean = true,
+        var lastFiredAt: String? = null
+    )
 
     override fun findById(id: Uuid): ServerView? = state.servers[id]
     override fun findByName(name: String): ServerView? = state.servers.values.firstOrNull { it.name == name }

@@ -96,6 +96,7 @@ nav:
           - Mods: api/mods.md
           - Files: api/files.md
           - Backups: api/backups.md
+          - Scheduled Jobs: api/jobs.md
           - Migrations: api/migrations.md
           - Monitoring: api/monitoring.md
           - System Settings: api/system-settings.md

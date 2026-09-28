@@ -248,8 +248,8 @@ system.settings   system.users    system.nodes    system.groups   system.alerts
 server.create     server.delete   server.start    server.stop
 server.force_stop server.restart  server.configure server.resources
 server.files      server.mods     server.console  server.export
-server.backup     server.migrate  server.view     server.expires
-server.disable    server.dir_override
+server.backup     server.cron     server.migrate  server.view
+server.expires    server.disable  server.dir_override
 network.create    network.delete  network.configure network.view
 ```
 

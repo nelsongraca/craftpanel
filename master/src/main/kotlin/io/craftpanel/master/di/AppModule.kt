@@ -9,8 +9,12 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.grpc.*
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.scheduler.BackupJobHandler
+import io.craftpanel.master.scheduler.RconCommandJobHandler
 import io.craftpanel.master.scheduler.RetentionJanitor
+import io.craftpanel.master.scheduler.ServerRestartJobHandler
 import io.craftpanel.master.scheduler.ServerScheduler
+import io.craftpanel.master.scheduler.ServerStartJobHandler
+import io.craftpanel.master.scheduler.ServerStopJobHandler
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
@@ -320,9 +324,20 @@ val appModule = module {
         )
     }
     single { BackupJobHandler(get()) }
+    single { ServerStartJobHandler(get()) }
+    single { ServerStopJobHandler(get()) }
+    single { ServerRestartJobHandler(get()) }
+    single { RconCommandJobHandler(get(), get()) }
+    single { ScheduledJobService(get(), get()) }
     single {
         ServerScheduler(
-            mapOf("BACKUP" to get<BackupJobHandler>()),
+            mapOf(
+                "BACKUP" to get<BackupJobHandler>(),
+                "START" to get<ServerStartJobHandler>(),
+                "STOP" to get<ServerStopJobHandler>(),
+                "RESTART" to get<ServerRestartJobHandler>(),
+                "RCON_COMMAND" to get<RconCommandJobHandler>()
+            ),
             get(named("appScope")),
             get(),
             get(),

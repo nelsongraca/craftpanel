@@ -24,8 +24,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-private val CRON_REGEX = Regex("""^(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)$""")
-
 @Serializable
 data class BackupResponse(
     val id: String,
@@ -184,7 +182,7 @@ class BackupService(
     }
 
     fun updateSchedule(serverId: Uuid, req: PutBackupScheduleRequest) {
-        if (req.backupSchedule != null && !CRON_REGEX.matches(req.backupSchedule)) {
+        if (req.backupSchedule != null && !CronValidator.isValid(req.backupSchedule)) {
             throw UnprocessableException("Invalid cron expression")
         }
         if (req.backupMaxCount != null && req.backupMaxCount < 1) {

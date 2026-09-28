@@ -18,7 +18,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class ConfigMode {
 
-    MANAGED, MANUAL;
+    MANAGED,
+    MANUAL;
 
     companion object {
 
@@ -29,7 +30,8 @@ enum class ConfigMode {
 @Serializable
 enum class BackupTrigger {
 
-    MANUAL, SCHEDULED;
+    MANUAL,
+    SCHEDULED;
 
     companion object {
 
@@ -40,7 +42,9 @@ enum class BackupTrigger {
 @Serializable
 enum class BackupStatus {
 
-    IN_PROGRESS, COMPLETED, FAILED;
+    IN_PROGRESS,
+    COMPLETED,
+    FAILED;
 
     companion object {
 
@@ -51,7 +55,13 @@ enum class BackupStatus {
 @Serializable
 enum class MigrationStatus {
 
-    PENDING, SYNCING, CUTTING_OVER, COMPLETED, FAILED, CANCELLED, RUNNING;
+    PENDING,
+    SYNCING,
+    CUTTING_OVER,
+    COMPLETED,
+    FAILED,
+    CANCELLED,
+    RUNNING;
 
     companion object {
 
@@ -62,7 +72,10 @@ enum class MigrationStatus {
 @Serializable
 enum class MigrationStepStatus {
 
-    PENDING, RUNNING, SUCCESS, FAILED;
+    PENDING,
+    RUNNING,
+    SUCCESS,
+    FAILED;
 
     companion object {
 
@@ -73,7 +86,29 @@ enum class MigrationStepStatus {
 @Serializable
 enum class ModPinStrategy {
 
-    PINNED, LATEST, BETA, ALPHA;
+    PINNED,
+    LATEST,
+    BETA,
+    ALPHA;
+
+    companion object {
+
+        fun fromDb(s: String) = valueOf(s)
+    }
+}
+
+/**
+ * User-schedulable job types. The constant name is also the value persisted in `server_jobs.type`
+ * and the key registered in [io.craftpanel.master.scheduler.ServerScheduler]'s handler map.
+ * `BACKUP` is intentionally absent — backup scheduling stays on its dedicated server columns.
+ */
+@Serializable
+enum class ScheduledJobType(val requiresPayload: Boolean) {
+
+    START(requiresPayload = false),
+    STOP(requiresPayload = false),
+    RESTART(requiresPayload = false),
+    RCON_COMMAND(requiresPayload = true);
 
     companion object {
 

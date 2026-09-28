@@ -23,6 +23,7 @@ fun Route.registerAppRoutes() {
     consoleRoutes(get(), get(), get())
     filesRoutes(get())
     backupsRoutes(get())
+    scheduledJobsRoutes(get())
     configRoutes(get(), get(), get())
     modsRoutes(get())
     dashboardWsRoutes(get(), get())

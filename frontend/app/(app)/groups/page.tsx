@@ -39,6 +39,7 @@ const PERMISSION_GROUPS: {label: string; nodes: string[]}[] = [
             "server.console",
             "server.export",
             "server.backup",
+            "server.cron",
             "server.migrate",
         ],
     },

@@ -29,15 +29,37 @@ Example expressions:
 The scheduler is handler-based — adding new job types (e.g. scheduled restarts, RCON commands) requires only implementing a handler and registering it; the tick loop and deduplication logic are
 shared.
 
-## Scheduled Jobs (Planned)
+## Scheduled Jobs
 
-The following scheduler features are planned but not yet implemented:
+Beyond backups, servers can have arbitrary cron-scheduled jobs. Definitions are stored in
+`server_jobs` and evaluated by the same internal scheduler (one tick per minute, with per-minute
+de-duplication).
 
-- **User-defined jobs REST API** — `GET/POST/PATCH/DELETE /api/servers/{id}/jobs` allowing users with `server.configure` permission to create arbitrary scheduled jobs per server. Supported job types
-  are backed by registered handlers; `GET /api/system/job-types` will enumerate available types.
-- **Additional built-in job types** — `RESTART` and `RCON_COMMAND` are the initial candidates beyond `BACKUP`.
-- **Per-job execution history** — audit log of last-run time, result, and duration per job row.
-- **Missed-fire recovery** — if master was offline during a scheduled window, jobs that were missed can optionally be fired on the next startup.
+| Type           | Action                                                            |
+|----------------|-------------------------------------------------------------------|
+| `START`        | Start the server if it is stopped                                 |
+| `STOP`         | Gracefully stop the server if it is running                       |
+| `RESTART`      | Restart a running server                                          |
+| `RCON_COMMAND` | Run an arbitrary console command via RCON (requires `payload`)    |
+
+REST API (`server.cron` permission to read/manage; **creating** a job additionally requires the
+action's own permission — `server.start`, `server.stop`, `server.restart`, or `server.console`):
+
+```
+GET    /api/servers/{id}/jobs          list a server's jobs
+POST   /api/servers/{id}/jobs          create a job
+PATCH  /api/servers/{id}/jobs/{jobId}  update cron / payload / enabled
+DELETE /api/servers/{id}/jobs/{jobId}  delete a job
+GET    /api/system/job-types           enumerate schedulable types
+```
+
+`RCON_COMMAND` jobs run `rcon-cli <command>` inside the container on the node agent. The command is
+fire-and-forget (no result is reported back), so a job is skipped unless the server reports
+`HEALTHY`. The agent enforces this; the command text is validated (single line, ≤ 512 chars) at the
+API boundary.
+
+Still planned: per-job execution history (last-run result/duration) and missed-fire recovery after
+master downtime.
 
 ## Retention Policy
 

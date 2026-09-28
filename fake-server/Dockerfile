@@ -30,6 +30,13 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN chmod +x docker-entrypoint.sh && mkdir -p /data
 
+# System tests only: stand in for the itzg images' bundled `rcon-cli`. The agent executes
+# `rcon-cli <command>` inside the container for scheduled RCON jobs; the real images actually
+# talk to the server's RCON port, which the fake server does not implement. Record the command
+# so a test can assert it arrived.
+RUN printf '#!/bin/sh\necho "$*" >> /tmp/rcon-commands.log\n' > /usr/local/bin/rcon-cli \
+    && chmod +x /usr/local/bin/rcon-cli
+
 EXPOSE 25565/tcp
 EXPOSE 25565/udp
 

@@ -76,11 +76,7 @@ class ServerSchedulerTest :
             }[Servers.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServerWithState(
-            nodeId: Uuid,
-            status: String,
-            expiresAt: kotlinx.datetime.LocalDateTime? = null
-        ): Uuid = transaction {
+        fun createServerWithState(nodeId: Uuid, status: String, expiresAt: kotlinx.datetime.LocalDateTime? = null): Uuid = transaction {
             Servers.insert {
                 it[Servers.nodeId] = nodeId
                 it[Servers.name] = "srv-${Uuid.random()}"
@@ -168,6 +164,33 @@ class ServerSchedulerTest :
             }
 
             coVerify(exactly = 1) { handler.execute(any()) }
+        }
+
+        test("tick passes the job payload to the handler") {
+            val handler = mockk<ScheduledJobHandler>()
+            val captured = slot<JobExecutionContext>()
+            coEvery { handler.execute(capture(captured)) } returns Unit
+
+            val nodeId = createNode()
+            val serverId = createServer(nodeId, null)
+
+            transaction {
+                ServerJobs.insert {
+                    it[ServerJobs.serverId] = EntityID(serverId, Servers)
+                    it[ServerJobs.type] = "RCON_COMMAND"
+                    it[ServerJobs.cronExpression] = "* * * * *"
+                    it[ServerJobs.payload] = "say hello"
+                    it[ServerJobs.enabled] = true
+                }
+            }
+
+            val now = kotlin.time.Clock.System.now()
+            runTest {
+                val scheduler = ServerScheduler(mapOf("RCON_COMMAND" to handler), this, serverRepository, repos.serverJobRepository, lifecycleService)
+                scheduler.tick(now)
+            }
+
+            captured.captured.payload shouldBe "say hello"
         }
 
         test("tick with missing handler for job type does not throw") {

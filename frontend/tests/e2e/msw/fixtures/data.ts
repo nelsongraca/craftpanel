@@ -9,6 +9,7 @@ import type {
     WsTicketResponse,
     BackupResponse,
     BackupScheduleResponse,
+    ScheduledJobResponse,
     EnvVarItem,
     ProxySettingsResponse,
     ProxyBackendItem,
@@ -309,6 +310,29 @@ export const fakeBackupSchedule: BackupScheduleResponse = {
     backup_schedule: "0 2 * * *",
     backup_max_count: 10,
 };
+
+// ── Scheduled jobs ─────────────────────────────────────────────────────────
+
+export const fakeScheduledJobs: ScheduledJobResponse[] = [
+    {
+        id: "job-1",
+        server_id: "srv-1",
+        type: "RESTART",
+        cron_expression: "0 4 * * *",
+        payload: null,
+        enabled: true,
+        last_fired_at: "2025-06-20T04:00:00Z",
+    },
+    {
+        id: "job-2",
+        server_id: "srv-1",
+        type: "RCON_COMMAND",
+        cron_expression: "* * * * *",
+        payload: "say hello",
+        enabled: false,
+        last_fired_at: null,
+    },
+];
 
 // ── Env vars / config ──────────────────────────────────────────────────────
 

@@ -50,6 +50,7 @@ const TABS = [
     "Files",
     "Mods",
     "Backups",
+    "Jobs",
     "Configuration",
     "Ports",
     "Migration",
@@ -68,6 +69,7 @@ const HEADER_ACTION_BUTTONS = {
 const ConsoleTab = dynamic(() => import("./console-tab").then((m) => m.ConsoleTab), {ssr: false});
 const FilesTab = dynamic(() => import("./files-tab").then((m) => m.FilesTab), {ssr: false});
 const BackupsTab = dynamic(() => import("./backups-tab").then((m) => m.BackupsTab), {ssr: false});
+const JobsTab = dynamic(() => import("./jobs-tab").then((m) => m.JobsTab), {ssr: false});
 const ModsTab = dynamic(() => import("./mods-tab").then((m) => m.ModsTab), {ssr: false});
 const ConfigTab = dynamic(() => import("./config-tab").then((m) => m.ConfigTab), {ssr: false});
 const PortsTab = dynamic(() => import("./ports-tab").then((m) => m.PortsTab), {ssr: false});
@@ -484,7 +486,9 @@ export default function ServerDetailPage() {
                     >
                         {TABS.filter(
                             (tab) =>
-                                !(isProxy && tab === "Migration") && !((isCustom || isPicolimbo) && tab === "Mods"),
+                                !(isProxy && tab === "Migration") &&
+                                !((isCustom || isPicolimbo) && tab === "Mods") &&
+                                !(tab === "Jobs" && !hasPermission(serverPerms, "server.cron")),
                         ).map((tab) => (
                             <TabsTrigger
                                 key={tab}
@@ -521,6 +525,11 @@ export default function ServerDetailPage() {
                 <TabsContent value="Backups" className="overflow-auto">
                     <BackupsTab serverId={server.id} />
                 </TabsContent>
+                {hasPermission(serverPerms, "server.cron") && (
+                    <TabsContent value="Jobs" className="overflow-auto">
+                        <JobsTab serverId={server.id} permissions={serverPerms} />
+                    </TabsContent>
+                )}
                 {!isCustom && !isPicolimbo && (
                     <TabsContent value="Mods" className="overflow-auto">
                         <ModsTab

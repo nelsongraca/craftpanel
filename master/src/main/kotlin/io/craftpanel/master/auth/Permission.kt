@@ -26,6 +26,7 @@ enum class Permission(val node: String) {
     SERVER_CONSOLE("server.console"),
     SERVER_EXPORT("server.export"),
     SERVER_BACKUP("server.backup"),
+    SERVER_CRON("server.cron"),
     SERVER_MIGRATE("server.migrate"),
     SERVER_EXPIRES("server.expires"),
     SERVER_DISABLE("server.disable"),

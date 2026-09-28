@@ -13,7 +13,7 @@ private val systemGroups = mapOf(
     "Server Admin" to listOf(
         Permission.SERVER_CREATE, Permission.SERVER_DELETE, Permission.SERVER_START, Permission.SERVER_STOP,
         Permission.SERVER_RESTART, Permission.SERVER_FORCE_STOP, Permission.SERVER_CONFIGURE, Permission.SERVER_FILES, Permission.SERVER_MODS,
-        Permission.SERVER_CONSOLE, Permission.SERVER_EXPORT, Permission.SERVER_BACKUP,
+        Permission.SERVER_CONSOLE, Permission.SERVER_EXPORT, Permission.SERVER_BACKUP, Permission.SERVER_CRON,
         Permission.SERVER_EXPIRES, Permission.SERVER_DISABLE,
         Permission.SERVER_VIEW,
         Permission.NETWORK_VIEW, Permission.NETWORK_CREATE, Permission.NETWORK_CONFIGURE, Permission.NETWORK_DELETE,
@@ -51,6 +51,7 @@ fun seedSystemGroups() {
     grantMissingSystemGroupPermission(
         "Server Admin",
         listOf(
+            Permission.SERVER_CRON.node,
             Permission.SERVER_DISABLE.node,
             Permission.NETWORK_VIEW.node,
             Permission.NETWORK_CREATE.node,

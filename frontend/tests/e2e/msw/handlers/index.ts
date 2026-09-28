@@ -4,6 +4,7 @@ import {nodeHandlers} from "./nodes";
 import {portHandlers} from "./ports";
 import {fileHandlers} from "./files";
 import {backupHandlers} from "./backups";
+import {jobHandlers} from "./jobs";
 import {configHandlers} from "./config";
 import {serverDetailHandlers} from "./server-detail";
 import {adminHandlers} from "./admin";
@@ -20,6 +21,7 @@ export const handlers = [
     ...portHandlers,
     ...fileHandlers,
     ...backupHandlers,
+    ...jobHandlers,
     ...configHandlers,
     ...serverDetailHandlers,
     ...adminHandlers,

@@ -110,10 +110,11 @@ class ServerScheduler(
             val jobId = row.id
             val serverId = row.serverId
             val type = row.type
-            transaction { ServerJob.findById(jobId)?.let { it.lastFiredAt = now.toLocalDateTime(TimeZone.UTC) } }
+            val payload = row.payload
             handlers[type]?.let { handler ->
+                transaction { ServerJob.findById(jobId)?.let { it.lastFiredAt = now.toLocalDateTime(TimeZone.UTC) } }
                 scope.launch {
-                    handler.execute(JobExecutionContext(serverId, jobId = jobId, scheduledAt = now))
+                    handler.execute(JobExecutionContext(serverId, jobId = jobId, scheduledAt = now, payload = payload))
                 }
             } ?: log.warn("No handler registered for job type '$type' (job $jobId)")
         }

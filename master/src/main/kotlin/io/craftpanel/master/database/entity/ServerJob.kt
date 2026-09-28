@@ -14,6 +14,7 @@ class ServerJob(id: EntityID<Uuid>) : UuidEntity(id) {
     var serverId by ServerJobs.serverId
     var type by ServerJobs.type
     var cronExpression by ServerJobs.cronExpression
+    var payload by ServerJobs.payload
     var enabled by ServerJobs.enabled
     var lastFiredAt by ServerJobs.lastFiredAt
 
@@ -22,6 +23,7 @@ class ServerJob(id: EntityID<Uuid>) : UuidEntity(id) {
         serverId = serverId.value,
         type = type,
         cronExpression = cronExpression,
+        payload = payload,
         lastFiredAt = lastFiredAt?.toUtcString()
     )
 }
