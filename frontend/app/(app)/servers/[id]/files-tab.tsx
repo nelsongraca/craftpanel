@@ -3,6 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
+import {FULLSCREEN_PANE_CLASS, useFullscreenPane} from "@/lib/hooks/useFullscreenPane";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {
     copyServerFile,
@@ -24,6 +25,8 @@ import {
     File,
     Folder,
     FolderPlus,
+    Maximize2,
+    Minimize2,
     MoreVertical,
     Move,
     Pencil,
@@ -35,6 +38,7 @@ import {
 } from "lucide-react";
 import {FileCodeEditor} from "@/components/servers/file-code-editor";
 import {DirectoryPickerDialog} from "@/components/servers/directory-picker-dialog";
+import {cn} from "@/lib/utils";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -60,6 +64,7 @@ interface TreeNode extends FileEntry {
 
 interface Props {
     serverId: string;
+    active?: boolean;
 }
 
 function buildPath(parent: string, name: string): string {
@@ -87,7 +92,8 @@ function copyDefaultName(node: TreeNode): string {
     return `${stem}-copy${ext}`;
 }
 
-export function FilesTab({serverId}: Props) {
+export function FilesTab({serverId, active = true}: Props) {
+    const {fullscreen, toggle: toggleFullscreen} = useFullscreenPane(active);
     const [roots, setRoots] = useState<TreeNode[]>([]);
     const [selectedPath, setSelectedPath] = useState<string | null>(null);
     const [fileContent, setFileContent] = useState<string>("");
@@ -567,7 +573,7 @@ export function FilesTab({serverId}: Props) {
 
     return (
         <>
-            <div className="flex h-full min-h-0 gap-4 p-4">
+            <div className={cn("flex h-full min-h-0", fullscreen ? `${FULLSCREEN_PANE_CLASS} gap-0` : "gap-4 p-4")}>
                 {/* ── Tree ── On mobile it is a full-screen list until a file is picked; on md+ it
                         is the fixed side pane and is always shown. */}
                 <div
@@ -577,6 +583,15 @@ export function FilesTab({serverId}: Props) {
                         <span className="flex-1 font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
                             Files
                         </span>
+                        <button
+                            type="button"
+                            title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                            aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                            className="p-1 text-text-muted hover:text-accent md:hidden"
+                            onClick={toggleFullscreen}
+                        >
+                            {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                        </button>
                         <button
                             title="Upload file"
                             className="p-1 text-text-muted hover:text-accent"
@@ -624,6 +639,15 @@ export function FilesTab({serverId}: Props) {
                                     <ArrowLeft size={16} />
                                 </button>
                                 <span className="flex-1 truncate font-mono text-sm text-text-dim">{selectedPath}</span>
+                                <button
+                                    type="button"
+                                    title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                                    aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                                    className="p-1.5 text-text-muted transition-colors hover:text-accent md:hidden"
+                                    onClick={toggleFullscreen}
+                                >
+                                    {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                                </button>
                                 {fileEncoding !== "binary" && (
                                     <>
                                         <button

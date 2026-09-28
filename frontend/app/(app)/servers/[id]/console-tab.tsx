@@ -1,9 +1,14 @@
 "use client";
 
 import {useEffect, useRef, useState} from "react";
+import {Maximize2, Minimize2} from "lucide-react";
 import {fetchServerConsoleLogs} from "@/lib/generated/sdk.gen";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
+import {FULLSCREEN_PANE_CLASS, useFullscreenPane} from "@/lib/hooks/useFullscreenPane";
 import {ticketWsUrl} from "@/lib/ws-url";
+import {loadConsoleHistory, saveConsoleHistory} from "@/lib/console-history";
+import {attachXtermTouchScroll} from "@/lib/xterm-touch-scroll";
+import {cn} from "@/lib/utils";
 import Anser from "anser";
 
 interface Props {
@@ -56,8 +61,10 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [error, setError] = useState<string | null>(null);
     const [statusMsg, setStatusMsg] = useState<string>("Connecting\u2026");
+    const {fullscreen, toggle: toggleFullscreen} = useFullscreenPane();
     const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
     const roRef = useRef<ResizeObserver | null>(null);
+    const detachTouchRef = useRef<(() => void) | null>(null);
     const disposedRef = useRef(false);
 
     const lineBufRef = useRef("");
@@ -111,6 +118,13 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
         setError(null);
         disposedRef.current = false;
 
+        // Restore persisted command history and reset per-session line state so a server
+        // switch never carries over another server's buffer.
+        historyRef.current = loadConsoleHistory(serverId);
+        lineBufRef.current = "";
+        histPosRef.current = -1;
+        draftBufRef.current = "";
+
         async function init() {
             const {Terminal} = await import("@xterm/xterm");
             const {FitAddon} = await import("@xterm/addon-fit");
@@ -141,6 +155,23 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
             term.open(containerRef.current!);
             fitAddon.fit();
 
+            // xterm 6 wires no touch-scroll path; translate vertical drags into scrollback.
+            detachTouchRef.current = attachXtermTouchScroll(containerRef.current!, term);
+
+            // Ctrl/Cmd+C copies the selection instead of emitting ETX. xterm preventDefaults
+            // every ctrl chord, so returning false both suppresses the signal and lets the
+            // native copy event through.
+            term.attachCustomKeyEventHandler((e) => {
+                if (e.type === "keydown" && (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "c") {
+                    const selection = term.hasSelection() ? term.getSelection() : "";
+                    if (selection && navigator.clipboard?.writeText) {
+                        void navigator.clipboard.writeText(selection).catch(() => {});
+                    }
+                    return false;
+                }
+                return true;
+            });
+
             const ro = new ResizeObserver(() => fitAddon.fit());
             roRef.current = ro;
             if (containerRef.current) ro.observe(containerRef.current);
@@ -170,6 +201,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
                         if (h.length === 0 || h[h.length - 1] !== cmd) {
                             h.push(cmd);
                             if (h.length > 100) h.shift();
+                            saveConsoleHistory(serverId, h);
                         }
                     }
                     lineBufRef.current = "";
@@ -227,6 +259,8 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
         return () => {
             disposedRef.current = true;
+            detachTouchRef.current?.();
+            detachTouchRef.current = null;
             roRef.current?.disconnect();
             roRef.current = null;
             termRef.current?.dispose();
@@ -239,10 +273,27 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col gap-2 px-4 py-6">
+        <div
+            className={cn(
+                "relative flex h-full min-h-0 flex-col gap-2",
+                fullscreen ? `${FULLSCREEN_PANE_CLASS} px-2` : "px-4 py-6",
+            )}
+        >
             {error && <p className="shrink-0 font-mono text-xs text-error">{error}</p>}
             {statusMsg && !error && <p className="shrink-0 font-mono text-xs text-text-muted">{statusMsg}</p>}
-            <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden rounded border border-border" />
+            <button
+                type="button"
+                title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                onClick={toggleFullscreen}
+                className="absolute top-2 right-2 z-10 rounded border border-border bg-surface/80 p-1.5 text-text-muted backdrop-blur transition-colors hover:text-accent md:hidden"
+            >
+                {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+            <div
+                ref={containerRef}
+                className="min-h-0 flex-1 touch-none overflow-hidden overscroll-contain rounded border border-border"
+            />
         </div>
     );
 }

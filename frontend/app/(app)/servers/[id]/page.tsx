@@ -88,6 +88,9 @@ export default function ServerDetailPage() {
     const [notFound, setNotFound] = useState(false);
     const [activeTab, setActiveTab] = useState<Tab>("Overview");
     const [menuOpen, setMenuOpen] = useState(false);
+    // Files is mounted lazily on first visit, then kept mounted so its tree/editor state
+    // survives tab switches without paying the mount cost up front.
+    const [filesVisited, setFilesVisited] = useState(false);
 
     // Live WS data
     const [liveMetrics, setLiveMetrics] = useState<LiveMetrics | null>(null);
@@ -467,7 +470,11 @@ export default function ServerDetailPage() {
             {/* Tab bar */}
             <Tabs
                 value={activeTab}
-                onValueChange={(value) => setActiveTab(value as Tab)}
+                onValueChange={(value) => {
+                    const next = value as Tab;
+                    setActiveTab(next);
+                    if (next === "Files") setFilesVisited(true);
+                }}
                 className="min-h-0 flex-1 overflow-hidden"
             >
                 <div className="shrink-0 border-b border-border bg-surface pb-[7px]">
@@ -508,8 +515,8 @@ export default function ServerDetailPage() {
                 <TabsContent value="Console" className="min-h-0 flex-1 overflow-hidden">
                     <ConsoleTab serverId={server.id} serverStatus={server.status} />
                 </TabsContent>
-                <TabsContent value="Files" className="min-h-0 flex-1 overflow-hidden">
-                    <FilesTab serverId={server.id} />
+                <TabsContent value="Files" keepMounted className="min-h-0 flex-1 overflow-hidden">
+                    {filesVisited && <FilesTab key={server.id} serverId={server.id} active={activeTab === "Files"} />}
                 </TabsContent>
                 <TabsContent value="Backups" className="overflow-auto">
                     <BackupsTab serverId={server.id} />

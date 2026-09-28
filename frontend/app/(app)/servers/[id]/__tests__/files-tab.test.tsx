@@ -160,6 +160,18 @@ describe("FilesTab", () => {
         });
     });
 
+    it("toggles fullscreen from the tree header", async () => {
+        vi.mocked(listServerFiles).mockResolvedValue({data: {entries: []}} as never);
+        render(<FilesTab serverId="s1" />);
+        await waitFor(() => expect(screen.getByText("Empty directory")).toBeInTheDocument());
+
+        fireEvent.click(screen.getByLabelText("Fullscreen"));
+        expect(screen.getByLabelText("Exit fullscreen")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByLabelText("Exit fullscreen"));
+        expect(screen.getByLabelText("Fullscreen")).toBeInTheDocument();
+    });
+
     it("clicking a directory expands it and loads children", async () => {
         const user = userEvent.setup();
         vi.mocked(listServerFiles).mockResolvedValueOnce({
