@@ -5,6 +5,7 @@ import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.proto.masterMessage
+import io.craftpanel.proto.recreateRouterCommand
 import io.craftpanel.proto.shutdownCommand
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -32,7 +33,9 @@ data class NodeResponse(
     @SerialName("agent_version") val agentVersion: String?,
     @SerialName("last_seen_at") val lastSeenAt: String?,
     @SerialName("created_at") val createdAt: String,
-    @SerialName("updated_at") val updatedAt: String
+    @SerialName("updated_at") val updatedAt: String,
+    // True when the agent reports a pre-pulled newer mc-router image awaiting an explicit recreate.
+    @SerialName("router_update_available") val routerUpdateAvailable: Boolean = false
 )
 
 @Serializable
@@ -58,21 +61,22 @@ class NodeService(
     private val gateway: AgentGateway,
     private val nodeRepository: NodeRepository,
     private val serverRepository: ServerRepository,
-    private val nodeRegistrationService: NodeRegistrationService
+    private val nodeRegistrationService: NodeRegistrationService,
+    private val routerStatusStore: RouterStatusStore
 ) {
 
     fun listNodes(): List<NodeResponse> = nodeRepository.listAll()
         .map { node ->
             val ram = nodeRepository.calculateAllocatedRam(node.id)
             val cpu = nodeRepository.calculateAllocatedCpuMillicores(node.id)
-            node.toNodeResponse(ram, cpu)
+            node.toNodeResponse(ram, cpu, routerStatusStore.get(node.id.toString())?.updateAvailable == true)
         }
 
     fun getNode(id: kotlin.uuid.Uuid): NodeResponse {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         val ram = nodeRepository.calculateAllocatedRam(id)
         val cpu = nodeRepository.calculateAllocatedCpuMillicores(id)
-        return node.toNodeResponse(ram, cpu)
+        return node.toNodeResponse(ram, cpu, routerStatusStore.get(id.toString())?.updateAvailable == true)
     }
 
     fun trustNode(id: kotlin.uuid.Uuid) {
@@ -110,6 +114,16 @@ class NodeService(
     fun shutdownNode(id: kotlin.uuid.Uuid) {
         if (nodeRepository.findById(id) == null) throw NotFoundException("Node not found")
         val msg = masterMessage { shutdown = shutdownCommand { timeoutSeconds = 30 } }
+        if (!gateway.sendToNode(id.toString(), msg)) throw BadGatewayException("Agent not connected")
+    }
+
+    /**
+     * Explicit operator action: recreate the node's mc-router now, applying a pre-pulled newer image
+     * at a chosen downtime. The agent never restarts a healthy router implicitly.
+     */
+    fun recreateRouter(id: kotlin.uuid.Uuid) {
+        if (nodeRepository.findById(id) == null) throw NotFoundException("Node not found")
+        val msg = masterMessage { recreateRouter = recreateRouterCommand {} }
         if (!gateway.sendToNode(id.toString(), msg)) throw BadGatewayException("Agent not connected")
     }
 
@@ -155,7 +169,7 @@ class NodeService(
     }
 }
 
-private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuMillicores: Int) = NodeResponse(
+private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuMillicores: Int, routerUpdateAvailable: Boolean) = NodeResponse(
     id = id.toString(),
     displayName = displayName,
     hostname = hostname,
@@ -176,5 +190,6 @@ private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuMillicores: 
     agentVersion = agentVersion,
     lastSeenAt = lastSeenAt,
     createdAt = createdAt,
-    updatedAt = updatedAt
+    updatedAt = updatedAt,
+    routerUpdateAvailable = routerUpdateAvailable
 )

@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.CreateContainerCmd
 import com.github.dockerjava.api.command.InspectContainerCmd
 import com.github.dockerjava.api.command.InspectContainerResponse
+import com.github.dockerjava.api.command.InspectImageCmd
 import com.github.dockerjava.api.command.PullImageCmd
 import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.command.RemoveContainerCmd
@@ -93,6 +94,16 @@ class McRouterProvisionerTest :
             }
         }
 
+        context("routerImageUpdateAvailable") {
+            test("true only when both ids are known and differ") {
+                routerImageUpdateAvailable("sha256:old", "sha256:new") shouldBe true
+                routerImageUpdateAvailable("sha256:same", "sha256:same") shouldBe false
+                routerImageUpdateAvailable(null, "sha256:new") shouldBe false
+                routerImageUpdateAvailable("sha256:old", null) shouldBe false
+                routerImageUpdateAvailable("", "sha256:new") shouldBe false
+            }
+        }
+
         context("ensureRunning") {
             test("recreates, pulls and creates with the new image when the existing container runs a different image") {
                 val docker = mockk<DockerClient>()
@@ -132,12 +143,91 @@ class McRouterProvisionerTest :
                 every { createCmd.withLabels(any()) } returns createCmd
                 every { docker.startContainerCmd(any<String>()) } returns mockk<StartContainerCmd>(relaxed = true)
 
-                McRouterProvisioner(docker, "new-router:2", updateOnStart = false).ensureRunning()
+                McRouterProvisioner(docker, { "new-router:2" }, updateOnStart = false).ensureRunning()
 
                 verify { docker.removeContainerCmd("old-id") }
                 verify { docker.pullImageCmd("new-router:2") }
                 verify { docker.createContainerCmd("new-router:2") }
                 verify { createCmd.withEnv("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true", "LOG_LEVEL=warn") }
+            }
+
+            test("a running router with a changed image id is left alone and reports an update") {
+                val docker = mockk<DockerClient>()
+                val existing = mockk<InspectContainerResponse>()
+                val containerConfig = mockk<ContainerConfig>()
+                val containerState = mockk<InspectContainerResponse.ContainerState>()
+                val hostConfig = mockk<HostConfig>()
+
+                val inspectCmd = mockk<InspectContainerCmd>(relaxed = true)
+                every { inspectCmd.exec() } returns existing
+                every { docker.inspectContainerCmd("craftpanel-mc-router") } returns inspectCmd
+                every { existing.id } returns "id"
+                every { existing.imageId } returns "sha256:old"
+                every { existing.config } returns containerConfig
+                every { containerConfig.image } returns "router:1"
+                every { containerConfig.env } returns arrayOf(
+                    "IN_DOCKER=true",
+                    "DYNAMIC_PROXY_PROTOCOL=true",
+                    "LOG_LEVEL=warn"
+                )
+                every { existing.hostConfig } returns hostConfig
+                every { hostConfig.groupAdd } returns listOf("48")
+                every { existing.state } returns containerState
+                every { containerState.running } returns true
+                val imageCmd = mockk<InspectImageCmd>(relaxed = true)
+                every { imageCmd.exec().id } returns "sha256:new"
+                every { docker.inspectImageCmd("router:1") } returns imageCmd
+
+                val provisioner = McRouterProvisioner(
+                    docker,
+                    { "router:1" },
+                    updateOnStart = false,
+                    socketGidProvider = { "48" }
+                )
+
+                provisioner.ensureRunning() shouldBe false
+                provisioner.updateAvailable shouldBe true
+                verify(exactly = 0) { docker.removeContainerCmd(any<String>()) }
+                verify(exactly = 0) { docker.pullImageCmd(any<String>()) }
+            }
+
+            test("a running router on the current image reports no update") {
+                val docker = mockk<DockerClient>()
+                val existing = mockk<InspectContainerResponse>()
+                val containerConfig = mockk<ContainerConfig>()
+                val containerState = mockk<InspectContainerResponse.ContainerState>()
+                val hostConfig = mockk<HostConfig>()
+
+                val inspectCmd = mockk<InspectContainerCmd>(relaxed = true)
+                every { inspectCmd.exec() } returns existing
+                every { docker.inspectContainerCmd("craftpanel-mc-router") } returns inspectCmd
+                every { existing.id } returns "id"
+                every { existing.imageId } returns "sha256:same"
+                every { existing.config } returns containerConfig
+                every { containerConfig.image } returns "router:1"
+                every { containerConfig.env } returns arrayOf(
+                    "IN_DOCKER=true",
+                    "DYNAMIC_PROXY_PROTOCOL=true",
+                    "LOG_LEVEL=warn"
+                )
+                every { existing.hostConfig } returns hostConfig
+                every { hostConfig.groupAdd } returns listOf("48")
+                every { existing.state } returns containerState
+                every { containerState.running } returns true
+                val imageCmd = mockk<InspectImageCmd>(relaxed = true)
+                every { imageCmd.exec().id } returns "sha256:same"
+                every { docker.inspectImageCmd("router:1") } returns imageCmd
+
+                val provisioner = McRouterProvisioner(
+                    docker,
+                    { "router:1" },
+                    updateOnStart = false,
+                    socketGidProvider = { "48" }
+                )
+
+                provisioner.ensureRunning() shouldBe false
+                provisioner.updateAvailable shouldBe false
+                verify(exactly = 0) { docker.removeContainerCmd(any<String>()) }
             }
         }
     })

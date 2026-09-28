@@ -284,6 +284,30 @@ class ConvergenceLoopTest :
             cm.calls.filter { it.startsWith("start:") } shouldBe listOf("start:craftpanel-srv-1")
         }
 
+        test("a same-tag image id drift recreates the container on the next start") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd(image = "img:latest"))).join()
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                ).join()
+                // A newer image is pulled under the same tag: the local tag id moves while the
+                // container still references the old id.
+                cm.imageIds["img:latest"] = "sha256:newer"
+                cm.calls.clear()
+                loop.applyDesired(desiredRunning(spec = startCmd(image = "img:latest"))).join()
+            }
+
+            cm.calls.filter { it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
+                listOf("remove:craftpanel-srv-1", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
+        }
+
         test("a restart recreates when the live container config differs from the desired spec") {
             // The container was created with a different image than the desired spec. Even with an
             // unknown in-memory applied spec, the inspect proves the mismatch → recreate.

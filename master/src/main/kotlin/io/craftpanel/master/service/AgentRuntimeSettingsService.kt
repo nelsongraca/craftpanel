@@ -36,6 +36,8 @@ class AgentRuntimeSettingsService(
                 windowSeconds = s.restartWindowSeconds
             }
             jvmMetricsPollIntervalSeconds = s.jvmMetricsPollIntervalSeconds
+            imageRefreshIntervalSeconds = s.imageRefreshIntervalSeconds
+            mcRouterImage = s.imageMcRouter
         }
     }
 

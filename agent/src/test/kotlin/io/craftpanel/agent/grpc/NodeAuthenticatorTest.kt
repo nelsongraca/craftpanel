@@ -164,6 +164,7 @@ class NodeAuthenticatorTest :
                             windowSeconds = 600
                         }
                         jvmMetricsPollIntervalSeconds = 60
+                        imageRefreshIntervalSeconds = 86_400
                     }
                 }
             }
@@ -197,6 +198,7 @@ class NodeAuthenticatorTest :
                             windowSeconds = 300
                         }
                         jvmMetricsPollIntervalSeconds = 15
+                        imageRefreshIntervalSeconds = 86_400
                     }
                 }
             }

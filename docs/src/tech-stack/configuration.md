@@ -123,8 +123,11 @@ These values are stored in the `system_settings` database table and can be chang
 | `cf_api_token`                | _(empty, write-only)_    | Cloudflare API token, required when `dns_provider=cloudflare`. Stored encrypted at rest; the API only ever returns `cf_api_token_set` (boolean). |
 | `rate_limit_login_per_minute` | `10`                     | Max login attempts per client per minute. **Restart required.**                               |
 | `rate_limit_refresh_per_minute` | `30`                   | Max token-refresh calls per client per minute. **Restart required.**                          |
-| `image_minecraft`             | `itzg/minecraft-server`  | Base Docker image for Minecraft servers. **Restart required.**                                |
-| `image_proxy`                 | `itzg/mc-proxy`          | Base Docker image for proxy servers (BungeeCord/Velocity/Waterfall). **Restart required.**    |
+| `image_minecraft`             | `itzg/minecraft-server`  | Base Docker image for Minecraft servers. Applied when a server is created/recreated.          |
+| `image_proxy`                 | `itzg/mc-proxy`          | Base Docker image for proxy servers (BungeeCord/Velocity/Waterfall). Applied when a proxy is created/recreated. |
+| `image_picolimbo`             | `ghcr.io/quozul/picolimbo` | Base Docker image for PicoLimbo servers. Applied when a server is created/recreated.        |
+| `image_mc_router`             | `itzg/mc-router:latest`  | mc-router image. Pushed to agents live. A running router is **never** restarted automatically — the node page reports an update and offers an explicit "Recreate proxy" action. |
+| `image_refresh_interval_seconds` | `86400`               | How often each agent pre-pulls its managed server and mc-router images (s); `0` disables pre-pulling. Pushed to agents live. |
 
 !!! warning
 Never store deployment secrets (database credentials, the forwarding key) in the config file or the settings table in production. The Cloudflare API token is the one secret stored in the settings table, encrypted at rest with `FORWARDING_KEY`.

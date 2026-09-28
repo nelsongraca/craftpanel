@@ -18,6 +18,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     shutdownNode: vi.fn(),
     decommissionNode: vi.fn(),
     updateNode: vi.fn(),
+    recreateNodeRouter: vi.fn(),
     startServer: vi.fn(),
     stopServer: vi.fn(),
     restartServer: vi.fn(),
@@ -58,7 +59,14 @@ vi.mock("@/components/servers/header-action-button", () => ({
     )),
 }));
 
-import {getNode, getNodeMetrics, listServers, trustNode, rotateNodeToken} from "@/lib/generated/sdk.gen";
+import {
+    getNode,
+    getNodeMetrics,
+    listServers,
+    trustNode,
+    rotateNodeToken,
+    recreateNodeRouter,
+} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {HealthProvider} from "@/lib/hooks/useHealth";
 import NodeDetailPage from "../page";
@@ -787,6 +795,37 @@ describe("NodeDetailPage", () => {
             });
 
             vi.useRealTimers();
+        });
+    });
+
+    describe("mc-router update", () => {
+        it("shows the update badge and recreate action when an update is available", async () => {
+            await renderDetail({router_update_available: true}, [], MANAGE);
+
+            expect(screen.getByText("Router update available")).toBeTruthy();
+            expect(screen.getByRole("button", {name: "Recreate proxy"})).toBeTruthy();
+        });
+
+        it("hides the update badge and action when no update is available", async () => {
+            await renderDetail({router_update_available: false}, [], MANAGE);
+
+            expect(screen.queryByText("Router update available")).toBeNull();
+            expect(screen.queryByRole("button", {name: "Recreate proxy"})).toBeNull();
+        });
+
+        it("recreates the router after confirming the downtime warning", async () => {
+            vi.mocked(recreateNodeRouter).mockResolvedValue({} as never);
+            await renderDetail({router_update_available: true}, [], MANAGE);
+
+            const user = userEvent.setup();
+            await user.click(screen.getByRole("button", {name: "Recreate proxy"}));
+            expect(await screen.findByText("Recreate mc-router?")).toBeTruthy();
+
+            await user.click(screen.getByRole("button", {name: "Recreate now"}));
+
+            await waitFor(() => {
+                expect(recreateNodeRouter).toHaveBeenCalledWith({path: {id: "n1"}});
+            });
         });
     });
 });

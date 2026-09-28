@@ -143,6 +143,11 @@ class ConvergenceLoop(
         store.remove(serverId)
     }
 
+    /** Distinct images of every server this agent manages, for the periodic pre-pull. */
+    fun managedImages(): Set<String> = store.all()
+        .mapNotNull { it.spec?.image?.takeIf { image -> image.isNotEmpty() } }
+        .toSet()
+
     /**
      * CPU cap (millicores, 0 = unlimited) the server's container was allocated, used to normalize
      * reported CPU usage onto the allocation. Prefers the applied spec (the cap the running

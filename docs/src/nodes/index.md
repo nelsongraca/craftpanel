@@ -72,7 +72,7 @@ the table below mirrors it with extra protocol context.
 | `BACKUPS_BY_SERVER_PATH`        | `$DATA_PATH/backups-by-server` | Root of the `backups-by-server/<name>/<timestamp>.tar.gz` symlink overlay.                                                                                                                                                               |
 | `CRAFTPANEL_NETWORK`            | `craftpanel`                  | Name of the Docker bridge network shared by the agent, mc-router, and rsync utility containers. Game server containers are **not** on it. The network must exist before the agent starts. See [Docker Network](../networking/index.md#docker-networks). |
 | `CRAFTPANEL_CONTAINER_PREFIX`   | `craftpanel`                  | Prefix applied to all container names created by this agent (e.g. `craftpanel-<server-id>`). Change only when running multiple isolated CraftPanel stacks on the same Docker daemon.                                                      |
-| `MCROUTER_IMAGE`                | `itzg/mc-router:latest`       | Docker image used when provisioning the mc-router container on startup.                                                                                                                                                                   |
+| `MCROUTER_IMAGE`                | `itzg/mc-router:latest`       | Fallback mc-router image. The master DB setting `image_mc_router` is authoritative; this env var is used only when the pushed value is blank (old master / air-gapped pinned digest).                                                     |
 | `MCROUTER_UPDATE_ON_START`      | `true`                        | Pull the mc-router image on every agent startup. Set to `false` to skip the pull and use the locally cached image.                                                                                                                        |
 | `MCROUTER_CONTAINER_NAME`       | `craftpanel-mc-router`        | Overrides the mc-router container name.                                                                                                                                                                                                   |
 | `MCROUTER_ENABLED`              | `true`                        | When `false`, the agent never provisions, attaches, detaches, or metrics-queries mc-router.                                                                                                                                               |
@@ -156,10 +156,25 @@ server containers by their container name. On startup, and after any recreate, t
 See [Docker Network](../networking/index.md#docker-networks).
 
 The image is pulled whenever the container is created or recreated: with `MCROUTER_UPDATE_ON_START=true` (default) the configured image is pulled first; with `false` it is pulled only when it is
-absent locally. Set `false` in environments where image pulls are restricted or where a pinned digest is baked into `MCROUTER_IMAGE`.
+absent locally. Set `false` in environments where image pulls are restricted or where a pinned digest is baked into `MCROUTER_IMAGE`. The mc-router image is configured install-wide in
+**Settings → Container Images** (`image_mc_router`); it is pushed to agents live, with `MCROUTER_IMAGE` as a per-node fallback.
 
-The agent reconciles the running container against its configured image and env on every check. If the container was built from a **different image** (e.g. `MCROUTER_IMAGE` changed), or is missing
-`IN_DOCKER=true` / `DYNAMIC_PROXY_PROTOCOL=true` / the configured `MCROUTER_LOG_LEVEL`, or the docker.sock group membership, it is removed and recreated with the configured image; an already-matching container is left as-is.
+The agent reconciles the running container against its configured image reference and env on every check. If the container was built from a **different image reference** (e.g. `image_mc_router`
+changed to another tag), or is missing `IN_DOCKER=true` / `DYNAMIC_PROXY_PROTOCOL=true` / the configured `MCROUTER_LOG_LEVEL`, or the docker.sock group membership, it is removed and recreated. A
+container that is absent or down is always recreated (picking up the current image). A healthy running container is otherwise left as-is.
+
+### mc-router image updates (planned downtime)
+
+A newer image under the **same tag** (a normal registry update) never restarts a running router. Each agent pre-pulls its managed server and mc-router images on the
+`image_refresh_interval_seconds` cadence (default 24 h; `0` disables). When the router's running image id differs from the freshly pulled tag, the node page shows a **Router update available**
+badge. Apply it at a chosen time with the **Recreate proxy** button — this briefly disconnects proxied players.
+
+!!! warning "`docker system prune -a` drops pre-pulled images"
+    Docker has no way to pin an image that no container references, so `docker system prune -a` removes stopped containers and then unused images — including a freshly pre-pulled update. This is
+    cosmetic: the image is re-pulled when the update is applied, and the badge may lag until the next refresh interval. Prefer `docker system prune` (no `-a`), which only removes dangling images.
+
+Server containers behave the same way: a pre-pulled newer image is applied only at the next server **start/restart** — a running server is never restarted for an image update. The server/proxy/PicoLimbo
+images are also install-wide settings (`image_minecraft`, `image_proxy`, `image_picolimbo`) — see [System Settings](../data-model/system-settings.md).
 
 ### mc-router health and recovery
 

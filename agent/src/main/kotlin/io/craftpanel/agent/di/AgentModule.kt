@@ -19,6 +19,7 @@ import io.craftpanel.agent.grpc.NodeAuthenticator
 import io.craftpanel.agent.grpc.NodeIdentity
 import io.craftpanel.agent.grpc.handlers.*
 import io.craftpanel.agent.runtime.AgentRuntime
+import io.craftpanel.agent.runtime.ImageRefresher
 import io.craftpanel.agent.runtime.OutboundSink
 import io.craftpanel.proto.AgentMessage
 import kotlinx.coroutines.CoroutineScope
@@ -82,11 +83,16 @@ val agentModule = module {
     }
     single {
         McRouterProvisioner(
-            get(),
-            get<AgentConfig>().mcRouterImage,
-            get<AgentConfig>().mcRouterUpdateOnStart,
-            get<AgentConfig>().craftpanelNetwork,
-            get<AgentConfig>().mcRouterContainerName,
+            docker = get(),
+            // DB setting is authoritative; MCROUTER_IMAGE (in AgentConfig) is the fallback when the
+            // pushed value is blank (old master / air-gapped pinned digest).
+            imageProvider = {
+                get<RuntimeSettingsStore>().current().mcRouterImage
+                    .ifBlank { get<AgentConfig>().mcRouterImage }
+            },
+            updateOnStart = get<AgentConfig>().mcRouterUpdateOnStart,
+            networkName = get<AgentConfig>().craftpanelNetwork,
+            containerNameOverride = get<AgentConfig>().mcRouterContainerName,
             logLevel = get<AgentConfig>().mcRouterLogLevel
         )
     }
@@ -98,7 +104,7 @@ val agentModule = module {
             get<AgentConfig>().containerNamePrefix
         )
     }
-    single { RouterSupervisor(get(), get(), get<AgentConfig>().mcRouterEnabled) }
+    single { RouterSupervisor(get(), get(), get<AgentConfig>().mcRouterEnabled, out = get()) }
     single { MetricsCollector(get()) }
     single {
         RsyncMigrator(
@@ -142,13 +148,25 @@ val agentModule = module {
     }
     single { RuntimeSettingsHandler(get()) }
     single {
+        ImageRefresher(
+            containerManager = get(),
+            managedImages = get<ConvergenceLoop>()::managedImages,
+            routerImage = {
+                get<RuntimeSettingsStore>().current().mcRouterImage
+                    .ifBlank { get<AgentConfig>().mcRouterImage }
+            },
+            settingsStore = get()
+        )
+    }
+    single {
         AgentRuntime(
             scope = get(named(RUNTIME_SCOPE)),
             loop = get(),
             metricsPump = get(),
             eventWatcher = get(),
             gate = get(),
-            settingsStore = get()
+            settingsStore = get(),
+            imageRefresher = get()
         )
     }
 
@@ -182,7 +200,8 @@ val agentModule = module {
                 file = get(),
                 console = get(),
                 bulkClient = get(),
-                runtimeSettings = get()
+                runtimeSettings = get(),
+                routerSupervisor = get()
             )
         }
         scoped {

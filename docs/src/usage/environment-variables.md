@@ -119,7 +119,7 @@ registration protocol and data-path rules.
 | `PUBLIC_IP_URL`                     | No             | —                                | External service used to detect this node's public IP (e.g. `https://api.ipify.org`).                          |
 | `SYSTEM_RESERVED_RAM_MB`            | No             | `0`                              | RAM (MB) reserved for the host OS, excluded from allocatable capacity.                                         |
 | `SYSTEM_RESERVED_CPU_MILLICORES`    | No             | `0`                              | CPU millicores (1000 per core) reserved for the host OS, excluded from allocatable capacity.                   |
-| `MCROUTER_IMAGE`                    | No             | `itzg/mc-router:latest`          | Image used for the shared mc-router container.                                                                 |
+| `MCROUTER_IMAGE`                    | No             | `itzg/mc-router:latest`          | Fallback mc-router image. The `image_mc_router` System Setting is authoritative; used only when that is blank. |
 | `MCROUTER_UPDATE_ON_START`          | No             | `true`                           | Whether to pull a fresh mc-router image on agent start. Set `false` to use the cached image.                    |
 | `MCROUTER_CONTAINER_NAME`           | No             | `craftpanel-mc-router`           | Overrides the mc-router container name.                                                                        |
 | `MCROUTER_ENABLED`                  | No             | `true`                           | When `false`, the agent never provisions, attaches, detaches, or metrics-queries mc-router.                    |

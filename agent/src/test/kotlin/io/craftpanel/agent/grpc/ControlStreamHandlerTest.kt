@@ -61,7 +61,8 @@ class ControlStreamHandlerTest :
                 file = mockk(relaxed = true),
                 console = consoleHandler,
                 bulkClient = mockk(relaxed = true),
-                runtimeSettings = mockk(relaxed = true)
+                runtimeSettings = mockk(relaxed = true),
+                routerSupervisor = routerSupervisor
             ),
             out = mockk(relaxed = true)
         )

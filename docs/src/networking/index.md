@@ -35,8 +35,10 @@ mc-router is attached to the `craftpanel` infra network **and** to every server 
 The **agent** provisions and manages the mc-router container automatically — no manual setup is required on the node. In a background supervisor loop (and, for exposed servers, synchronously before a
 start) the agent:
 
-1. Recreates the container when it drifts from the configured image (controlled by `MCROUTER_IMAGE`, default `itzg/mc-router:latest`) or is missing the required env flags / configured log level / docker.sock group
-2. Otherwise starts it if it is not running, or leaves it in place if it is
+1. Recreates the container when its image **reference** drifts (e.g. the install-wide `image_mc_router` setting changed) or when it is missing the required env flags / configured log level / docker.sock
+   group, and always recreates it when it is absent or down
+2. Otherwise leaves a healthy running container in place — a newer image under the **same tag** never restarts it. The node page reports an "update available" badge and offers an explicit **Recreate
+   proxy** action for planned downtime
 3. Attaches mc-router to every server network bridge/overlay that exists locally — and re-attaches after a recreate, which otherwise loses all per-server attachments
 
 The image is pulled whenever the container is created or recreated. `MCROUTER_UPDATE_ON_START=false` skips the pull unless the image is absent locally — useful when the image is pinned to a specific

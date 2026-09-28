@@ -24,6 +24,8 @@ data class Settings(
     @SerialName("rate_limit_totp_verify_per_minute") val rateLimitTotpVerifyPerMinute: Int,
     @SerialName("image_minecraft") val imageMinecraft: String,
     @SerialName("image_proxy") val imageProxy: String,
+    @SerialName("image_picolimbo") val imagePicolimbo: String,
+    @SerialName("image_mc_router") val imageMcRouter: String,
     @SerialName("console_tail_lines") val consoleTailLines: Int,
     @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
     @SerialName("dns_zone_id") val dnsZoneId: String?,
@@ -33,7 +35,8 @@ data class Settings(
     @SerialName("cf_api_token_set") val cfApiTokenSet: Boolean,
     @SerialName("metrics_poll_interval_seconds") val metricsPollIntervalSeconds: Int,
     @SerialName("metrics_collection_concurrency") val metricsCollectionConcurrency: Int,
-    @SerialName("agent_reconcile_interval_seconds") val agentReconcileIntervalSeconds: Int
+    @SerialName("agent_reconcile_interval_seconds") val agentReconcileIntervalSeconds: Int,
+    @SerialName("image_refresh_interval_seconds") val imageRefreshIntervalSeconds: Int
 ) {
 
     companion object {
@@ -55,6 +58,8 @@ data class Settings(
                 rateLimitTotpVerifyPerMinute = map["rate_limit_totp_verify_per_minute"]?.toIntOrNull() ?: 10,
                 imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
                 imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
+                imagePicolimbo = map["image_picolimbo"] ?: "ghcr.io/quozul/picolimbo",
+                imageMcRouter = map["image_mc_router"] ?: "itzg/mc-router:latest",
                 consoleTailLines = map["console_tail_lines"]?.toIntOrNull() ?: 200,
                 dnsDomainSuffix = map["dns_domain_suffix"]?.takeIf { it.isNotBlank() },
                 dnsZoneId = map["dns_zone_id"]?.takeIf { it.isNotBlank() },
@@ -62,7 +67,8 @@ data class Settings(
                 cfApiTokenSet = map["cf_api_token"]?.isNotBlank() == true,
                 metricsPollIntervalSeconds = map["metrics_poll_interval_seconds"]?.toIntOrNull() ?: 5,
                 metricsCollectionConcurrency = map["metrics_collection_concurrency"]?.toIntOrNull() ?: 8,
-                agentReconcileIntervalSeconds = map["agent_reconcile_interval_seconds"]?.toIntOrNull() ?: 30
+                agentReconcileIntervalSeconds = map["agent_reconcile_interval_seconds"]?.toIntOrNull() ?: 30,
+                imageRefreshIntervalSeconds = map["image_refresh_interval_seconds"]?.toIntOrNull() ?: 86_400
             )
         }
     }

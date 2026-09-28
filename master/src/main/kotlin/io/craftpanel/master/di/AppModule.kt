@@ -83,6 +83,8 @@ val appModule = module {
         )
     }
     single { NodeMetricsHandler(get(), get()) }
+    single { RouterStatusStore() }
+    single { RouterStatusHandler(get()) }
     single { ContainerMetricsHandler(get()) }
     single { ServerStatusHandler(get()) }
     single { PlayerUpdateHandler(get()) }
@@ -104,6 +106,7 @@ val appModule = module {
             backupHandler = get(),
             migrationHandler = get(),
             dataOpResponseHandler = get(),
+            routerStatusHandler = get(),
             agentRuntimeSettingsService = get()
         )
     }
@@ -162,7 +165,7 @@ val appModule = module {
         )
     }
     single { BrandingService(settingsProvider = get()) }
-    single { NodeService(gateway = get<AgentGateway>(), nodeRepository = get(), serverRepository = get(), nodeRegistrationService = get()) }
+    single { NodeService(gateway = get<AgentGateway>(), nodeRepository = get(), serverRepository = get(), nodeRegistrationService = get(), routerStatusStore = get()) }
     single {
         val endpoint = get<AppConfig>().docker.endpoint
         val dockerClient = if (endpoint.isNotEmpty()) MasterDockerClient.create(endpoint) else null

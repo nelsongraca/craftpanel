@@ -1,5 +1,6 @@
 package io.craftpanel.agent.grpc
 
+import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.handlers.*
 import io.craftpanel.proto.*
 import io.kotest.assertions.throwables.shouldThrow
@@ -23,6 +24,7 @@ class CommandDispatcherTest :
         val console = mockk<ConsoleHandler>(relaxed = true)
         val bulkClient = mockk<BulkDataClient>(relaxed = true)
         val runtimeSettings = mockk<RuntimeSettingsHandler>(relaxed = true)
+        val routerSupervisor = mockk<RouterSupervisor>(relaxed = true)
 
         val dispatcher = CommandDispatcher(
             container = container,
@@ -32,7 +34,8 @@ class CommandDispatcherTest :
             file = file,
             console = console,
             bulkClient = bulkClient,
-            runtimeSettings = runtimeSettings
+            runtimeSettings = runtimeSettings,
+            routerSupervisor = routerSupervisor
         )
 
         test("routes desired-state envelope to DesiredStateHandler and remove/shutdown to ContainerHandler") {

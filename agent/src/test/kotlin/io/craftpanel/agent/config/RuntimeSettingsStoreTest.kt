@@ -15,7 +15,9 @@ class RuntimeSettingsStoreTest :
             reconcile: Int = 0,
             budgetMaxAttempts: Int = 0,
             budgetWindowSeconds: Long = 0L,
-            jvmInterval: Int = 0
+            jvmInterval: Int = 0,
+            imageRefresh: Int = 0,
+            routerImage: String = ""
         ) = agentRuntimeSettings {
             metricsPollIntervalSeconds = metricsPoll
             metricsCollectionConcurrency = concurrency
@@ -25,6 +27,8 @@ class RuntimeSettingsStoreTest :
                 windowSeconds = budgetWindowSeconds
             }
             jvmMetricsPollIntervalSeconds = jvmInterval
+            imageRefreshIntervalSeconds = imageRefresh
+            mcRouterImage = routerImage
         }
 
         test("apply persists to disk and a fresh store loads the snapshot") {
@@ -63,7 +67,7 @@ class RuntimeSettingsStoreTest :
 
         test("reconcile_interval_seconds=0 alone is a valid snapshot (sweep disabled)") {
             val settings = RuntimeSettings.fromProto(
-                proto(metricsPoll = 5, concurrency = 8, budgetMaxAttempts = 5, budgetWindowSeconds = 600, jvmInterval = 30)
+                proto(metricsPoll = 5, concurrency = 8, budgetMaxAttempts = 5, budgetWindowSeconds = 600, jvmInterval = 30, imageRefresh = 86_400)
             )
             settings shouldBe RuntimeSettings(
                 metricsPollIntervalSeconds = 5,
@@ -76,7 +80,7 @@ class RuntimeSettingsStoreTest :
 
         test("a populated snapshot converts to runtime settings") {
             val settings = RuntimeSettings.fromProto(
-                proto(metricsPoll = 7, concurrency = 3, reconcile = 15, budgetMaxAttempts = 9, budgetWindowSeconds = 120, jvmInterval = 60)
+                proto(metricsPoll = 7, concurrency = 3, reconcile = 15, budgetMaxAttempts = 9, budgetWindowSeconds = 120, jvmInterval = 60, imageRefresh = 86_400)
             )
             settings shouldBe RuntimeSettings(
                 metricsPollIntervalSeconds = 7,

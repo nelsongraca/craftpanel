@@ -40,6 +40,11 @@ class OutboundSink {
         outbound?.tryServerStatus(serverId, status)
     }
 
+    /** mc-router liveness / update signal. No-op while detached — the snapshot re-seeds on reconnect. */
+    fun tryRouterStatus(running: Boolean, updateAvailable: Boolean) {
+        outbound?.tryRouterStatus(running, updateAvailable)
+    }
+
     /**
      * Runs [block] and reports [success]/UNHEALTHY when a connection is open. Unlike the underlying
      * [AgentOutbound.withStatus], the block always runs — convergence must proceed offline — only the

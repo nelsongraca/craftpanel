@@ -14,6 +14,7 @@ import io.craftpanel.master.service.AgentRuntimeSettingsService
 import io.craftpanel.master.service.NodeRegistrationService
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.PortAllocator
+import io.craftpanel.master.service.RouterStatusStore
 import io.craftpanel.master.service.SettingsProvider
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.PortRepository
@@ -70,6 +71,7 @@ fun createTestControlServiceImpl(
         backupHandler = backupHandler,
         migrationHandler = migrationHandler,
         dataOpResponseHandler = dataOpResponseHandler,
+        routerStatusHandler = RouterStatusHandler(RouterStatusStore()),
         agentRuntimeSettingsService = AgentRuntimeSettingsService(
             SettingsProvider(SettingsRepositoryImpl()),
             nodeRepository,

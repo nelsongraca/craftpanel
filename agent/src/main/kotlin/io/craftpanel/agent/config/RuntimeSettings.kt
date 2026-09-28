@@ -19,7 +19,12 @@ data class RuntimeSettings(
     // 0 disables the convergence backstop sweep.
     val reconcileIntervalSeconds: Int = 30,
     val restartBudget: RestartBudgetSettings = RestartBudgetSettings(),
-    val jvmMetricsPollIntervalSeconds: Int = 30
+    val jvmMetricsPollIntervalSeconds: Int = 30,
+    // Best-effort pre-pull cadence for every managed server image and the mc-router image, so an
+    // update is already local when it is applied at the next restart. 0 disables pre-pulling.
+    val imageRefreshIntervalSeconds: Int = 86_400,
+    // mc-router image from master's DB. Blank means "no preference" — fall back to MCROUTER_IMAGE.
+    val mcRouterImage: String = ""
 ) {
 
     companion object {
@@ -39,6 +44,8 @@ data class RuntimeSettings(
                 proto.metricsCollectionConcurrency == 0 &&
                 proto.reconcileIntervalSeconds == 0 &&
                 proto.jvmMetricsPollIntervalSeconds == 0 &&
+                proto.imageRefreshIntervalSeconds == 0 &&
+                proto.mcRouterImage.isBlank() &&
                 proto.restartBudget.maxAttempts == 0 &&
                 proto.restartBudget.windowSeconds == 0L
             if (allZero) return null
@@ -50,7 +57,9 @@ data class RuntimeSettings(
                     maxAttempts = proto.restartBudget.maxAttempts.coerceAtLeast(0),
                     windowSeconds = proto.restartBudget.windowSeconds.coerceAtLeast(1)
                 ),
-                jvmMetricsPollIntervalSeconds = proto.jvmMetricsPollIntervalSeconds.coerceAtLeast(1)
+                jvmMetricsPollIntervalSeconds = proto.jvmMetricsPollIntervalSeconds.coerceAtLeast(1),
+                imageRefreshIntervalSeconds = proto.imageRefreshIntervalSeconds.coerceAtLeast(0),
+                mcRouterImage = proto.mcRouterImage
             )
         }
 

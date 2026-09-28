@@ -3,9 +3,9 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {Ban, Check, ChevronRight, KeyRound, Power, Trash2, X} from "lucide-react";
+import {Ban, Check, ChevronRight, KeyRound, Power, RefreshCw, Trash2, X} from "lucide-react";
 import {CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis} from "recharts";
-import {getNode, getNodeMetrics, listServers} from "@/lib/generated/sdk.gen";
+import {getNode, getNodeMetrics, listServers, recreateNodeRouter} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {useWs} from "@/lib/ws-context";
@@ -21,6 +21,7 @@ import {EditNode} from "@/components/nodes/edit-node";
 import {ServerList} from "@/components/servers/server-list";
 import {ServerActions, useServerActions} from "@/components/servers/server-actions";
 import {Badge} from "@/components/ui/badge";
+import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 import {Skeleton} from "@/components/ui/skeleton";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {Tabs, TabsList, TabsTrigger, TabsContent} from "@/components/ui/tabs";
@@ -455,6 +456,7 @@ export default function NodeDetailPage() {
 
     // Modals
     const [tokenKey, setTokenKey] = useState<string | null>(null);
+    const [routerConfirmOpen, setRouterConfirmOpen] = useState(false);
 
     const fetchNode = useCallback(async () => {
         const {data, response} = await getNode({path: {id}});
@@ -467,6 +469,12 @@ export default function NodeDetailPage() {
         const {data} = await listServers();
         if (data) setServers(data.filter((s) => s.node_id === id));
     }, [id]);
+
+    const recreateRouter = useCallback(async () => {
+        const {error: apiError} = await recreateNodeRouter({path: {id}});
+        if (apiError) throw new Error(apiError.message ?? "Failed to send recreate command");
+        void fetchNode();
+    }, [id, fetchNode]);
 
     const {
         allowedActions: allowedServerActions,
@@ -565,10 +573,20 @@ export default function NodeDetailPage() {
                         <Badge variant={nodeStatusVariant(node.status, node.health)}>
                             {nodeStatusLabel(node.status, node.health)}
                         </Badge>
+                        {node.router_update_available && <Badge variant="amber">Router update available</Badge>}
                     </div>
 
                     {canManage && (
                         <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            {node.router_update_available && (
+                                <HeaderActionButton
+                                    icon={<RefreshCw size={12} strokeWidth={2.5} />}
+                                    label="Recreate proxy"
+                                    loading={false}
+                                    onClick={() => setRouterConfirmOpen(true)}
+                                    variant="amber"
+                                />
+                            )}
                             {allowedNodeActions(node, servers.length).map((action) => {
                                 const {icon, label, variant} = NODE_HEADER_ACTION_BUTTONS[action];
                                 return (
@@ -683,6 +701,15 @@ export default function NodeDetailPage() {
 
             {/* Modals */}
             {tokenKey && <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)} />}
+            <ConfirmDialog
+                open={routerConfirmOpen}
+                onOpenChange={setRouterConfirmOpen}
+                title="Recreate mc-router?"
+                description="All players connected through mc-router will be briefly disconnected while the proxy is recreated. Apply this during a planned downtime window."
+                confirmLabel="Recreate now"
+                destructive
+                onConfirm={recreateRouter}
+            />
             {nodeActionsDialog}
             {serverActionsDialog}
         </div>

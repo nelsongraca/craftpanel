@@ -26,7 +26,8 @@ class AgentRuntime(
     private val metricsPump: MetricsPump,
     private val eventWatcher: ContainerEventWatcher,
     private val gate: WatcherGate,
-    private val settingsStore: RuntimeSettingsStore
+    private val settingsStore: RuntimeSettingsStore,
+    private val imageRefresher: ImageRefresher
 ) {
 
     private val log = LoggerFactory.getLogger(AgentRuntime::class.java)
@@ -39,6 +40,10 @@ class AgentRuntime(
         // deaths the Docker event stream never delivered (agent/Docker daemon restart, dropped
         // stream) instead of leaving the server down until the next reconnect.
         scope.launch { reconcileLoop() }
+
+        // Best-effort image pre-pull so an update is already local when it is applied at the next
+        // restart (servers) or the explicit router recreate. Never restarts anything.
+        scope.launch { imageRefresher.run() }
 
         // Near-instant crash signal: unexpected deaths feed the convergence loop. Authored deaths are
         // suppressed by the WatcherGate; the watcher self-heals and the sweep above is the second

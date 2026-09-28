@@ -10,6 +10,7 @@ import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentRuntimeSettingsService
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.RouterStatusStore
 import io.craftpanel.master.service.SettingsProvider
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
@@ -57,6 +58,7 @@ class ControlServiceImplTest :
             backupHandler = backupHandler,
             migrationHandler = migrationHandler,
             dataOpResponseHandler = dataOpResponseHandler,
+            routerStatusHandler = RouterStatusHandler(RouterStatusStore()),
             agentRuntimeSettingsService = AgentRuntimeSettingsService(
                 SettingsProvider(SettingsRepositoryImpl()),
                 nodeRepository,

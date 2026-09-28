@@ -57,6 +57,7 @@ class DataServiceProxyTest :
                 backupHandler = backupHandler,
                 migrationHandler = migrationHandler,
                 dataOpResponseHandler = dataOpResponseHandler,
+                routerStatusHandler = RouterStatusHandler(RouterStatusStore()),
                 agentRuntimeSettingsService = AgentRuntimeSettingsService(
                     SettingsProvider(SettingsRepositoryImpl()),
                     nodeRepository,

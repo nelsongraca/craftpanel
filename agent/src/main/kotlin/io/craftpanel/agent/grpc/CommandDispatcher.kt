@@ -7,6 +7,7 @@ import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
 import io.craftpanel.agent.grpc.handlers.FileHandler
 import io.craftpanel.agent.grpc.handlers.MigrationHandler
 import io.craftpanel.agent.grpc.handlers.RuntimeSettingsHandler
+import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.proto.MasterMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -48,7 +49,8 @@ class CommandDispatcher private constructor(private val entries: Map<PayloadCase
             file: FileHandler,
             console: ConsoleHandler,
             bulkClient: BulkDataClient,
-            runtimeSettings: RuntimeSettingsHandler
+            runtimeSettings: RuntimeSettingsHandler,
+            routerSupervisor: RouterSupervisor
         ): CommandDispatcher = CommandDispatcher(
             buildMap {
                 fun entry(mode: Mode, handle: suspend (msg: MasterMessage, out: AgentOutbound) -> Unit) = Entry(mode, handle)
@@ -66,6 +68,9 @@ class CommandDispatcher private constructor(private val entries: Map<PayloadCase
                 put(PayloadCase.SERVER_DESIRED_STATE, entry(Mode.CONCURRENT) { msg, _ -> desired.handleDesiredState(msg.serverDesiredState) })
 
                 put(PayloadCase.AGENT_RUNTIME_SETTINGS, entry(Mode.SYNC) { msg, _ -> runtimeSettings.handle(msg.agentRuntimeSettings) })
+
+                // Explicit planned-downtime action: recreate mc-router to apply a pre-pulled image.
+                put(PayloadCase.RECREATE_ROUTER, entry(Mode.CONCURRENT) { _, _ -> routerSupervisor.recreateNow() })
 
                 put(PayloadCase.TRIGGER_BACKUP, entry(Mode.CONCURRENT) { msg, out -> backup.handleTriggerBackup(msg.triggerBackup, out) })
                 put(PayloadCase.DELETE_BACKUP, entry(Mode.CONCURRENT) { msg, out -> backup.handleDeleteBackup(msg.deleteBackup) })

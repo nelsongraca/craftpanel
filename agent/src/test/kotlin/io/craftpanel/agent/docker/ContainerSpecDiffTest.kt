@@ -51,7 +51,11 @@ class ContainerSpecDiffTest :
             hostname = "survival"
         )
 
-        fun diff(s: StartContainerCommand = spec(), snap: ContainerSnapshot = snapshot()) = ContainerSpecDiff.diff(s, snap, hostRoot)
+        fun diff(
+            s: StartContainerCommand = spec(),
+            snap: ContainerSnapshot = snapshot(),
+            expectedImageId: String? = null
+        ) = ContainerSpecDiff.diff(s, snap, hostRoot, expectedImageId)
 
         test("a satisfying container matches") {
             diff() shouldBe SpecDiff.Match
@@ -59,6 +63,28 @@ class ContainerSpecDiffTest :
 
         test("image differs") {
             diff(snap = snapshot().copy(image = "other:1")) shouldBe SpecDiff.Mismatch(listOf(SpecDiffReason.IMAGE))
+        }
+
+        test("a same-tag image id mismatch forces a recreate") {
+            diff(
+                snap = snapshot().copy(imageId = "sha256:new"),
+                expectedImageId = "sha256:old"
+            ) shouldBe SpecDiff.Mismatch(listOf(SpecDiffReason.IMAGE_DIGEST))
+        }
+
+        test("a matching image id does not force a recreate") {
+            diff(
+                snap = snapshot().copy(imageId = "sha256:same"),
+                expectedImageId = "sha256:same"
+            ) shouldBe SpecDiff.Match
+        }
+
+        test("an unknown local image id is never treated as a mismatch") {
+            diff(snap = snapshot().copy(imageId = "sha256:container"), expectedImageId = null) shouldBe SpecDiff.Match
+        }
+
+        test("a container with no image id is never treated as a mismatch") {
+            diff(snap = snapshot().copy(imageId = ""), expectedImageId = "sha256:tag") shouldBe SpecDiff.Match
         }
 
         test("user differs") {

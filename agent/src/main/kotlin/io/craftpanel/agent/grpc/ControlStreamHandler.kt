@@ -70,6 +70,7 @@ class ControlStreamHandler(
             this.containers.addAll(containers)
             recordedAt = nowTimestamp()
             routerRunning = routerSupervisor.isRunning
+            routerUpdateAvailable = routerSupervisor.updateAvailable
             swarmActive = containerManager.isSwarmActive()
         }
     }

@@ -58,7 +58,12 @@ class ContainerOperator(
      * Whether the live container's configuration already satisfies [spec] — see [ContainerSpecDiff].
      * Any mismatch means we are certain the container differs and must be recreated.
      */
-    fun diff(snapshot: ContainerSnapshot, spec: StartContainerCommand): SpecDiff = ContainerSpecDiff.diff(spec, snapshot, config.hostDataBasePath)
+    fun diff(snapshot: ContainerSnapshot, spec: StartContainerCommand): SpecDiff = ContainerSpecDiff.diff(
+        spec,
+        snapshot,
+        config.hostDataBasePath,
+        containerManager.imageId(spec.image)
+    )
 
     /**
      * Brings the container to running against [spec]. When [recreate] is true (the agent detected

@@ -8,6 +8,12 @@ import io.craftpanel.proto.StartContainerCommand
 enum class SpecDiffReason {
 
     IMAGE,
+
+    /**
+     * Same image reference (tag) but a different image id: the tag now resolves to a newer image
+     * than the one the container was created from. Only reported when both ids are known.
+     */
+    IMAGE_DIGEST,
     USER,
     MEMORY,
     CPU,
@@ -44,9 +50,23 @@ sealed interface SpecDiff {
  */
 object ContainerSpecDiff {
 
-    fun diff(spec: StartContainerCommand, snapshot: ContainerSnapshot, hostDataBasePath: String): SpecDiff {
+    fun diff(
+        spec: StartContainerCommand,
+        snapshot: ContainerSnapshot,
+        hostDataBasePath: String,
+        expectedImageId: String? = null
+    ): SpecDiff {
         val reasons = buildList {
             if (snapshot.image != spec.image) add(SpecDiffReason.IMAGE)
+            // Same tag but the local tag now resolves to a different image id (a newer image was
+            // pulled). Flagged only when both ids are known: an absent/uninspectable tag must never
+            // force a recreate, since we cannot prove the container's image is stale.
+            if (snapshot.imageId.isNotEmpty() &&
+                !expectedImageId.isNullOrEmpty() &&
+                snapshot.imageId != expectedImageId
+            ) {
+                add(SpecDiffReason.IMAGE_DIGEST)
+            }
             if (snapshot.user != spec.containerUser) add(SpecDiffReason.USER)
             if (snapshot.memoryMb != spec.memoryMb) add(SpecDiffReason.MEMORY)
             if (snapshot.cpuLimitMillicores != spec.cpuLimitMillicores) add(SpecDiffReason.CPU)

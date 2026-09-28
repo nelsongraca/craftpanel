@@ -112,6 +112,13 @@ message AgentRuntimeSettings {
   // JVM heap-metrics polling interval (seconds). Moved off the per-server envelope for the same
   // reason; the per-server `enabled` flag stays on ServerDesiredState.jvm_metrics.
   uint32 jvm_metrics_poll_interval_seconds = 5;
+  // Interval (seconds) between best-effort pre-pulls of every managed server image and the
+  // mc-router image, so an update is already local when it is applied at the next restart.
+  // 0 disables pre-pulling. Docker's pull is a no-op when the tag has not moved.
+  uint32 image_refresh_interval_seconds = 6;
+  // mc-router image to provision. Master DB is authoritative; a blank value means "no snapshot
+  // preference" and the agent falls back to MCROUTER_IMAGE / its built-in default.
+  string mc_router_image = 7;
 }
 
 // Pushed on the control stream when an install-wide agent tuning value changes, so connected
@@ -235,6 +242,10 @@ message MasterMessage {
     // Install-wide agent runtime tuning (metrics cadence, reconcile sweep, restart budget, JVM
     // poll interval). Sent live when an operator changes one of the backing system settings.
     AgentRuntimeSettingsUpdate agent_runtime_settings = 30;
+
+    // Explicit operator action from the node page: recreate the mc-router container now, at a
+    // chosen downtime window, so a pre-pulled newer image takes effect. Never sent automatically.
+    RecreateRouterCommand recreate_router = 31;
   }
 }
 
@@ -283,6 +294,10 @@ message AgentMessage {
 
     // Console — static container logs response (tail, no follow)
     FetchContainerLogsResponse fetch_container_logs_response = 23;
+
+    // mc-router liveness + "a newer router image is available" signal. Sent on connect and
+    // whenever either value changes, so master can surface a planned-downtime badge on the node.
+    RouterStatusUpdate router_status = 24;
   }
 }
 
@@ -300,6 +315,10 @@ message NodeStateSnapshot {
   // True when the local Docker daemon is joined to a Swarm cluster.
   // Used by master to enforce cross-node Server Network constraints.
   bool swarm_active = 4;
+  // True when the mc-router image has moved in the registry since the running router container
+  // was created (the tag now resolves to a different image id). The router is never recreated
+  // automatically while it is healthy — this drives the node-page "update available" signal.
+  bool router_update_available = 5;
 }
 
 message ContainerState {
@@ -568,6 +587,12 @@ message SendRconCommand {
 message ShutdownCommand {
   // Seconds to wait per container for graceful stdin stop before Docker stop.
   int32 timeout_seconds = 1;
+}
+
+// Master → Agent: recreate the mc-router container now, applying any pre-pulled newer image.
+// Sent only from the explicit "Recreate proxy" node action — the router is never restarted
+// implicitly while it is healthy.
+message RecreateRouterCommand {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -849,6 +874,14 @@ message PlayerUpdate {
   int32  player_count = 2;
   repeated string player_names = 3;
   google.protobuf.Timestamp recorded_at = 4;
+}
+
+// Agent → Master: mc-router state. Sent on connect and whenever a value changes.
+message RouterStatusUpdate {
+  bool running = 1;
+  // True when the tag's current image differs from the image the running router container was
+  // created from — i.e. a newer image is pre-pulled and ready to apply at a planned downtime.
+  bool update_available = 2;
 }
 
 message RsyncReadyUpdate {

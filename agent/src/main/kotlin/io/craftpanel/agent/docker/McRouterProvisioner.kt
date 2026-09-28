@@ -8,14 +8,18 @@ import com.github.dockerjava.api.exception.NotModifiedException
 import com.github.dockerjava.api.model.*
 import io.craftpanel.common.DockerLabels
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
 
 class McRouterProvisioner(
     private val docker: DockerClient,
-    private val image: String,
+    private val imageProvider: () -> String,
     private val updateOnStart: Boolean,
     private val networkName: String = "",
     containerNameOverride: String = "",
-    private val logLevel: String = DEFAULT_LOG_LEVEL
+    private val logLevel: String = DEFAULT_LOG_LEVEL,
+    // Seam for the docker.sock group lookup; tests inject a fixed value so drift detection is
+    // deterministic regardless of whether the host actually has docker.sock.
+    private val socketGidProvider: () -> String? = ::readDockerSocketGid
 ) {
 
     companion object {
@@ -24,8 +28,35 @@ class McRouterProvisioner(
 
     private val log = LoggerFactory.getLogger(McRouterProvisioner::class.java)
 
+    // Resolved on every use so a live change to the DB-backed image setting takes effect on the
+    // next provision/drift check without restarting the agent.
+    private val image: String get() = imageProvider()
+
     // One per host, shared by all co-located agents. Override via MCROUTER_CONTAINER_NAME.
     val containerName: String = containerNameOverride.ifBlank { "craftpanel-mc-router" }
+
+    private val _updateAvailable = AtomicBoolean(false)
+
+    /**
+     * True when the running router's image id differs from the id the local tag now resolves to —
+     * i.e. a newer image has been pre-pulled and is ready to apply at a planned downtime. Only
+     * meaningful while the router is healthy; reset to false after a (re)create.
+     */
+    val updateAvailable: Boolean get() = _updateAvailable.get()
+
+    /**
+     * Explicit operator action: force-remove the router and provision it fresh, applying any
+     * pre-pulled newer image. Never called implicitly while the router is healthy.
+     */
+    fun recreateNow(): Boolean {
+        runCatching {
+            docker.removeContainerCmd(containerName)
+                .withForce(true)
+                .exec()
+        }.onFailure { log.warn("Failed to remove mc-router for explicit recreate: ${it.message}") }
+        log.info("Explicit mc-router recreate requested")
+        return ensureRunning()
+    }
 
     /**
      * Ensures the router container exists and is running. Returns true when the router was created,
@@ -49,14 +80,19 @@ class McRouterProvisioner(
             // an older agent build predates the group_add fix and will crash-loop forever on
             // permission-denied, and restarting it (the "exists but not running" branch below)
             // can never fix that since the group membership is fixed at container-creation time.
+            // Also recreate when the configured image *reference* changed (an admin moved
+            // MCROUTER_IMAGE / image_mc_router to a different tag) — that is a deliberate config
+            // change, so it is applied eagerly.
+            //
+            // An *image update under the same tag* is deliberately NOT a recreate trigger while the
+            // router is healthy: a background pre-pull moving the tag must never restart the shared
+            // router out from under live connections. It is reported via [updateAvailable] instead,
+            // and applied through the explicit [recreateNow] action at a planned downtime.
+            //
             // The host-port binding is always set on creation and not re-checked here: Docker inspect
             // may not expose bindings via networkSettings.ports inside the container network, and
             // a running shared container must not be destroyed while co-located agents depend on it.
             val socketGid = this.socketGid
-            // The configured image can change (MCROUTER_IMAGE, or a different default across agent
-            // releases). Recreate when the container was built from a different image — otherwise
-            // switching the image on an existing node would never take effect. Recreating falls
-            // through to the pull path below, so an image that is absent locally is still fetched.
             val drift = routerContainerDrift(
                 env = existing.config?.env.orEmpty().toList(),
                 groupAdd = existing.hostConfig?.groupAdd,
@@ -74,21 +110,23 @@ class McRouterProvisioner(
                 }
                     .onFailure { log.warn("Failed to remove stale mc-router — continuing to recreate: ${it.message}") }
             } else if (existing.state?.running == true) {
-                log.debug("mc-router already running")
+                _updateAvailable.set(routerImageUpdateAvailable(existing.imageId, localImageId()))
+                log.debug("mc-router already running (updateAvailable={})", updateAvailable)
                 connectToNetwork(existing.id)
                 return false
             } else {
-                log.info("mc-router container exists but not running — starting")
+                // Down: recreate (not a bare start) so a pre-pulled newer image is applied.
+                log.info("mc-router container exists but not running — recreating")
                 runCatching {
-                    docker.startContainerCmd(existing.id)
+                    docker.removeContainerCmd(existing.id)
+                        .withForce(true)
                         .exec()
                 }
-                    .onFailure { if (it !is NotModifiedException) throw it }
-                connectToNetwork(existing.id)
-                return false
+                    .onFailure { log.warn("Failed to remove stopped mc-router — continuing to recreate: ${it.message}") }
             }
         }
 
+        _updateAvailable.set(false)
         log.info("Provisioning mc-router container ($image)")
         if (updateOnStart) {
             log.info("Pulling mc-router image $image")
@@ -204,6 +242,12 @@ class McRouterProvisioner(
         docker.connectIfAbsent(networkName, containerId)
     }
 
+    /** Image id the configured tag currently resolves to, or null when absent/uninspectable. */
+    private fun localImageId(): String? = runCatching {
+        docker.inspectImageCmd(image)
+            .exec().id
+    }.getOrNull()
+
     // Cached only on success: doesn't change while the agent process is alive, and
     // ensureRunning() is polled periodically by RouterSupervisor — avoids forking `stat` on
     // every tick. A failed lookup is NOT cached (retried each call) — a transient failure on
@@ -211,13 +255,7 @@ class McRouterProvisioner(
     // for the rest of the agent's lifetime.
     private var cachedSocketGid: String? = null
     private val socketGid: String?
-        get() = cachedSocketGid ?: runCatching {
-            ProcessBuilder("stat", "-c", "%g", "/var/run/docker.sock")
-                .redirectErrorStream(true)
-                .start()
-                .let { it.inputStream.bufferedReader().readText().trim().toLong().also { _ -> it.waitFor() } }
-        }.onFailure { log.warn("Could not stat docker.sock GID — mc-router may fail with permission denied: ${it.message}") }
-            .getOrNull()?.toString()?.also { cachedSocketGid = it }
+        get() = cachedSocketGid ?: socketGidProvider()?.also { cachedSocketGid = it }
 
     private fun pullIfAbsent() {
         val present = runCatching {
@@ -254,3 +292,22 @@ internal fun routerContainerDrift(
     if (socketGid != null && groupAdd?.contains(socketGid) != true) add("socketGroup")
     if (containerImage != expectedImage) add("image")
 }
+
+/**
+ * True when a same-tag newer image is ready: the router container was created from a different
+ * image id than the tag now resolves to. Only meaningful when both ids are known — an absent or
+ * uninspectable tag must never be reported as an update.
+ */
+internal fun routerImageUpdateAvailable(containerImageId: String?, expectedImageId: String?): Boolean =
+    !containerImageId.isNullOrEmpty() && !expectedImageId.isNullOrEmpty() && containerImageId != expectedImageId
+
+/** Reads the docker.sock group id so mc-router can be granted access to the mounted socket. */
+private fun readDockerSocketGid(): String? = runCatching {
+    ProcessBuilder("stat", "-c", "%g", "/var/run/docker.sock")
+        .redirectErrorStream(true)
+        .start()
+        .let { it.inputStream.bufferedReader().readText().trim().toLong().also { _ -> it.waitFor() } }
+}.onFailure {
+    LoggerFactory.getLogger(McRouterProvisioner::class.java)
+        .warn("Could not stat docker.sock GID — mc-router may fail with permission denied: ${it.message}")
+}.getOrNull()?.toString()

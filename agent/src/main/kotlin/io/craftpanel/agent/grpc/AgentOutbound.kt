@@ -32,6 +32,20 @@ class AgentOutbound(private val realtime: Channel<AgentMessage>, private val tel
         )
     }
 
+    /** mc-router liveness / update-available signal, sent on connect and whenever it changes. */
+    fun tryRouterStatus(running: Boolean, updateAvailable: Boolean) {
+        val id = nodeId
+        realtime.trySend(
+            agentMessage {
+                this.nodeId = id
+                routerStatus = routerStatusUpdate {
+                    this.running = running
+                    this.updateAvailable = updateAvailable
+                }
+            }
+        )
+    }
+
     /**
      * The one status-reporting seam: runs [block], emits [success] when it returns (or nothing when
      * [success] is null), and emits UNHEALTHY when it throws. Best-effort — statuses go out via

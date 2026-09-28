@@ -14,6 +14,8 @@ import java.io.InputStream
  */
 data class ContainerSnapshot(
     val image: String,
+    /** Image ID (`sha256:…`) the container was created from, from `inspect.ImageId`. */
+    val imageId: String = "",
     /** Effective env (image defaults + configured), parsed from `KEY=VALUE` pairs. */
     val env: Map<String, String>,
     val binds: List<BindSnapshot>,
@@ -63,6 +65,19 @@ interface ContainerManager {
     fun isRunning(containerName: String): Boolean
 
     fun pullImage(image: String)
+
+    /**
+     * Image ID (`sha256:…`) the local [image] tag currently resolves to, or null when the tag is
+     * absent/uninspectable. Used to detect that a same-tag image has been replaced (the container
+     * still runs the old id) — and, after a periodic [refreshImage], that a newer image is ready.
+     */
+    fun imageId(image: String): String?
+
+    /**
+     * Best-effort pre-pull of [image] (unconditional; Docker no-ops when the tag has not moved).
+     * Distinct from [pullImage], whose build-age gate is the wrong throttle for a refresh cadence.
+     */
+    fun refreshImage(image: String)
 
     fun startContainer(containerName: String)
 

@@ -22,6 +22,9 @@ class SettingsTest :
             settings.restartWindowSeconds shouldBe 600L
             settings.imageMinecraft shouldBe "itzg/minecraft-server"
             settings.imageProxy shouldBe "itzg/mc-proxy"
+            settings.imagePicolimbo shouldBe "ghcr.io/quozul/picolimbo"
+            settings.imageMcRouter shouldBe "itzg/mc-router:latest"
+            settings.imageRefreshIntervalSeconds shouldBe 86_400
             settings.consoleTailLines shouldBe 200
             settings.dnsDomainSuffix shouldBe null
             settings.dnsZoneId shouldBe null
@@ -33,6 +36,9 @@ class SettingsTest :
                     entry("app_name", "My Panel"),
                     entry("metric_retention_days", "7"),
                     entry("image_minecraft", "itzg/custom"),
+                    entry("image_picolimbo", "ghcr.io/custom/limbo"),
+                    entry("image_mc_router", "registry.local/mc-router:2"),
+                    entry("image_refresh_interval_seconds", "0"),
                     entry("dns_domain_suffix", "example.com"),
                     entry("dns_zone_id", "zone-1"),
                 )
@@ -41,6 +47,9 @@ class SettingsTest :
             settings.appName shouldBe "My Panel"
             settings.metricRetentionDays shouldBe 7
             settings.imageMinecraft shouldBe "itzg/custom"
+            settings.imagePicolimbo shouldBe "ghcr.io/custom/limbo"
+            settings.imageMcRouter shouldBe "registry.local/mc-router:2"
+            settings.imageRefreshIntervalSeconds shouldBe 0
             settings.dnsDomainSuffix shouldBe "example.com"
             settings.dnsZoneId shouldBe "zone-1"
         }

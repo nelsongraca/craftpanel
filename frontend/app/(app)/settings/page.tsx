@@ -24,6 +24,8 @@ type FormState = {
     rate_limit_refresh_per_minute: string;
     image_minecraft: string;
     image_proxy: string;
+    image_picolimbo: string;
+    image_mc_router: string;
     console_tail_lines: string;
     dns_domain_suffix: string;
     dns_zone_id: string;
@@ -32,6 +34,7 @@ type FormState = {
     metrics_poll_interval_seconds: string;
     metrics_collection_concurrency: string;
     agent_reconcile_interval_seconds: string;
+    image_refresh_interval_seconds: string;
 };
 
 function toForm(s: Settings): FormState {
@@ -48,6 +51,8 @@ function toForm(s: Settings): FormState {
         rate_limit_refresh_per_minute: String(s.rate_limit_refresh_per_minute),
         image_minecraft: s.image_minecraft,
         image_proxy: s.image_proxy,
+        image_picolimbo: s.image_picolimbo,
+        image_mc_router: s.image_mc_router,
         console_tail_lines: String(s.console_tail_lines),
         dns_domain_suffix: s.dns_domain_suffix ?? "",
         dns_zone_id: s.dns_zone_id ?? "",
@@ -56,6 +61,7 @@ function toForm(s: Settings): FormState {
         metrics_poll_interval_seconds: String(s.metrics_poll_interval_seconds),
         metrics_collection_concurrency: String(s.metrics_collection_concurrency),
         agent_reconcile_interval_seconds: String(s.agent_reconcile_interval_seconds),
+        image_refresh_interval_seconds: String(s.image_refresh_interval_seconds),
     };
 }
 
@@ -136,6 +142,8 @@ export default function SettingsPage() {
             rate_limit_refresh_per_minute: parseInt(form.rate_limit_refresh_per_minute, 10) || undefined,
             image_minecraft: form.image_minecraft || undefined,
             image_proxy: form.image_proxy || undefined,
+            image_picolimbo: form.image_picolimbo || undefined,
+            image_mc_router: form.image_mc_router || undefined,
             console_tail_lines: parseInt(form.console_tail_lines, 10) || undefined,
             dns_domain_suffix: form.dns_domain_suffix,
             dns_zone_id: form.dns_zone_id,
@@ -143,6 +151,7 @@ export default function SettingsPage() {
             metrics_poll_interval_seconds: parseInt(form.metrics_poll_interval_seconds, 10) || undefined,
             metrics_collection_concurrency: parseInt(form.metrics_collection_concurrency, 10) || undefined,
             agent_reconcile_interval_seconds: parseInt(form.agent_reconcile_interval_seconds, 10) || undefined,
+            image_refresh_interval_seconds: parseInt(form.image_refresh_interval_seconds, 10),
         };
 
         // Write-only: only send a token when the operator typed one (blank = keep the stored one).
@@ -480,6 +489,44 @@ export default function SettingsPage() {
                                     onChange={(e) => set("image_proxy", e.target.value)}
                                     required
                                 />
+                            </Field>
+                            <Field label="PicoLimbo image">
+                                <TextField
+                                    type="text"
+                                    placeholder="ghcr.io/quozul/picolimbo"
+                                    value={form.image_picolimbo}
+                                    onChange={(e) => set("image_picolimbo", e.target.value)}
+                                    required
+                                />
+                            </Field>
+                            <Field label="mc-router image">
+                                <TextField
+                                    type="text"
+                                    placeholder="itzg/mc-router:latest"
+                                    value={form.image_mc_router}
+                                    onChange={(e) => set("image_mc_router", e.target.value)}
+                                    required
+                                />
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Applied live to agents. A running router is never restarted automatically — use the
+                                    node page&apos;s &quot;Recreate proxy&quot; action after planning downtime.
+                                </p>
+                            </Field>
+                            <Field label="Image refresh interval (seconds)">
+                                <TextField
+                                    type="number"
+                                    min={0}
+                                    max={604800}
+                                    value={form.image_refresh_interval_seconds}
+                                    onChange={(e) => set("image_refresh_interval_seconds", e.target.value)}
+                                    required
+                                />
+                                <p className="mt-1 text-xs text-text-muted">
+                                    How often agents pre-pull managed server and mc-router images so an update is ready
+                                    when applied at the next restart. Set to 0 to disable pre-pulling. Note:
+                                    <code> docker system prune -a</code> can discard pre-pulled images no container
+                                    uses.
+                                </p>
                             </Field>
                         </section>
 

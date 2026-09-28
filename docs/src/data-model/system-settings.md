@@ -24,14 +24,28 @@ configuration (database credentials, secrets, DNS API keys) which lives in the c
 | `metrics_poll_interval_seconds` | integer | `5` | Agent node/container metrics polling cadence (s; pushed to agents live) |
 | `metrics_collection_concurrency` | integer | `8` | Max server containers an agent samples in parallel per tick (pushed to agents live) |
 | `agent_reconcile_interval_seconds` | integer | `30` | Agent convergence backstop sweep cadence (s); `0` disables the sweep (pushed to agents live) |
+| `image_minecraft`          | string  | `itzg/minecraft-server` | Base image for Minecraft servers (applied on create/recreate) |
+| `image_proxy`              | string  | `itzg/mc-proxy` | Base image for Velocity/BungeeCord/Waterfall proxies (applied on create/recreate) |
+| `image_picolimbo`          | string  | `ghcr.io/quozul/picolimbo` | Base image for PicoLimbo servers (applied on create/recreate) |
+| `image_mc_router`          | string  | `itzg/mc-router:latest` | mc-router image (pushed to agents live; a healthy router is never restarted automatically) |
+| `image_refresh_interval_seconds` | integer | `86400` | Agent pre-pull cadence for managed server + mc-router images (s); `0` disables (pushed to agents live) |
 | `dns_provider`             | string  | `none`  | DNS provider: `none` or `cloudflare`                            |
 | `cf_api_token`             | string  | —       | Cloudflare API token — **write-only**, stored encrypted at rest; the API exposes only a `cf_api_token_set` boolean |
 
 !!! note "Pushed to agents"
-    The five agent-facing keys (`jvm_metrics_poll_interval_seconds`, `metrics_poll_interval_seconds`,
-    `metrics_collection_concurrency`, `agent_reconcile_interval_seconds`, plus the
+    The agent-facing keys (`jvm_metrics_poll_interval_seconds`, `metrics_poll_interval_seconds`,
+    `metrics_collection_concurrency`, `agent_reconcile_interval_seconds`,
+    `image_refresh_interval_seconds`, `image_mc_router`, plus the
     `restart_max_attempts`/`restart_window_seconds` pair) are pushed to every connected agent on
     connect and live whenever a value changes — no agent restart required.
+
+!!! warning "`docker system prune -a` and pre-pulled images"
+    Docker cannot pin an image that no container references. `docker system prune -a` removes
+    stopped containers first and then every unused image, including a freshly pre-pulled update.
+    The effect is only cosmetic and temporary: the image is re-pulled when an update is applied
+    (server restart or router recreate), and the "update available" signal may lag until the next
+    refresh interval. Plain `docker system prune` (without `-a`) only removes dangling images and is
+    unaffected. Prefer it, or accept the re-pull.
 
 !!! note "What does not belong here"
 Deployment-time configuration — database connection details, JWT signing keys, TLS certificate paths, bind addresses — is **never** stored in this table. Those values are

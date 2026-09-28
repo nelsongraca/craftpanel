@@ -47,6 +47,8 @@ const defaultSettings = {
         rate_limit_refresh_per_minute: 10,
         image_minecraft: "itzg/minecraft-server",
         image_proxy: "itzg/mc-proxy",
+        image_picolimbo: "ghcr.io/quozul/picolimbo",
+        image_mc_router: "itzg/mc-router:latest",
         console_tail_lines: 200,
         dns_domain_suffix: "mc.example.com",
         dns_zone_id: "023e105f4ecef8ad9ca31a8482d7aca9",
@@ -55,6 +57,7 @@ const defaultSettings = {
         metrics_poll_interval_seconds: 5,
         metrics_collection_concurrency: 8,
         agent_reconcile_interval_seconds: 30,
+        image_refresh_interval_seconds: 86400,
     },
 };
 

@@ -173,6 +173,22 @@ class DockerContainerManager(
 
     override fun pullImage(image: String) = pullImage(image, pullMaxImageAgeHours)
 
+    override fun imageId(image: String): String? = runCatching {
+        docker.inspectImageCmd(image)
+            .exec().id
+    }.getOrNull()
+
+    override fun refreshImage(image: String) {
+        runCatching {
+            docker.pullImageCmd(image)
+                .exec(PullImageResultCallback())
+                .awaitCompletion()
+            log.info("Refreshed image $image")
+        }.onFailure {
+            log.warn("Failed to refresh image $image — keeping local copy: ${it.message}")
+        }
+    }
+
     private fun pullImage(image: String, maxAgeHours: Long) {
         val cachedAt = runCatching {
             docker.inspectImageCmd(image)
@@ -369,6 +385,7 @@ class DockerContainerManager(
 
         ContainerSnapshot(
             image = config?.image ?: "",
+            imageId = info.imageId ?: "",
             env = env,
             binds = binds,
             portBindings = portBindings,

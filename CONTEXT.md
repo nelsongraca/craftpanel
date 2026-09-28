@@ -693,10 +693,12 @@ Replaces the ad-hoc `getAll().associate { key to value }` / `firstOrNull { it.ke
 lookups that five services each re-derived, with their own key strings, defaults, and
 blank-means-unset rules.
 
-- `Settings` — immutable `@Serializable` value object (the 15 settings fields). `Settings.from(rows:
+- `Settings` — immutable `@Serializable` value object (the settings fields). `Settings.from(rows:
   List<SettingsEntry>): Settings` is the pure companion that owns every key string, its default
   (`app_name` → "CraftPanel", `metric_retention_days` → 30, `image_minecraft` →
-  "itzg/minecraft-server", …), and the blank-means-unset rule for nullable fields.
+  "itzg/minecraft-server", `image_picolimbo` → "ghcr.io/quozul/picolimbo", `image_mc_router` →
+  "itzg/mc-router:latest", `image_refresh_interval_seconds` → 86400, …), and the blank-means-unset
+  rule for nullable fields.
 - **`SettingsMap` is deleted**; `SystemSettingsResponse.settings` is `Settings` directly. The wire
   shape is unchanged (same `@SerialName` fields), so the OpenAPI contract and frontend type only
   change name (`SettingsMap` → `Settings`).

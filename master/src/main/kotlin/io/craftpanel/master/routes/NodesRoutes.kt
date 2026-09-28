@@ -116,6 +116,25 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Shutdown command sent"))
             }
 
+            post("/{id}/router/recreate", {
+                operationId = "recreateNodeRouter"
+                summary = "Recreate node mc-router"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                call.requirePermission(Permission.SYSTEM_NODES)
+                val id = parseNodeId(call.parameters["id"])
+                    ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
+                nodeService.recreateRouter(id)
+                call.respond(HttpStatusCode.Accepted, MessageResponse("Recreate command sent"))
+            }
+
             patch("/{id}", {
                 operationId = "updateNode"
                 summary = "Update node"

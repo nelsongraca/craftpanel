@@ -38,6 +38,8 @@ data class PatchSettingsRequest(
     @SerialName("rate_limit_totp_verify_per_minute") val rateLimitTotpVerifyPerMinute: Int? = null,
     @SerialName("image_minecraft") val imageMinecraft: String? = null,
     @SerialName("image_proxy") val imageProxy: String? = null,
+    @SerialName("image_picolimbo") val imagePicolimbo: String? = null,
+    @SerialName("image_mc_router") val imageMcRouter: String? = null,
     @SerialName("console_tail_lines") val consoleTailLines: Int? = null,
     @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
     @SerialName("dns_zone_id") val dnsZoneId: String? = null,
@@ -46,7 +48,8 @@ data class PatchSettingsRequest(
     @SerialName("cf_api_token") val cfApiToken: String? = null,
     @SerialName("metrics_poll_interval_seconds") val metricsPollIntervalSeconds: Int? = null,
     @SerialName("metrics_collection_concurrency") val metricsCollectionConcurrency: Int? = null,
-    @SerialName("agent_reconcile_interval_seconds") val agentReconcileIntervalSeconds: Int? = null
+    @SerialName("agent_reconcile_interval_seconds") val agentReconcileIntervalSeconds: Int? = null,
+    @SerialName("image_refresh_interval_seconds") val imageRefreshIntervalSeconds: Int? = null
 )
 
 class SystemService(
@@ -104,6 +107,12 @@ class SystemService(
         if (req.imageProxy != null && req.imageProxy.isBlank()) {
             throw UnprocessableException("image_proxy must not be blank")
         }
+        if (req.imagePicolimbo != null && req.imagePicolimbo.isBlank()) {
+            throw UnprocessableException("image_picolimbo must not be blank")
+        }
+        if (req.imageMcRouter != null && req.imageMcRouter.isBlank()) {
+            throw UnprocessableException("image_mc_router must not be blank")
+        }
         if (req.consoleTailLines != null && req.consoleTailLines !in 1..5000) {
             throw UnprocessableException("console_tail_lines must be between 1 and 5000")
         }
@@ -121,6 +130,9 @@ class SystemService(
         }
         if (req.agentReconcileIntervalSeconds != null && req.agentReconcileIntervalSeconds !in 0..3600) {
             throw UnprocessableException("agent_reconcile_interval_seconds must be between 0 and 3600")
+        }
+        if (req.imageRefreshIntervalSeconds != null && req.imageRefreshIntervalSeconds !in 0..604_800) {
+            throw UnprocessableException("image_refresh_interval_seconds must be between 0 and 604800")
         }
 
         val current = settingsProvider.current()
@@ -171,6 +183,8 @@ class SystemService(
             if (req.rateLimitTotpVerifyPerMinute != null) put("rate_limit_totp_verify_per_minute", req.rateLimitTotpVerifyPerMinute.toString())
             if (req.imageMinecraft != null) put("image_minecraft", req.imageMinecraft)
             if (req.imageProxy != null) put("image_proxy", req.imageProxy)
+            if (req.imagePicolimbo != null) put("image_picolimbo", req.imagePicolimbo)
+            if (req.imageMcRouter != null) put("image_mc_router", req.imageMcRouter)
             if (req.consoleTailLines != null) put("console_tail_lines", req.consoleTailLines.toString())
             if (req.dnsDomainSuffix != null) put("dns_domain_suffix", req.dnsDomainSuffix)
             if (req.dnsZoneId != null) put("dns_zone_id", req.dnsZoneId)
@@ -180,6 +194,7 @@ class SystemService(
             if (req.metricsPollIntervalSeconds != null) put("metrics_poll_interval_seconds", req.metricsPollIntervalSeconds.toString())
             if (req.metricsCollectionConcurrency != null) put("metrics_collection_concurrency", req.metricsCollectionConcurrency.toString())
             if (req.agentReconcileIntervalSeconds != null) put("agent_reconcile_interval_seconds", req.agentReconcileIntervalSeconds.toString())
+            if (req.imageRefreshIntervalSeconds != null) put("image_refresh_interval_seconds", req.imageRefreshIntervalSeconds.toString())
         }
         transaction {
             updates.forEach { (k, v) ->
@@ -230,7 +245,9 @@ class SystemService(
             "agent_reconcile_interval_seconds",
             "restart_max_attempts",
             "restart_window_seconds",
-            "jvm_metrics_poll_interval_seconds"
+            "jvm_metrics_poll_interval_seconds",
+            "image_refresh_interval_seconds",
+            "image_mc_router"
         )
     }
 }

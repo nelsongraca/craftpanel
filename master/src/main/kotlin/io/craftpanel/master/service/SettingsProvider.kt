@@ -33,7 +33,7 @@ class SettingsProvider(private val settingsRepository: SettingsRepository) {
     fun encryptedCfApiToken(): String? = settingValue("cf_api_token")?.takeIf { it.isNotBlank() }
 
     /** The live image config, derived from the current settings snapshot. */
-    fun images(): ImagesConfig = current().let { ImagesConfig(it.imageMinecraft, it.imageProxy) }
+    fun images(): ImagesConfig = current().let { ImagesConfig(it.imageMinecraft, it.imageProxy, it.imagePicolimbo) }
 
     fun invalidate() {
         cached = null

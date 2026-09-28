@@ -6,6 +6,9 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.PatchNodeRequest
+import io.craftpanel.master.service.RouterStatus
+import io.craftpanel.master.service.RouterStatusStore
+import io.craftpanel.proto.MasterMessage
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -42,8 +45,11 @@ class NodesRoutesTest :
 
         val repos = TestRepositories()
 
-        fun Route.configureNodesTest(gateway: TestAgentGateway = TestAgentGateway()) {
-            nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), repos.serverRepository, createTestNodeRegistrationService()))
+        fun Route.configureNodesTest(
+            gateway: TestAgentGateway = TestAgentGateway(),
+            store: RouterStatusStore = RouterStatusStore()
+        ) {
+            nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), repos.serverRepository, createTestNodeRegistrationService(), store))
         }
 
         fun createUser(username: String = "admin", email: String = "admin@example.com", password: String = "hunter2"): Uuid = transaction {
@@ -266,6 +272,23 @@ class NodesRoutesTest :
             }
         }
 
+        test("GET node exposes the router update flag reported by the agent") {
+            testApplication {
+                val store = RouterStatusStore()
+                testApp { _ -> configureNodesTest(store = store) }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                store.update(nodeId.toString(), RouterStatus(running = true, updateAvailable = true))
+                val client = jsonClient()
+
+                val body = client.get("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
+                    .body<JsonObject>()
+
+                body["router_update_available"]!!.jsonPrimitive.boolean shouldBe true
+            }
+        }
+
         // -------------------------------------------------------------------------
         // POST /nodes/{id}/trust
         // -------------------------------------------------------------------------
@@ -430,6 +453,46 @@ class NodesRoutesTest :
                 assignGlobalGroup(userId, "Super Admin")
 
                 client.post("/api/nodes/${Uuid.random()}/shutdown") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // POST /nodes/{id}/router/recreate
+        // -------------------------------------------------------------------------
+
+        test("router recreate returns 202 and sends the command to the node") {
+            testApplication {
+                val gw = TestAgentGateway()
+                testApp { _ -> configureNodesTest(gw) }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+
+                client.post("/api/nodes/$nodeId/router/recreate") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.Accepted
+
+                gw.sent.firstOrNull()?.first shouldBe nodeId.toString()
+                gw.sent.firstOrNull()?.second?.payloadCase shouldBe MasterMessage.PayloadCase.RECREATE_ROUTER
+            }
+        }
+
+        test("router recreate returns 502 when agent not connected") {
+            testApplication {
+                testApp { _ -> configureNodesTest(TestAgentGateway(sendResult = false)) }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+
+                client.post("/api/nodes/$nodeId/router/recreate") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.BadGateway
+            }
+        }
+
+        test("router recreate returns 404 for unknown node") {
+            testApplication {
+                testApp { _ -> configureNodesTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+
+                client.post("/api/nodes/${Uuid.random()}/router/recreate") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
             }
         }
 

@@ -37,6 +37,8 @@ class ControlServiceImpl(
     private val backupHandler: BackupHandler,
     private val migrationHandler: MigrationHandler,
     private val dataOpResponseHandler: DataOpResponseHandler,
+    // mc-router liveness/update state reported by the agent (node-page signal).
+    private val routerStatusHandler: RouterStatusHandler,
     // Install-wide agent runtime tuning included in register/identify responses.
     private val agentRuntimeSettingsService: AgentRuntimeSettingsService
 ) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
@@ -132,8 +134,11 @@ class ControlServiceImpl(
         when {
             msg.hasNodeState()        -> {
                 nodeStateHandler.handle(msg, msg.nodeId)
+                routerStatusHandler.handleSnapshot(msg.nodeState, msg.nodeId)
                 registry.rebuildSymlinks(msg.nodeId)
             }
+
+            msg.hasRouterStatus()     -> routerStatusHandler.handle(msg, msg.nodeId)
 
             msg.hasNodeMetrics()      -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
 
@@ -167,6 +172,7 @@ class ControlServiceImpl(
             }"
         )
         drainNodeRequests(nodeId)
+        routerStatusHandler.clear(nodeId)
         onNodeDisconnect(nodeId)
         if (wasOwner && !watchdogFired && !registry.isConnected(nodeId)) {
             log.warn("Node $nodeId: control stream disconnected — marking unreachable")
