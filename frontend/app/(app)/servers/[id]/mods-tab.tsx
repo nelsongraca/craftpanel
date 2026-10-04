@@ -404,7 +404,7 @@ export function ModsTab({
                                 const total = compatResults.results.length;
                                 const compatibleCount = compatResults.results.filter((r) => r.compatible).length;
                                 const changeCount = compatResults.results.filter(
-                                    (r) => !r.compatible && r.suggested_changes.length > 0,
+                                    (r) => !r.compatible && (r.suggested_changes?.length ?? 0) > 0,
                                 ).length;
                                 const incompatibleCount = total - compatibleCount - changeCount;
                                 const summaryClass =
@@ -431,8 +431,9 @@ export function ModsTab({
                             })()}
                             <div className="max-h-64 space-y-2 overflow-y-auto">
                                 {compatResults.results.map((r) => {
-                                    const primary = r.suggested_changes[0];
-                                    const alternative = r.suggested_changes[1];
+                                    const suggestions = r.suggested_changes ?? [];
+                                    const primary = suggestions[0];
+                                    const alternative = suggestions[1];
                                     const needsChange = !r.compatible && primary !== undefined;
                                     const applying = compatApplying === r.modrinth_project_id;
                                     return (

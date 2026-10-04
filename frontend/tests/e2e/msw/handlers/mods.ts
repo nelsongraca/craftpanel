@@ -63,6 +63,7 @@ export const modHandlers = [
                     compatible: true,
                     latest_compatible_version_id: "we-7.3.0",
                     latest_compatible_version_number: "7.3.0",
+                    suggested_changes: [],
                 },
             ],
         }),
