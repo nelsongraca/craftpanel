@@ -61,12 +61,13 @@ class ModServiceTest :
             }[Servers.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun addMod(serverId: Uuid, projectId: String, displayName: String) = transaction {
+        fun addMod(serverId: Uuid, projectId: String, displayName: String, pinStrategy: String = "LATEST", pinnedVersionId: String? = null) = transaction {
             ServerMods.insert {
                 it[ServerMods.serverId] = EntityID(serverId, Servers)
                 it[ServerMods.modrinthProjectId] = projectId
                 it[ServerMods.displayName] = displayName
-                it[ServerMods.pinStrategy] = "LATEST"
+                it[ServerMods.pinStrategy] = pinStrategy
+                it[ServerMods.pinnedVersionId] = pinnedVersionId
             }
         }
 
@@ -84,7 +85,7 @@ class ModServiceTest :
 
         test("addMod with LATEST strategy succeeds when a compatible version exists") {
             val client = mockClient {
-                respond("""[{"id":"abc123","version_number":"1.0.0"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
+                respond("""[{"id":"abc123","version_number":"1.0.0","version_type":"release"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
             }
             val service = ModService(repos.serverRepository, repos.modRepository, client)
             val serverId = createServer(createNode())
@@ -95,7 +96,11 @@ class ModServiceTest :
 
         test("addMod with PINNED strategy rejects a version id not present in Modrinth's response") {
             val client = mockClient {
-                respond("""[{"id":"other-version","version_number":"9.9.9"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
+                respond(
+                    """[{"id":"other-version","version_number":"9.9.9","version_type":"release"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
             }
             val service = ModService(repos.serverRepository, repos.modRepository, client)
             val serverId = createServer(createNode())
@@ -110,7 +115,7 @@ class ModServiceTest :
 
         test("addMod with PINNED strategy accepts a version number when it is compatible") {
             val client = mockClient {
-                respond("""[{"id":"hP2cDwH3","version_number":"0.9.6"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
+                respond("""[{"id":"hP2cDwH3","version_number":"0.9.6","version_type":"release"}]""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
             }
             val service = ModService(repos.serverRepository, repos.modRepository, client)
             val serverId = createServer(createNode())
@@ -197,6 +202,93 @@ class ModServiceTest :
             r.latestCompatibleVersionNumber shouldBe "0.99.0"
         }
 
+        test("checkCompatibility with LATEST is incompatible when only an alpha version targets the version") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"alpha-v","version_number":"0.101.0-alpha","version_type":"alpha"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "scalablelux", "ScalableLux")
+
+            val r = service.checkCompatibility(serverId, "26.3").results.first()
+            r.compatible shouldBe false
+            r.latestCompatibleVersionId shouldBe null
+            r.latestCompatibleVersionNumber shouldBe null
+        }
+
+        test("checkCompatibility with ALPHA is compatible when only an alpha version targets the version") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"alpha-v","version_number":"0.101.0-alpha","version_type":"alpha"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "scalablelux", "ScalableLux", pinStrategy = "ALPHA")
+
+            val r = service.checkCompatibility(serverId, "26.3").results.first()
+            r.compatible shouldBe true
+            r.latestCompatibleVersionId shouldBe "alpha-v"
+            r.latestCompatibleVersionNumber shouldBe "0.101.0-alpha"
+        }
+
+        test("checkCompatibility with BETA is incompatible when only an alpha version targets the version") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"alpha-v","version_number":"0.101.0-alpha","version_type":"alpha"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "scalablelux", "ScalableLux", pinStrategy = "BETA")
+
+            val r = service.checkCompatibility(serverId, "26.3").results.first()
+            r.compatible shouldBe false
+        }
+
+        test("checkCompatibility with BETA is compatible when a beta version targets the version") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"alpha-v","version_number":"0.101.0-alpha","version_type":"alpha"},
+                        {"id":"beta-v","version_number":"0.100.0-beta","version_type":"beta"}]
+                    """.trimIndent(),
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "scalablelux", "ScalableLux", pinStrategy = "BETA")
+
+            val r = service.checkCompatibility(serverId, "26.3").results.first()
+            r.compatible shouldBe true
+            r.latestCompatibleVersionId shouldBe "beta-v"
+        }
+
+        test("addMod with LATEST strategy rejects a project whose only target version is alpha") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"alpha-v","version_number":"0.101.0-alpha","version_type":"alpha"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+
+            shouldThrow<UnprocessableException> {
+                service.addMod(serverId, CreateModRequest(modrinthProjectId = "scalablelux", displayName = "ScalableLux", pinStrategy = ModPinStrategy.LATEST))
+            }
+        }
+
         test("checkCompatibility returns results for all mods") {
             val client = mockClient {
                 respond(
@@ -223,5 +315,71 @@ class ModServiceTest :
             shouldThrow<BadGatewayException> {
                 service.checkCompatibility(serverId, "1.22")
             }
+        }
+
+        // ── Update mod compatibility ─────────────────────────────────────────────
+
+        test("updateMod rejects a pin strategy change with no compatible version for the server") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"alpha-v","version_number":"0.101.0-alpha","version_type":"alpha"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "scalablelux", "ScalableLux")
+            val modId = Uuid.parse(service.listMods(serverId).first().id)
+
+            shouldThrow<UnprocessableException> {
+                service.updateMod(serverId, modId, PatchModRequest(pinStrategy = ModPinStrategy.BETA))
+            }
+        }
+
+        test("updateMod accepts a pin strategy change when a compatible version exists") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"alpha-v","version_number":"0.101.0-alpha","version_type":"alpha"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "scalablelux", "ScalableLux")
+            val modId = Uuid.parse(service.listMods(serverId).first().id)
+
+            val updated = service.updateMod(serverId, modId, PatchModRequest(pinStrategy = ModPinStrategy.ALPHA))
+            updated.pinStrategy shouldBe ModPinStrategy.ALPHA
+        }
+
+        test("updateMod rejects a pinned version not present for the server version") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"other-version","version_number":"9.9.9","version_type":"release"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "fabric-api", "Fabric API")
+            val modId = Uuid.parse(service.listMods(serverId).first().id)
+
+            shouldThrow<UnprocessableException> {
+                service.updateMod(serverId, modId, PatchModRequest(pinStrategy = ModPinStrategy.PINNED, pinnedVersionId = "does-not-exist"))
+            }
+        }
+
+        test("updateMod toggling enabled does not re-check Modrinth") {
+            val client = mockClient { throw java.io.IOException("boom") }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "fabric-api", "Fabric API")
+            val modId = Uuid.parse(service.listMods(serverId).first().id)
+
+            val updated = service.updateMod(serverId, modId, PatchModRequest(enabled = false))
+            updated.enabled shouldBe false
         }
     })
