@@ -64,12 +64,20 @@ data class ModrinthSearchResult(val statusCode: Int, val body: String)
 private data class ModrinthVersionDetail(val id: String, @SerialName("version_number") val versionNumber: String, @SerialName("version_type") val versionType: String)
 
 @Serializable
+data class SuggestedPinChange(
+    @SerialName("pin_strategy") val pinStrategy: ModPinStrategy,
+    @SerialName("pinned_version_id") val pinnedVersionId: String? = null,
+    @SerialName("version_number") val versionNumber: String? = null
+)
+
+@Serializable
 data class ModCompatibilityResult(
     @SerialName("modrinth_project_id") val modrinthProjectId: String,
     @SerialName("display_name") val displayName: String,
     val compatible: Boolean,
     @SerialName("latest_compatible_version_id") val latestCompatibleVersionId: String?,
-    @SerialName("latest_compatible_version_number") val latestCompatibleVersionNumber: String?
+    @SerialName("latest_compatible_version_number") val latestCompatibleVersionNumber: String?,
+    @SerialName("suggested_changes") val suggestedChanges: List<SuggestedPinChange>
 )
 
 @Serializable
@@ -214,16 +222,17 @@ class ModService(
 
     /**
      * Verifies a Modrinth version compatible with the server's loader + MC version exists for the requested pin
-     * strategy. Applied to every add — including PINNED, re-verified server-side rather than trusting the client —
-     * so an incompatible mod can never be attached: itzg resolves "latest"/"beta"/"alpha" lazily at container
-     * startup and simply fails to boot if nothing matches.
+     * strategy. Applied to every add/update — including PINNED, re-verified server-side rather than trusting the
+     * client — so an incompatible mod can never be attached: itzg resolves "latest"/"beta"/"alpha" lazily at
+     * container startup and simply fails to boot if nothing matches.
      */
     private fun hasCompatibleVersion(projectId: String, serverType: ServerType, mcVersion: String, pinStrategy: ModPinStrategy, pinnedVersionId: String?): Boolean {
         // Only actual mod loaders (Fabric/Forge/NeoForge/Quilt) get a loaders filter — plugin/proxy servers
         // (Paper, Velocity, ...) are filtered by game_version only, since a Paper-compatible plugin may only be
         // tagged "spigot"/"bukkit" on Modrinth rather than "paper".
         val loader = if (serverType in MOD_LOADER_TYPES) ServerType.LOADER_BY_TYPE[serverType] else null
-        return selectCompatibleVersion(projectId, loader, mcVersion, pinStrategy, pinnedVersionId) != null
+        val versions = fetchModrinthVersionsForCompat(projectId, loader, mcVersion)
+        return selectCompatibleVersion(versions, pinStrategy, pinnedVersionId) != null
     }
 
     fun checkCompatibility(serverId: Uuid, targetVersion: String): CompatibilityCheckResponse {
@@ -232,31 +241,38 @@ class ModService(
         val mods = modRepository.listMods(serverId)
         val loader = if (server.serverType in MOD_LOADER_TYPES) ServerType.LOADER_BY_TYPE[server.serverType] else null
         val results = mods.map { mod ->
-            val latest = selectCompatibleVersion(
-                mod.modrinthProjectId,
-                loader,
-                targetVersion,
-                ModPinStrategy.fromDb(mod.pinStrategy),
-                mod.pinnedVersionId
-            )
-            ModCompatibilityResult(
-                modrinthProjectId = mod.modrinthProjectId,
-                displayName = mod.displayName,
-                compatible = latest != null,
-                latestCompatibleVersionId = latest?.id,
-                latestCompatibleVersionNumber = latest?.versionNumber
-            )
+            val versions = fetchModrinthVersionsForCompat(mod.modrinthProjectId, loader, targetVersion)
+            val pinStrategy = ModPinStrategy.fromDb(mod.pinStrategy)
+            val latest = selectCompatibleVersion(versions, pinStrategy, mod.pinnedVersionId)
+            if (latest != null) {
+                ModCompatibilityResult(
+                    modrinthProjectId = mod.modrinthProjectId,
+                    displayName = mod.displayName,
+                    compatible = true,
+                    latestCompatibleVersionId = latest.id,
+                    latestCompatibleVersionNumber = latest.versionNumber,
+                    suggestedChanges = emptyList()
+                )
+            } else {
+                ModCompatibilityResult(
+                    modrinthProjectId = mod.modrinthProjectId,
+                    displayName = mod.displayName,
+                    compatible = false,
+                    latestCompatibleVersionId = null,
+                    latestCompatibleVersionNumber = null,
+                    suggestedChanges = suggestPinChanges(versions, pinStrategy)
+                )
+            }
         }
         return CompatibilityCheckResponse(targetVersion = targetVersion, results = results)
     }
 
     /**
-     * Resolves the version itzg's MODRINTH_PROJECTS would actually install for [mcVersion], mirroring its release
-     * type selection: LATEST accepts only release, BETA accepts release/beta, ALPHA accepts release/beta/alpha, and
-     * PINNED matches the exact version id or number. Returns null when nothing matches within [mcVersion] + loader.
+     * Resolves the version itzg's MODRINTH_PROJECTS would actually install for the target MC version, mirroring its
+     * release type selection: LATEST accepts only release, BETA accepts release/beta, ALPHA accepts release/beta/
+     * alpha, and PINNED matches the exact version id or number. Returns null when nothing matches.
      */
-    private fun selectCompatibleVersion(projectId: String, loader: String?, mcVersion: String, pinStrategy: ModPinStrategy, pinnedVersionId: String?): ModrinthVersionDetail? {
-        val versions = fetchModrinthVersionsForCompat(projectId, loader, mcVersion)
+    private fun selectCompatibleVersion(versions: List<ModrinthVersionDetail>, pinStrategy: ModPinStrategy, pinnedVersionId: String?): ModrinthVersionDetail? {
         if (pinStrategy == ModPinStrategy.PINNED) {
             val pin = pinnedVersionId ?: return null
             return versions.firstOrNull { it.id == pin || it.versionNumber == pin }
@@ -271,6 +287,41 @@ class ModService(
         ModPinStrategy.BETA -> setOf("release", "beta")
         ModPinStrategy.ALPHA -> setOf("release", "beta", "alpha")
         ModPinStrategy.PINNED -> setOf("release", "beta", "alpha")
+    }
+
+    /**
+     * Builds the pin changes that would make an otherwise-incompatible mod usable for the target version. For a
+     * PINNED mod the exact-version re-pin comes first (preserving the pin intent) followed by the channel switch;
+     * for LATEST/BETA only the channel switch applies. Empty when no version targets the version at all.
+     */
+    private fun suggestPinChanges(versions: List<ModrinthVersionDetail>, pinStrategy: ModPinStrategy): List<SuggestedPinChange> {
+        if (versions.isEmpty()) return emptyList()
+        val suggestions = mutableListOf<SuggestedPinChange>()
+        if (pinStrategy == ModPinStrategy.PINNED) {
+            bestStableVersion(versions)?.let {
+                suggestions += SuggestedPinChange(ModPinStrategy.PINNED, it.id, it.versionNumber)
+            }
+        }
+        channelSuggestion(versions)?.let { suggestions += it }
+        return suggestions
+    }
+
+    /** The most stable version available for the target: newest release, else newest beta, else newest alpha. */
+    private fun bestStableVersion(versions: List<ModrinthVersionDetail>): ModrinthVersionDetail? = versions.firstOrNull { it.versionType == "release" }
+        ?: versions.firstOrNull { it.versionType == "beta" }
+        ?: versions.firstOrNull { it.versionType == "alpha" }
+
+    /** The most stable release channel with a version for the target, carrying the version it currently resolves to. */
+    private fun channelSuggestion(versions: List<ModrinthVersionDetail>): SuggestedPinChange? {
+        val release = versions.firstOrNull { it.versionType == "release" }
+        val beta = versions.firstOrNull { it.versionType == "beta" }
+        val alpha = versions.firstOrNull { it.versionType == "alpha" }
+        return when {
+            release != null -> SuggestedPinChange(ModPinStrategy.LATEST, versionNumber = release.versionNumber)
+            beta != null -> SuggestedPinChange(ModPinStrategy.BETA, versionNumber = beta.versionNumber)
+            alpha != null -> SuggestedPinChange(ModPinStrategy.ALPHA, versionNumber = alpha.versionNumber)
+            else -> null
+        }
     }
 
     private fun fetchModrinthVersionsForCompat(projectId: String, loader: String?, mcVersion: String): List<ModrinthVersionDetail> {

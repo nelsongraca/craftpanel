@@ -177,6 +177,7 @@ class ModServiceTest :
             r.compatible shouldBe false
             r.latestCompatibleVersionId shouldBe null
             r.latestCompatibleVersionNumber shouldBe null
+            r.suggestedChanges shouldBe emptyList()
         }
 
         test("checkCompatibility picks latest release version over beta") {
@@ -200,6 +201,7 @@ class ModServiceTest :
             r.compatible shouldBe true
             r.latestCompatibleVersionId shouldBe "release-v"
             r.latestCompatibleVersionNumber shouldBe "0.99.0"
+            r.suggestedChanges shouldBe emptyList()
         }
 
         test("checkCompatibility with LATEST is incompatible when only an alpha version targets the version") {
@@ -218,6 +220,44 @@ class ModServiceTest :
             r.compatible shouldBe false
             r.latestCompatibleVersionId shouldBe null
             r.latestCompatibleVersionNumber shouldBe null
+            r.suggestedChanges shouldBe listOf(SuggestedPinChange(ModPinStrategy.ALPHA, versionNumber = "0.101.0-alpha"))
+        }
+
+        test("checkCompatibility with LATEST suggests BETA when only a beta version targets the version") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"beta-v","version_number":"0.100.0-beta","version_type":"beta"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "scalablelux", "ScalableLux")
+
+            val r = service.checkCompatibility(serverId, "26.3").results.first()
+            r.compatible shouldBe false
+            r.suggestedChanges shouldBe listOf(SuggestedPinChange(ModPinStrategy.BETA, versionNumber = "0.100.0-beta"))
+        }
+
+        test("checkCompatibility with PINNED offers a re-pin and a channel switch when another version targets the version") {
+            val client = mockClient {
+                respond(
+                    """[{"id":"release-v","version_number":"0.99.0","version_type":"release"}]""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
+            val service = ModService(repos.serverRepository, repos.modRepository, client)
+            val serverId = createServer(createNode())
+            addMod(serverId, "scalablelux", "ScalableLux", pinStrategy = "PINNED", pinnedVersionId = "old-pin")
+
+            val r = service.checkCompatibility(serverId, "26.3").results.first()
+            r.compatible shouldBe false
+            r.suggestedChanges shouldBe listOf(
+                SuggestedPinChange(ModPinStrategy.PINNED, pinnedVersionId = "release-v", versionNumber = "0.99.0"),
+                SuggestedPinChange(ModPinStrategy.LATEST, versionNumber = "0.99.0")
+            )
         }
 
         test("checkCompatibility with ALPHA is compatible when only an alpha version targets the version") {
@@ -252,6 +292,7 @@ class ModServiceTest :
 
             val r = service.checkCompatibility(serverId, "26.3").results.first()
             r.compatible shouldBe false
+            r.suggestedChanges shouldBe listOf(SuggestedPinChange(ModPinStrategy.ALPHA, versionNumber = "0.101.0-alpha"))
         }
 
         test("checkCompatibility with BETA is compatible when a beta version targets the version") {

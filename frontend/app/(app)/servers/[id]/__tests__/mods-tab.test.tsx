@@ -19,12 +19,19 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
 
 import {listMods, addMod, deleteMod, updateMod, checkModCompatibility} from "@/lib/generated/sdk.gen";
 
+interface SuggestedPinChange {
+    pin_strategy: "LATEST" | "PINNED" | "BETA" | "ALPHA";
+    pinned_version_id?: string | null;
+    version_number?: string | null;
+}
+
 interface ModCompatibilityResult {
     modrinth_project_id: string;
     display_name: string;
     compatible: boolean;
     latest_compatible_version_id: string | null;
     latest_compatible_version_number: string | null;
+    suggested_changes: SuggestedPinChange[];
 }
 
 // ---------------------------------------------------------------------------
@@ -1000,6 +1007,7 @@ describe("Compatibility Check", () => {
                 compatible: true,
                 latest_compatible_version_id: "v-compat",
                 latest_compatible_version_number: "7.4.0+1.22",
+                suggested_changes: [],
             },
             {
                 modrinth_project_id: "def456",
@@ -1007,6 +1015,7 @@ describe("Compatibility Check", () => {
                 compatible: false,
                 latest_compatible_version_id: null,
                 latest_compatible_version_number: null,
+                suggested_changes: [],
             },
         ];
         overrides.forEach((o, i) => {
@@ -1070,7 +1079,8 @@ describe("Compatibility Check", () => {
                 query: {target_version: "1.22"},
             });
         });
-        await waitFor(() => expect(screen.getByText("1/2 mods compatible with 1.22")).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText(/1\/2 mods compatible with 1\.22/)).toBeInTheDocument());
+        expect(screen.getByText(/1 incompatible/)).toBeInTheDocument();
         expect(screen.getAllByText("WorldEdit").length).toBeGreaterThan(0);
         expect(screen.getByText("Compatible with 1.22")).toBeInTheDocument();
         expect(screen.getByText("Not compatible")).toBeInTheDocument();
@@ -1091,7 +1101,67 @@ describe("Compatibility Check", () => {
         await user.click(screen.getByRole("button", {name: /check version/i}));
         await user.click(screen.getByRole("button", {name: /^check$/i}));
 
-        await waitFor(() => expect(screen.getByText("2/2 mods compatible with 1.22")).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText(/2\/2 mods compatible with 1\.22/)).toBeInTheDocument());
+    });
+
+    it("shows a pin-change suggestion with an Apply button that updates the pin", async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({
+            data: compatResponse([
+                {
+                    compatible: false,
+                    latest_compatible_version_id: null,
+                    latest_compatible_version_number: null,
+                    suggested_changes: [{pin_strategy: "BETA", version_number: "0.100.0-beta"}],
+                },
+            ]),
+        } as never);
+        vi.mocked(updateMod).mockResolvedValue({data: {}} as never);
+
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
+        await user.click(screen.getByRole("button", {name: /^check$/i}));
+
+        await waitFor(() => expect(screen.getByText("Change pin to Latest beta")).toBeInTheDocument());
+
+        await user.click(screen.getByRole("button", {name: /^apply$/i}));
+
+        await waitFor(() =>
+            expect(updateMod).toHaveBeenCalledWith({
+                path: {id: "s1", modId: "mod-1"},
+                body: {pin_strategy: "BETA", pinned_version_id: undefined},
+            }),
+        );
+    });
+
+    it("shows a three-way summary and both options for a pinned mod", async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({
+            data: compatResponse([
+                {
+                    compatible: false,
+                    latest_compatible_version_id: null,
+                    latest_compatible_version_number: null,
+                    suggested_changes: [
+                        {pin_strategy: "PINNED", pinned_version_id: "v9", version_number: "9.0.0"},
+                        {pin_strategy: "LATEST", version_number: "9.0.0"},
+                    ],
+                },
+            ]),
+        } as never);
+
+        await renderModsTab();
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", {name: /check version/i}));
+        await user.click(screen.getByRole("button", {name: /^check$/i}));
+
+        await waitFor(() => expect(screen.getByText(/1 needs? a pin change/)).toBeInTheDocument());
+        expect(screen.getByText(/1 incompatible/)).toBeInTheDocument();
+        expect(screen.getByText("Re-pin to 9.0.0")).toBeInTheDocument();
+        expect(screen.getByRole("button", {name: /switch to latest stable/i})).toBeInTheDocument();
     });
 
     it("shows loading state while checking", async () => {
@@ -1129,7 +1199,7 @@ describe("Compatibility Check", () => {
         const user = userEvent.setup();
         await user.click(screen.getByRole("button", {name: /check version/i}));
         await user.click(screen.getByRole("button", {name: /^check$/i}));
-        await waitFor(() => expect(screen.getByText("1/2 mods compatible with 1.22")).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText(/1\/2 mods compatible with 1\.22/)).toBeInTheDocument());
 
         await user.click(screen.getByRole("button", {name: /^cancel$/i}));
         await waitFor(() => {

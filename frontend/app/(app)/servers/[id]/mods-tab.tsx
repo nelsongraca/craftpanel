@@ -1,7 +1,7 @@
 "use client";
 
 import {useCallback, useEffect, useState} from "react";
-import {Check, GitCompare, Pin, Plus, RefreshCw, Search, Trash2, X} from "lucide-react";
+import {AlertTriangle, Check, GitCompare, Pin, Plus, RefreshCw, Search, Trash2, X} from "lucide-react";
 import {addMod, checkModCompatibility, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
 import type {ModResponse as Mod} from "@/lib/generated/types.gen";
 import {SelectField} from "@/components/ui/form-elements";
@@ -12,12 +12,19 @@ import {isModLoaderType, modrinthKind} from "@/lib/server-types";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
 
+interface SuggestedPinChange {
+    pin_strategy: PinStrategy;
+    pinned_version_id?: string | null;
+    version_number?: string | null;
+}
+
 interface ModCompatibilityResult {
     modrinth_project_id: string;
     display_name: string;
     compatible: boolean;
     latest_compatible_version_id: string | null;
     latest_compatible_version_number: string | null;
+    suggested_changes: SuggestedPinChange[];
 }
 
 interface CompatibilityCheckResponse {
@@ -31,6 +38,13 @@ const PIN_LABELS: Record<PinStrategy, string> = {
     BETA: "Latest beta",
     ALPHA: "Latest alpha",
 };
+
+function suggestionLabel(change: SuggestedPinChange): string {
+    if (change.pin_strategy === "PINNED") {
+        return change.version_number ? `Re-pin to ${change.version_number}` : "Re-pin to a compatible version";
+    }
+    return `Change pin to ${PIN_LABELS[change.pin_strategy]}`;
+}
 
 interface ModrinthVersion {
     id: string;
@@ -117,6 +131,7 @@ export function ModsTab({
     const [compatChecking, setCompatChecking] = useState(false);
     const [compatResults, setCompatResults] = useState<CompatibilityCheckResponse | null>(null);
     const [compatError, setCompatError] = useState<string | null>(null);
+    const [compatApplying, setCompatApplying] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -281,6 +296,29 @@ export function ModsTab({
         setCompatError(null);
     }
 
+    async function applyCompatChange(result: ModCompatibilityResult, change: SuggestedPinChange) {
+        const mod = mods.find((m) => m.modrinth_project_id === result.modrinth_project_id);
+        if (!mod?.id) return;
+        setCompatApplying(result.modrinth_project_id);
+        setCompatError(null);
+        const res = await updateMod({
+            path: {id: serverId, modId: mod.id},
+            body: {
+                pin_strategy: change.pin_strategy,
+                pinned_version_id:
+                    change.pin_strategy === "PINNED" ? (change.pinned_version_id ?? undefined) : undefined,
+            },
+        });
+        if (res.error) {
+            setCompatError((res.error as {message?: string})?.message ?? "Failed to update mod");
+        } else {
+            await load();
+            onModsChanged?.();
+            await handleCompatCheck();
+        }
+        setCompatApplying(null);
+    }
+
     if (loading) {
         return <div className="p-4 text-sm text-text-dim">Loading {itemLabel}s…</div>;
     }
@@ -363,44 +401,91 @@ export function ModsTab({
                     {compatResults && (
                         <div className="space-y-2">
                             {(() => {
-                                const compatCount = compatResults.results.filter((r) => r.compatible).length;
                                 const total = compatResults.results.length;
+                                const compatibleCount = compatResults.results.filter((r) => r.compatible).length;
+                                const changeCount = compatResults.results.filter(
+                                    (r) => !r.compatible && r.suggested_changes.length > 0,
+                                ).length;
+                                const incompatibleCount = total - compatibleCount - changeCount;
                                 const summaryClass =
-                                    compatCount === total
-                                        ? "text-healthy"
-                                        : compatCount === 0
-                                          ? "text-error"
-                                          : "text-warning";
+                                    incompatibleCount > 0
+                                        ? "text-error"
+                                        : changeCount > 0
+                                          ? "text-warning"
+                                          : "text-healthy";
                                 return (
                                     <div className={`text-sm ${summaryClass}`}>
-                                        {compatCount}/{total} {itemLabel}
+                                        {compatibleCount}/{total} {itemLabel}
                                         {total !== 1 ? "s" : ""} compatible with {compatResults.target_version}
+                                        {changeCount > 0 && (
+                                            <span className="text-warning">
+                                                {" "}
+                                                · {changeCount} need{changeCount === 1 ? "s" : ""} a pin change
+                                            </span>
+                                        )}
+                                        {incompatibleCount > 0 && (
+                                            <span className="text-error"> · {incompatibleCount} incompatible</span>
+                                        )}
                                     </div>
                                 );
                             })()}
                             <div className="max-h-64 space-y-2 overflow-y-auto">
-                                {compatResults.results.map((r) => (
-                                    <div
-                                        key={r.modrinth_project_id}
-                                        className="flex items-center justify-between gap-3 rounded border border-border bg-bg p-2"
-                                    >
-                                        <div className="flex min-w-0 items-center gap-2">
-                                            {r.compatible ? (
-                                                <Check className="h-3.5 w-3.5 shrink-0 text-healthy" />
-                                            ) : (
-                                                <X className="h-3.5 w-3.5 shrink-0 text-error" />
-                                            )}
-                                            <span className="truncate text-sm text-text-primary">{r.display_name}</span>
-                                        </div>
-                                        <span
-                                            className={`shrink-0 text-xs ${r.compatible ? "text-healthy" : "text-error"}`}
+                                {compatResults.results.map((r) => {
+                                    const primary = r.suggested_changes[0];
+                                    const alternative = r.suggested_changes[1];
+                                    const needsChange = !r.compatible && primary !== undefined;
+                                    const applying = compatApplying === r.modrinth_project_id;
+                                    return (
+                                        <div
+                                            key={r.modrinth_project_id}
+                                            className="flex items-center justify-between gap-3 rounded border border-border bg-bg p-2"
                                         >
-                                            {r.compatible
-                                                ? `Compatible with ${compatResults.target_version}`
-                                                : "Not compatible"}
-                                        </span>
-                                    </div>
-                                ))}
+                                            <div className="flex min-w-0 items-center gap-2">
+                                                {r.compatible ? (
+                                                    <Check className="h-3.5 w-3.5 shrink-0 text-healthy" />
+                                                ) : needsChange ? (
+                                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />
+                                                ) : (
+                                                    <X className="h-3.5 w-3.5 shrink-0 text-error" />
+                                                )}
+                                                <span className="truncate text-sm text-text-primary">
+                                                    {r.display_name}
+                                                </span>
+                                            </div>
+                                            <div className="flex shrink-0 items-center gap-2">
+                                                {r.compatible ? (
+                                                    <span className="text-xs text-healthy">
+                                                        Compatible with {compatResults.target_version}
+                                                    </span>
+                                                ) : needsChange && primary ? (
+                                                    <>
+                                                        <span className="text-xs text-warning">
+                                                            {suggestionLabel(primary)}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => applyCompatChange(r, primary)}
+                                                            disabled={applying}
+                                                            className="rounded border border-warning/40 px-2 py-0.5 text-[11px] text-warning transition-colors hover:bg-warning/10 disabled:opacity-50"
+                                                        >
+                                                            {applying ? "Applying…" : "Apply"}
+                                                        </button>
+                                                        {alternative && (
+                                                            <button
+                                                                onClick={() => applyCompatChange(r, alternative)}
+                                                                disabled={applying}
+                                                                className="rounded border border-border px-2 py-0.5 text-[11px] text-text-dim transition-colors hover:text-text-primary disabled:opacity-50"
+                                                            >
+                                                                Switch to {PIN_LABELS[alternative.pin_strategy]}
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <span className="text-xs text-error">Not compatible</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

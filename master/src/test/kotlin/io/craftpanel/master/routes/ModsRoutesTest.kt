@@ -509,6 +509,7 @@ class ModsRoutesTest :
                 r["compatible"]!!.jsonPrimitive.boolean shouldBe true
                 r["latest_compatible_version_id"]!!.jsonPrimitive.content shouldBe "Oa9ZDzZq"
                 r["latest_compatible_version_number"]!!.jsonPrimitive.content shouldBe "1.0.0"
+                r["suggested_changes"]!!.jsonArray.size shouldBe 0
             }
         }
 
