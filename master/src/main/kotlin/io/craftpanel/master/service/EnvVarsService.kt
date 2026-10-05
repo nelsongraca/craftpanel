@@ -29,7 +29,7 @@ data class PatchConfigModeRequest(@SerialName("config_mode") val configMode: Con
 @Serializable
 data class PatchStopCommandRequest(@SerialName("stop_command") val stopCommand: String)
 
-class EnvVarsService(private val serverRepository: ServerRepository, private val envVarsRepository: EnvVarsRepository) {
+class EnvVarsService(private val serverRepository: ServerRepository, private val envVarsRepository: EnvVarsRepository, private val specSync: ServerSpecSync) {
 
     fun getEnvVars(serverId: Uuid): EnvVarsResponse {
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
@@ -42,16 +42,17 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
         val keys = req.envVars.map { it.key.trim() }
         if (keys.size != keys.toSet().size) throw UnprocessableException("Duplicate env var keys")
-        transaction {
-            EnvVar.find { ServerEnvVars.serverId eq serverId }.forEach { it.delete() }
-            req.envVars.forEach { ev ->
-                EnvVar.new {
-                    this.serverId = EntityID(serverId, Servers)
-                    key = ev.key.trim()
-                    value = ev.value
+        specSync.reconcile(serverId) {
+            transaction {
+                EnvVar.find { ServerEnvVars.serverId eq serverId }.forEach { it.delete() }
+                req.envVars.forEach { ev ->
+                    EnvVar.new {
+                        this.serverId = EntityID(serverId, Servers)
+                        key = ev.key.trim()
+                        value = ev.value
+                    }
                 }
             }
-            Server.findById(serverId)?.let { it.restartPending = true }
         }
         return getEnvVars(serverId)
     }
@@ -70,10 +71,11 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
         if (server.serverType.isCustom && req.configMode == ConfigMode.MANAGED) {
             throw UnprocessableException("CUSTOM servers cannot use MANAGED configuration mode")
         }
-        transaction {
-            val e = Server.findById(serverId) ?: return@transaction
-            e.configMode = req.configMode.name
-            e.restartPending = true
+        specSync.reconcile(serverId) {
+            transaction {
+                val e = Server.findById(serverId) ?: return@transaction
+                e.configMode = req.configMode.name
+            }
         }
         return getEnvVars(serverId)
     }

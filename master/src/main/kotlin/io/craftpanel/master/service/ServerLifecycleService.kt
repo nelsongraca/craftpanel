@@ -19,7 +19,8 @@ class ServerLifecycleService(
     private val serverRepository: ServerRepository,
     private val serverIntent: ServerIntent,
     private val proxyPatchWriter: ProxyPatchWriter,
-    private val backendForwardingService: BackendForwardingService
+    private val backendForwardingService: BackendForwardingService,
+    private val specSync: ServerSpecSync
 ) {
 
     suspend fun startServer(id: Uuid) {
@@ -40,7 +41,11 @@ class ServerLifecycleService(
         // container — force a restart so the agent retries past its exhausted crash budget.
         val forceRestart = desired == DesiredStatus.RUNNING
         serverIntent.withIntent(id, DesiredStatus.RUNNING) {
-            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = forceRestart)
+            // The envelope carries the current spec; a successful send restores delivery so a later
+            // STARTING can clear the pending-restart marker.
+            val ok = lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = forceRestart)
+            specSync.markDelivered(id, ok)
+            ok
         }
     }
 
@@ -55,7 +60,9 @@ class ServerLifecycleService(
         ensureProxySecret(serverRow)
         proxyPatchWriter.write(serverRow)
         serverIntent.withIntent(id, DesiredStatus.RUNNING) {
-            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true)
+            val ok = lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true)
+            specSync.markDelivered(id, ok)
+            ok
         }
     }
 

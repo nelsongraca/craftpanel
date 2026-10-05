@@ -126,7 +126,6 @@ class DockerContainerManager(
                 buildMap {
                     put(DockerLabels.MANAGED, DockerLabels.MANAGED_VALUE)
                     put("craftpanel.server.id", cmd.serverId)
-                    put(DockerLabels.MANAGED_ENV_KEYS, cmd.envVarsMap.keys.sorted().joinToString(","))
                     if (cmd.publicHostname.isNotEmpty() && !isUdp) {
                         // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
                         // `mc-router.host` is the routing hostname; `mc-router.port` is the
@@ -172,11 +171,6 @@ class DockerContainerManager(
     }.getOrDefault(false)
 
     override fun pullImage(image: String) = pullImage(image, pullMaxImageAgeHours)
-
-    override fun imageId(image: String): String? = runCatching {
-        docker.inspectImageCmd(image)
-            .exec().id
-    }.getOrNull()
 
     override fun refreshImage(image: String) {
         runCatching {
@@ -356,62 +350,8 @@ class DockerContainerManager(
     override fun inspectContainer(containerName: String): ContainerSnapshot? = runCatching {
         val info = docker.inspectContainerCmd(containerName)
             .exec()
-        val config = info.config
-        val hostConfig = info.hostConfig
-
-        val env = config?.env.orEmpty()
-            .mapNotNull { pair ->
-                val i = pair.indexOf('=')
-                if (i > 0) pair.substring(0, i) to pair.substring(i + 1) else null
-            }
-            .toMap()
-
-        val binds = info.mounts.orEmpty()
-            .mapNotNull { m ->
-                val destination = m.destination?.path ?: return@mapNotNull null
-                BindSnapshot(hostPath = m.source ?: "", containerPath = destination, readOnly = m.rw == false)
-            }
-
-        val portBindings = hostConfig?.portBindings?.bindings.orEmpty()
-            .flatMap { (exposed, bindings) ->
-                bindings.orEmpty()
-                    .mapNotNull { binding ->
-                        val hostPort = binding?.hostPortSpec?.takeIf { it.isNotBlank() }
-                            ?.toIntOrNull()
-                            ?: return@mapNotNull null
-                        PortBindingSnapshot(exposed.port, exposed.protocol.name.lowercase(), hostPort)
-                    }
-            }
-
-        ContainerSnapshot(
-            image = config?.image ?: "",
-            imageId = info.imageId ?: "",
-            env = env,
-            binds = binds,
-            portBindings = portBindings,
-            user = config?.user ?: "",
-            memoryMb = ((hostConfig?.memory ?: 0L) / (1024 * 1024)).toInt(),
-            cpuLimitMillicores = cpuLimitMillicoresOf(hostConfig),
-            labels = config?.labels.orEmpty(),
-            networkMode = hostConfig?.networkMode ?: "",
-            hostname = config?.hostName ?: "",
-            running = info.state?.running ?: false,
-            networks = info.networkSettings?.networks?.keys.orEmpty()
-        )
+        ContainerSnapshot(running = info.state?.running ?: false)
     }.getOrNull()
-
-    /**
-     * Effective hard CPU cap in millicores. Docker sets `NanoCpus` when the container was
-     * created with `--cpus`; older/daemon-set containers instead carry `CpuQuota`/`CpuPeriod`,
-     * so fall back to quota/period. 0 means no limit.
-     */
-    private fun cpuLimitMillicoresOf(hostConfig: com.github.dockerjava.api.model.HostConfig?): Int {
-        val nanoCpus = hostConfig?.nanoCPUs ?: 0L
-        if (nanoCpus > 0) return (nanoCpus / 1_000_000L).toInt()
-        val quota = hostConfig?.cpuQuota ?: 0L
-        val period = hostConfig?.cpuPeriod ?: 0L
-        return if (quota > 0 && period > 0) (quota * 1000L / period).toInt() else 0
-    }
 
     override fun execRconCommand(serverId: String, command: String) {
         val containerName = names.container(serverId)

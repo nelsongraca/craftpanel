@@ -12,6 +12,7 @@ import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.testServerSpecSync
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -44,7 +45,8 @@ class BackendForwardingServiceTest :
             proxyBackendRepository = repos.proxyBackendRepository,
             envVarsRepository = repos.envVarsRepository,
             cipher = cipher,
-            writeFile = { id, path, content -> writeCalls.add(WriteCall(id, path, content)) }
+            writeFile = { id, path, content -> writeCalls.add(WriteCall(id, path, content)) },
+            specSync = testServerSpecSync(repos)
         )
 
         fun createNode(hostname: String = "node-1"): Uuid = transaction {

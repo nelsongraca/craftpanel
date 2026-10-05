@@ -1,13 +1,9 @@
 package io.craftpanel.agent.desired
 
 import io.craftpanel.agent.config.AgentConfig
-import io.craftpanel.agent.docker.BindSnapshot
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.ContainerSnapshot
-import io.craftpanel.agent.docker.ContainerSpecDiff
 import io.craftpanel.agent.docker.NetworkManager
-import io.craftpanel.agent.docker.PortBindingSnapshot
-import io.craftpanel.agent.docker.SpecDiff
 import io.craftpanel.agent.grpc.handlers.SymlinkMaintainer
 import io.craftpanel.agent.grpc.handlers.serverDataRoot
 import io.craftpanel.common.ServerPaths
@@ -55,61 +51,45 @@ class ContainerOperator(
     }
 
     /**
-     * Whether the live container's configuration already satisfies [spec] — see [ContainerSpecDiff].
-     * Any mismatch means we are certain the container differs and must be recreated.
-     */
-    fun diff(snapshot: ContainerSnapshot, spec: StartContainerCommand): SpecDiff = ContainerSpecDiff.diff(
-        spec,
-        snapshot,
-        config.hostDataBasePath,
-        containerManager.imageId(spec.image)
-    )
-
-    /**
-     * Brings the container to running against [spec]. When [recreate] is true (the agent detected
-     * the stored spec differs from the one the container was last applied with) the existing
-     * container is removed first; otherwise an existing container is simply started, and a missing
-     * one is created. Returns true when the container was actually created/recreated — the caller
-     * uses this to record [io.craftpanel.agent.desired.DesiredState.appliedSpec] (a plain start of
-     * an existing container must NOT claim the new spec was applied). Throws on failure so the
+     * Brings the container to running against [spec]. The container is always recreated: an
+     * existing one is removed first, then a fresh one is created from [spec] and started. This
+     * guarantees the live container always reflects the stored spec (env, mounts, ports, …) at
+     * every start, so there is no recreate-if-diff decision to get wrong. Throws on failure so the
      * caller reports UNHEALTHY / retries.
      */
-    suspend fun ensureRunning(spec: StartContainerCommand, recreate: Boolean): Boolean {
+    suspend fun ensureRunning(spec: StartContainerCommand) {
         val containerName = spec.containerName
         val dataDir = ServerPaths.dataDir(config.hostDataBasePath, spec.serverId, spec.dataDirName)
         val exists = withContext(Dispatchers.IO) { containerManager.containerExists(containerName) }
-        val needsCreate = recreate || !exists
-        log.info("Converge: start container $containerName (recreate=$recreate, needsCreate=$needsCreate)")
+        log.info("Converge: recreate container $containerName (exists=$exists)")
         // Only servers carrying an mc-router routing label need the router. Block on it first so the
         // label routes the moment the container is up instead of waiting for the next supervisor tick.
         if (spec.publicHostname.isNotEmpty()) {
             withContext(Dispatchers.IO) { ensureRouterRunning() }
         }
-        if (needsCreate) {
-            if (exists) {
-                withContext(Dispatchers.IO) { containerManager.removeContainer(containerName, force = true) }
-            }
-            withContext(Dispatchers.IO) { containerManager.pullImage(spec.image) }
-            val specWithMount = spec.toBuilder()
-                .addMounts(
-                    io.craftpanel.proto.volumeMount {
-                        hostPath = dataDir
-                        containerPath = spec.dataContainerPath.ifEmpty { "/data" }
-                        readOnly = false
-                    }
-                )
-                .build()
-            val dockerNetwork = spec.dockerNetwork
-            if (dockerNetwork.isNotEmpty()) {
-                withContext(Dispatchers.IO) {
-                    networkManager.ensureNetwork(dockerNetwork)
-                    // Attach mc-router to the network before the container exists, so the routing
-                    // label is reachable the moment the container is up.
-                    networkManager.attachToNetwork(dockerNetwork)
-                }
-            }
-            withContext(Dispatchers.IO) { containerManager.createContainer(specWithMount) }
+        if (exists) {
+            withContext(Dispatchers.IO) { containerManager.removeContainer(containerName, force = true) }
         }
+        withContext(Dispatchers.IO) { containerManager.pullImage(spec.image) }
+        val specWithMount = spec.toBuilder()
+            .addMounts(
+                io.craftpanel.proto.volumeMount {
+                    hostPath = dataDir
+                    containerPath = spec.dataContainerPath.ifEmpty { "/data" }
+                    readOnly = false
+                }
+            )
+            .build()
+        val dockerNetwork = spec.dockerNetwork
+        if (dockerNetwork.isNotEmpty()) {
+            withContext(Dispatchers.IO) {
+                networkManager.ensureNetwork(dockerNetwork)
+                // Attach mc-router to the network before the container exists, so the routing
+                // label is reachable the moment the container is up.
+                networkManager.attachToNetwork(dockerNetwork)
+            }
+        }
+        withContext(Dispatchers.IO) { containerManager.createContainer(specWithMount) }
         runCatching {
             val canonicalRoot = serverDataRoot(config.dataBasePath, spec.serverId)
             Files.createDirectories(canonicalRoot)
@@ -120,7 +100,6 @@ class ContainerOperator(
             )
         }.onFailure { log.warn("Failed to create servers-by-name symlink for ${spec.serverId}", it) }
         withContext(Dispatchers.IO) { startWithPortConflictRetry(containerName) }
-        return needsCreate
     }
 
     /**

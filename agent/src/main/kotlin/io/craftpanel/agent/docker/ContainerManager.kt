@@ -7,36 +7,14 @@ import io.craftpanel.proto.StartContainerCommand
 import java.io.InputStream
 
 /**
- * A read-only view of a container's actual configuration, reconstructed from `docker inspect`.
- * The desired-state layer compares this against the desired [StartContainerCommand] to decide a
- * recreate — so the decision is based on the live container, not only on the agent's in-memory
- * applied spec (which is lost when the agent process restarts).
+ * A read-only view of a container's actual on-node state, reconstructed from `docker inspect`.
+ * The desired-state layer only needs presence and run state: every start recreates, so the live
+ * container's configuration never needs comparing against the spec.
  */
 data class ContainerSnapshot(
-    val image: String,
-    /** Image ID (`sha256:…`) the container was created from, from `inspect.ImageId`. */
-    val imageId: String = "",
-    /** Effective env (image defaults + configured), parsed from `KEY=VALUE` pairs. */
-    val env: Map<String, String>,
-    val binds: List<BindSnapshot>,
-    val portBindings: List<PortBindingSnapshot>,
-    val user: String,
-    val memoryMb: Int,
-    /** Hard CPU cap in millicores (0 = unlimited), from Docker `NanoCpus` (or quota/period). */
-    val cpuLimitMillicores: Int,
-    val labels: Map<String, String>,
-    val networkMode: String,
-    /** Docker hostname (`Config.Hostname`) — the server name, and thus its DNS name on the network. */
-    val hostname: String,
     /** Whether the container is currently running (`State.Running`). */
-    val running: Boolean = false,
-    /** Names of every network the container is attached to (`NetworkSettings.Networks`). */
-    val networks: Set<String> = emptySet()
+    val running: Boolean = false
 )
-
-data class BindSnapshot(val hostPath: String, val containerPath: String, val readOnly: Boolean)
-
-data class PortBindingSnapshot(val containerPort: Int, val protocol: String, val hostPort: Int)
 
 /**
  * Minimal identity of a running managed container, taken from a single Docker list call.
@@ -65,13 +43,6 @@ interface ContainerManager {
     fun isRunning(containerName: String): Boolean
 
     fun pullImage(image: String)
-
-    /**
-     * Image ID (`sha256:…`) the local [image] tag currently resolves to, or null when the tag is
-     * absent/uninspectable. Used to detect that a same-tag image has been replaced (the container
-     * still runs the old id) — and, after a periodic [refreshImage], that a newer image is ready.
-     */
-    fun imageId(image: String): String?
 
     /**
      * Best-effort pre-pull of [image] (unconditional; Docker no-ops when the tag has not moved).

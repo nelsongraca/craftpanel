@@ -1,7 +1,6 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.database.entity.Mod
-import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ModPinStrategy
@@ -124,7 +123,6 @@ class ModService(
             val row = ServerMods.selectAll()
                 .where { ServerMods.id eq m.id }
                 .first()
-            Server.findById(serverId)?.let { it.restartPending = true }
             ModRow(
                 id = row[ServerMods.id].value,
                 serverId = row[ServerMods.serverId].value,
@@ -173,7 +171,6 @@ class ModService(
                     it.installedVersionId = null
                     if (req.enabled != null) it.enabled = req.enabled
                 }
-            Server.findById(serverId)?.let { it.restartPending = true }
         }
         return modRepository.findModById(modId)!!
             .toResponse()
@@ -186,7 +183,6 @@ class ModService(
         transaction {
             Mod.findById(modId)
                 ?.delete()
-            Server.findById(serverId)?.let { it.restartPending = true }
         }
     }
 

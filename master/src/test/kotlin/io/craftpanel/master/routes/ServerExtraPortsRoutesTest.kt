@@ -37,7 +37,7 @@ class ServerExtraPortsRoutesTest :
         val repos = TestRepositories()
 
         fun Route.configurePortsTest() {
-            serverExtraPortsRoutes(repos.serverRepository, repos.extraPortRepository)
+            serverExtraPortsRoutes(repos.serverRepository, repos.extraPortRepository, testServerSpecSync(repos))
         }
 
         fun createUser(email: String = "admin@example.com"): Uuid = transaction {

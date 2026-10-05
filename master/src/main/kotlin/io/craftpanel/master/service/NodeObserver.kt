@@ -121,10 +121,13 @@ class NodeObserver(
                     val changed = it.status != reported
                     it.status = reported
                     it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-                    // A genuine (re)start applies the latest spec; clear the pending-restart marker.
+                    // A genuine (re)start applies the latest spec; clear the pending-restart marker
+                    // — but only when that spec was actually delivered to the agent. An offline
+                    // config save (specDelivered=false) must keep the marker until a later push
+                    // restores delivery, or the badge would clear without the change applied.
                     // Only STARTING counts — a reconnect re-affirms HEALTHY via a NoOp converge
                     // without recreating, so clearing on HEALTHY would drop the marker spuriously.
-                    if (event.status == ServerStatus.STARTING) it.restartPending = false
+                    if (event.status == ServerStatus.STARTING && it.specDelivered) it.restartPending = false
                     if (changed) {
                         ServerStatusEventRecord.new {
                             this.serverId = EntityID(serverId, Servers)

@@ -92,6 +92,7 @@ class ServersRoutesTest :
                 extraPortRepository = repos.extraPortRepository,
                 serverHostnames = serverHostnames
             )
+            val specSync = ServerSpecSync(lifecycle, serverRepository)
             val proxyPatchWriter = ProxyPatchWriter(
                 patchService = ProxyConfigPatchService(repos.proxyBackendRepository, serverRepository),
                 writeFile = { _, _, _ -> }
@@ -105,12 +106,15 @@ class ServersRoutesTest :
                     serverRepository = serverRepository,
                     proxyBackendRepository = repos.proxyBackendRepository,
                     envVarsRepository = repos.envVarsRepository,
-                    cipher = SecretCipher(ByteArray(32) { 0x42 })
-                ) { _, _, _ -> }
+                    cipher = SecretCipher(ByteArray(32) { 0x42 }),
+                    writeFile = { _, _, _ -> },
+                    specSync = specSync
+                ),
+                specSync = specSync
             )
             val exposureService = ServerExposureService(
                 dnsProvider = { dnsProvider },
-                lifecycle = lifecycle,
+                specSync = specSync,
                 serverRepository = serverRepository,
                 nodeRepository = nodeRepository,
                 serverHostnames = serverHostnames
@@ -141,7 +145,7 @@ class ServersRoutesTest :
                     nodeRepository = nodeRepository,
                     networkRepository = networkRepository,
                     settingsProvider = SettingsProvider(settingsRepository),
-                    lifecycle = lifecycle
+                    specSync = specSync
                 ),
                 provisioning,
                 ServerQueryService(

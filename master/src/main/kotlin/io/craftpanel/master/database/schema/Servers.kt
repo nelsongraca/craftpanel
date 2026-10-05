@@ -67,9 +67,15 @@ object Servers : UuidTable("servers") {
     val dataDirName = varchar("data_dir_name", 100).nullable()
 
     // UI-only marker: a config change was saved that the running container has not applied yet.
-    // Master never uses this to drive convergence (the agent derives recreate from spec != applied);
-    // it is set by config writers and cleared when the agent reports a genuine STARTING transition.
+    // Set only by ServerSpecSync (paired with the spec re-push) and cleared when the agent reports a
+    // genuine STARTING transition that applied the pending spec.
     val restartPending = bool("restart_pending").default(false)
+
+    // Whether the agent is known to hold this server's current runtime spec. False only while a
+    // spec-change push is known to have failed (agent offline); a later successful push — reconnect
+    // pushAll, or a panel restart — restores it. Gates clearing restartPending: a STARTING report
+    // only proves the spec was applied when it was actually delivered.
+    val specDelivered = bool("spec_delivered").default(true)
     val disabled = bool("disabled").default(false)
     val expiresAt = datetime("expires_at").nullable()
     val proxyMotd = varchar("proxy_motd", 500).nullable()

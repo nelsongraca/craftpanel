@@ -7,6 +7,7 @@ import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.testServerSpecSync
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -20,13 +21,16 @@ class ProxySettingsServiceTest :
         val repos = TestRepositories()
         val serverRepository: ServerRepository = repos.serverRepository
         val proxyConfigPatchService = ProxyConfigPatchService(repos.proxyBackendRepository, serverRepository)
+        val specSync = testServerSpecSync(repos)
         val backendForwardingService = BackendForwardingService(
             serverRepository = serverRepository,
             proxyBackendRepository = repos.proxyBackendRepository,
             envVarsRepository = repos.envVarsRepository,
-            cipher = SecretCipher(ByteArray(32) { 0x42 })
-        ) { _, _, _ -> }
-        val service = ProxySettingsService(serverRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService)
+            cipher = SecretCipher(ByteArray(32) { 0x42 }),
+            writeFile = { _, _, _ -> },
+            specSync = specSync
+        )
+        val service = ProxySettingsService(serverRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService, specSync)
 
         beforeTest {
             TestDatabase.initIfNeeded()

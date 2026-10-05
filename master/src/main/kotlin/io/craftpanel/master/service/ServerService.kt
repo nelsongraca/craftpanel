@@ -26,7 +26,7 @@ class ServerService(
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
     private val settingsProvider: SettingsProvider,
-    private val lifecycle: ContainerLifecycle
+    private val specSync: ServerSpecSync
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -50,12 +50,6 @@ class ServerService(
         val newNetworkId: Uuid? = networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
-        // Fields that alter the container spec: saving any of them while running leaves the live
-        // container stale until the next start/restart, so flag a pending restart for the UI.
-        val specChanged = networkId != null || mcVersion != null || itzgImageTag != null ||
-            customServerJar != null || containerListenPort != null || containerProtocol != null ||
-            disableHealthcheck != null || forceRedownload != null || jvmMetricsEnabled != null
-
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val serverType = serverRow.serverType
         if (serverType.isCustom && customServerJar != null && customServerJar.isBlank()) {
@@ -75,24 +69,25 @@ class ServerService(
             }
         }
 
-        transaction {
-            val e = Server.findById(id) ?: return@transaction
-            if (networkId != null && newNetworkId == null) {
-                e.networkId = null
+        specSync.reconcile(id) {
+            transaction {
+                val e = Server.findById(id) ?: return@transaction
+                if (networkId != null && newNetworkId == null) {
+                    e.networkId = null
+                }
+                if (displayName != null) e.displayName = displayName
+                val cleanDesc = description?.ifEmpty { null }
+                if (cleanDesc != null) e.description = cleanDesc
+                if (newNetworkId != null) e.networkId = EntityID(newNetworkId, ServerNetworks)
+                if (mcVersion != null) e.mcVersion = mcVersion
+                if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
+                if (customServerJar != null) e.customServerJar = customServerJar
+                if (containerListenPort != null) e.containerListenPort = containerListenPort
+                if (containerProtocol != null) e.containerProtocol = validateContainerProtocol(containerProtocol)
+                if (disableHealthcheck != null) e.disableHealthcheck = disableHealthcheck
+                if (forceRedownload != null) e.forceRedownload = forceRedownload
+                if (jvmMetricsEnabled != null) e.jvmMetricsEnabled = jvmMetricsEnabled
             }
-            if (displayName != null) e.displayName = displayName
-            val cleanDesc = description?.ifEmpty { null }
-            if (cleanDesc != null) e.description = cleanDesc
-            if (newNetworkId != null) e.networkId = EntityID(newNetworkId, ServerNetworks)
-            if (mcVersion != null) e.mcVersion = mcVersion
-            if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
-            if (customServerJar != null) e.customServerJar = customServerJar
-            if (containerListenPort != null) e.containerListenPort = containerListenPort
-            if (containerProtocol != null) e.containerProtocol = validateContainerProtocol(containerProtocol)
-            if (disableHealthcheck != null) e.disableHealthcheck = disableHealthcheck
-            if (forceRedownload != null) e.forceRedownload = forceRedownload
-            if (jvmMetricsEnabled != null) e.jvmMetricsEnabled = jvmMetricsEnabled
-            if (specChanged) e.restartPending = true
         }
     }
 
@@ -117,21 +112,12 @@ class ServerService(
             if (clash) throw ConflictException("Data directory name already in use on this node")
         }
 
-        val changed = server.dataDirName != clean
-        transaction {
-            Server.findById(id)?.let {
-                it.dataDirName = clean
-                if (changed) it.restartPending = true
-            }
+        specSync.reconcile(id) {
+            transaction { Server.findById(id)?.let { it.dataDirName = clean } }
         }
         val updated = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
 
         gateway.rebuildSymlinks(updated.nodeId.toString())
-        if (DesiredStatus.fromDb(updated.desiredStatus) == DesiredStatus.RUNNING) {
-            // Refresh the agent's stored spec (no force_restart): the bind mount applies on the next
-            // start/restart or an autonomous crash-recreate, not immediately.
-            lifecycle.refreshRunningSpec(updated)
-        }
         return updated
     }
 
@@ -184,12 +170,13 @@ class ServerService(
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
             CapacityResult.Ok -> {}
         }
-        transaction {
-            val e = Server.findById(id) ?: return@transaction
-            e.memoryMb = memoryMb
-            e.cpuLimitMillicores = cpuLimitMillicores
-            if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
-            e.restartPending = true
+        specSync.reconcile(id) {
+            transaction {
+                val e = Server.findById(id) ?: return@transaction
+                e.memoryMb = memoryMb
+                e.cpuLimitMillicores = cpuLimitMillicores
+                if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
+            }
         }
     }
 

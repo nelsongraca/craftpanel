@@ -2,7 +2,6 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.dns.DnsProvider
-import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -11,7 +10,7 @@ import kotlin.uuid.Uuid
 
 class ServerExposureService(
     private val dnsProvider: (() -> DnsProvider?)? = null,
-    private val lifecycle: ContainerLifecycle,
+    private val specSync: ServerSpecSync,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val serverHostnames: ServerHostnames
@@ -51,8 +50,7 @@ class ServerExposureService(
         if (exposedExternally) {
             val hasManagedName = if (subdomain != null) {
                 serverHostnames.resolveGlobalDns() != null || serverHostnames.resolveSuffix() != null
-            }
-            else {
+            } else {
                 serverRow.dnsRecordName != null
             }
             if (!hasManagedName && resolvedCustomHostname.isNullOrBlank()) {
@@ -84,8 +82,7 @@ class ServerExposureService(
 
             val fullHostname = if (dns != null) {
                 "$subdomain.${dns.domainSuffix}"
-            }
-            else {
+            } else {
                 serverHostnames.resolveSuffix()
                     ?.let { "$subdomain.$it" }
             }
@@ -103,8 +100,7 @@ class ServerExposureService(
                     // Our record, unchanged name — repoint it at this node's IP.
                     provider.updateARecord(dns.zoneId, existingRecordId, node.publicIp)
                     existingRecordId
-                }
-                else {
+                } else {
                     // First exposure or a rename. Never overwrite a record we did not create.
                     val found = provider.findARecord(dns.zoneId, target)
                     if (found != null && found.id != existingRecordId) {
@@ -121,8 +117,7 @@ class ServerExposureService(
                     }
                     recordId
                 }
-            }
-            else {
+            } else {
                 null
             }
 
@@ -141,43 +136,33 @@ class ServerExposureService(
 
         val resolvedPublicSubdomain = if (exposedExternally) subdomain else null
 
-        transaction {
-            val e = Server.findById(id) ?: return@transaction
-            e.exposedExternally = exposedExternally
-            e.publicSubdomain = resolvedPublicSubdomain
-            e.customHostname = resolvedCustomHostname
-            when {
-                exposedExternally && subdomain != null -> {
-                    e.dnsRecordId = newRecordId
-                    e.dnsRecordName = newHostname
-                }
+        // mc-router labels are baked in at container creation, so a routing-name change only takes
+        // effect on the next start/restart. `reconcile` flags the pending restart and refreshes the
+        // agent's stored spec for a running server — never yanking it out from under its players.
+        specSync.reconcile(id) {
+            transaction {
+                val e = Server.findById(id) ?: return@transaction
+                e.exposedExternally = exposedExternally
+                e.publicSubdomain = resolvedPublicSubdomain
+                e.customHostname = resolvedCustomHostname
+                when {
+                    exposedExternally && subdomain != null -> {
+                        e.dnsRecordId = newRecordId
+                        e.dnsRecordName = newHostname
+                    }
 
-                !exposedExternally                     -> {
-                    if (recordCleared) {
-                        e.dnsRecordId = null
-                        e.dnsRecordName = null
+                    !exposedExternally -> {
+                        if (recordCleared) {
+                            e.dnsRecordId = null
+                            e.dnsRecordName = null
+                        }
+                    }
+
+                    else -> {
+                        e.dnsRecordId = existingRecordId
+                        e.dnsRecordName = serverRow.dnsRecordName
                     }
                 }
-
-                else                                   -> {
-                    e.dnsRecordId = existingRecordId
-                    e.dnsRecordName = serverRow.dnsRecordName
-                }
-            }
-        }
-
-        val currentStatus = ServerStatus.fromDb(serverRow.status)
-        if (currentStatus.isRunning) {
-            val freshRow = serverRepository.findById(id)!!
-            // mc-router labels are baked in at container creation, so a routing-name change only
-            // takes effect on the next start/restart. Flag a pending restart for the UI and refresh
-            // the agent's stored spec — never yank a live server out from under its players.
-            if (serverHostnames.mcRouterLabel(serverRow) != serverHostnames.mcRouterLabel(freshRow)) {
-                transaction {
-                    Server.findById(id)
-                        ?.let { it.restartPending = true }
-                }
-                lifecycle.refreshRunningSpec(freshRow)
             }
         }
     }

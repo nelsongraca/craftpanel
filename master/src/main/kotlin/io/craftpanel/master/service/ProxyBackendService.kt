@@ -1,7 +1,6 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.database.entity.ProxyBackend
-import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
@@ -31,7 +30,8 @@ class ProxyBackendService(
     private val serverRepository: ServerRepository,
     private val proxyBackendRepository: ProxyBackendRepository,
     private val proxyPatchWriter: ProxyPatchWriter,
-    private val backendForwardingService: BackendForwardingService
+    private val backendForwardingService: BackendForwardingService,
+    private val specSync: ServerSpecSync
 ) {
 
     fun listBackends(proxyServerId: Uuid): ProxyBackendListResponse {
@@ -74,9 +74,10 @@ class ProxyBackendService(
                     this.order = b.order
                 }
             }
-            Server.findById(proxyServerId)
-                ?.let { it.restartPending = true }
         }
+        // The backend list is written into the proxy's config file (velocity.toml / config.yml),
+        // not the container spec — a restart marker, no spec push.
+        specSync.restartRequired(proxyServerId)
         proxyPatchWriter.writeIfRunning(serverRow)
 
         // New/changed backend set on an already-forwarding proxy needs matching config pushed (#44).

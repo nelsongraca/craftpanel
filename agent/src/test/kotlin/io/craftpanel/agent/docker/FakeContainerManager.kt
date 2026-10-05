@@ -30,13 +30,7 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
 
     enum class State { CREATED, RUNNING, STOPPED }
 
-    class Entry(
-        val serverId: String,
-        var state: State,
-        val networks: MutableSet<String> = mutableSetOf(),
-        /** Image id the container was created from, frozen at create time (unlike the live tag map). */
-        val imageId: String = ""
-    )
+    class Entry(val serverId: String, var state: State, val networks: MutableSet<String> = mutableSetOf())
 
     val gate = WatcherGate()
     val calls = CopyOnWriteArrayList<String>()
@@ -60,13 +54,6 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
     var swarmActive = false
 
     /**
-     * Image reference → current local image id. Defaults to a deterministic `sha256:<ref>` so a
-     * freshly created container always matches the tag; tests overwrite an entry to simulate a
-     * same-tag image having been re-pulled (digest drift).
-     */
-    val imageIds = ConcurrentHashMap<String, String>()
-
-    /**
      * Optional hook invoked at the start of [inspectContainer]. Lets a test hold a converge inside
      * a Docker call so a second envelope can race it deterministically.
      */
@@ -83,11 +70,7 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
     override fun createContainer(cmd: StartContainerCommand): String {
         calls.add("create:${cmd.containerName}")
         createdCommands.add(cmd)
-        containers[cmd.containerName] = Entry(
-            serverId = cmd.serverId,
-            state = State.CREATED,
-            imageId = imageIds[cmd.image] ?: "sha256:${cmd.image}"
-        ).also {
+        containers[cmd.containerName] = Entry(serverId = cmd.serverId, state = State.CREATED).also {
             if (cmd.dockerNetwork.isNotEmpty()) it.networks.add(cmd.dockerNetwork)
         }
         return idOf(cmd.containerName)
@@ -106,8 +89,6 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
     override fun pullImage(image: String) {
         calls.add("pull:$image")
     }
-
-    override fun imageId(image: String): String = imageIds[image] ?: "sha256:$image"
 
     override fun refreshImage(image: String) {
         calls.add("refresh:$image")
@@ -189,62 +170,11 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
         return containers[containerName]?.let { idOf(containerName) }
     }
 
-    /**
-     * Reconstructs the container's config from the command it was created with, mirroring
-     * [DockerContainerManager.createContainer] (env, bind, port bindings, user, limits, labels).
-     */
     override fun inspectContainer(containerName: String): ContainerSnapshot? {
         calls.add("inspect:$containerName")
         beforeInspect?.invoke()
         if (!containers.containsKey(containerName)) return null
-        val cmd = createdCommands.lastOrNull { it.containerName == containerName } ?: return null
-        val portBindings = buildList {
-            if (cmd.hostPort > 0) {
-                add(
-                    PortBindingSnapshot(
-                        cmd.internalListenPort,
-                        cmd.containerProtocol.ifEmpty { "TCP" }
-                            .lowercase(),
-                        cmd.hostPort
-                    )
-                )
-            }
-            cmd.extraPortsList.forEach {
-                if (it.hostPort > 0) {
-                    add(
-                        PortBindingSnapshot(
-                            it.containerPort,
-                            it.protocol.ifEmpty { "TCP" }
-                                .lowercase(),
-                            it.hostPort
-                        )
-                    )
-                }
-            }
-        }
-        val labels = buildMap {
-            put("craftpanel.managed", "true")
-            put("craftpanel.server.id", cmd.serverId)
-            if (cmd.publicHostname.isNotEmpty() && cmd.containerProtocol.uppercase() != "UDP") {
-                put("mc-router.host", cmd.publicHostname)
-            }
-            if (cmd.stopCommand.isNotEmpty()) put("craftpanel.stop.command", cmd.stopCommand)
-        }
-        return ContainerSnapshot(
-            image = cmd.image,
-            imageId = containers[containerName]?.imageId ?: imageIds[cmd.image] ?: "sha256:${cmd.image}",
-            env = cmd.envVarsMap.toMap(),
-            binds = cmd.mountsList.map { BindSnapshot(it.hostPath, it.containerPath, it.readOnly) },
-            portBindings = portBindings,
-            user = cmd.containerUser,
-            memoryMb = cmd.memoryMb,
-            cpuLimitMillicores = cmd.cpuLimitMillicores,
-            labels = labels,
-            networkMode = cmd.dockerNetwork,
-            hostname = cmd.serverName,
-            running = containers[containerName]?.state == State.RUNNING,
-            networks = containers[containerName]?.networks?.toSet() ?: emptySet()
-        )
+        return ContainerSnapshot(running = containers[containerName]?.state == State.RUNNING)
     }
 
     override fun execRconCommand(serverId: String, command: String) {

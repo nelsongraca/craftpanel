@@ -34,7 +34,12 @@ data class UpdateProxySettingsRequest(
  * via [BackendForwardingService] (#44) — backends that can't support the mode are
  * warn-skipped and surfaced back to the caller.
  */
-class ProxySettingsService(private val serverRepository: ServerRepository, private val proxyPatchWriter: ProxyPatchWriter, private val backendForwardingService: BackendForwardingService) {
+class ProxySettingsService(
+    private val serverRepository: ServerRepository,
+    private val proxyPatchWriter: ProxyPatchWriter,
+    private val backendForwardingService: BackendForwardingService,
+    private val specSync: ServerSpecSync
+) {
 
     fun getSettings(proxyServerId: Uuid): ProxySettingsResponse {
         val row = serverRepository.requireProxy(proxyServerId)
@@ -55,14 +60,18 @@ class ProxySettingsService(private val serverRepository: ServerRepository, priva
             throw UnprocessableException("maxPlayers must be greater than 0")
         }
 
-        transaction {
-            val e = Server.findById(proxyServerId) ?: return@transaction
-            e.proxyMotd = req.motd
-            e.proxyMaxPlayers = req.maxPlayers
-            e.proxyForwardingMode = mode
-            req.proxyProtocol?.let { e.proxyProtocol = it }
-            e.restartPending = true
+        specSync.reconcile(proxyServerId) {
+            transaction {
+                val e = Server.findById(proxyServerId) ?: return@transaction
+                e.proxyMotd = req.motd
+                e.proxyMaxPlayers = req.maxPlayers
+                e.proxyForwardingMode = mode
+                req.proxyProtocol?.let { e.proxyProtocol = it }
+            }
         }
+        // MOTD / max-players land in the proxy config patch (a data-dir file), not the container
+        // spec, so they need a restart marker without a spec push.
+        specSync.restartRequired(proxyServerId)
         proxyPatchWriter.writeIfRunning(row)
 
         val warnings = if (mode != null) {

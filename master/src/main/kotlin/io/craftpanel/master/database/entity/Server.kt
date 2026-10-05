@@ -44,6 +44,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var jvmMetricsEnabled by Servers.jvmMetricsEnabled
     var dataDirName by Servers.dataDirName
     var restartPending by Servers.restartPending
+    var specDelivered by Servers.specDelivered
     var disabled by Servers.disabled
     var expiresAt by Servers.expiresAt
     var proxyMotd by Servers.proxyMotd

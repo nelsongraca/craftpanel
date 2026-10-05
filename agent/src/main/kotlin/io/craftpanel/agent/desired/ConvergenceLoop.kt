@@ -3,14 +3,12 @@ package io.craftpanel.agent.desired
 import io.craftpanel.agent.config.RestartBudgetSettings
 import io.craftpanel.agent.config.RuntimeSettingsStore
 import io.craftpanel.agent.docker.PlayerCountProbe
-import io.craftpanel.agent.docker.SpecDiff
 import io.craftpanel.agent.docker.WatcherGate
 import io.craftpanel.agent.runtime.OutboundSink
 import io.craftpanel.common.ContainerNames
 import io.craftpanel.proto.RestartBudget
 import io.craftpanel.proto.ServerDesiredState
 import io.craftpanel.proto.ServerStatusUpdate
-import io.craftpanel.proto.StartContainerCommand
 import io.craftpanel.proto.restartBudget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -62,8 +60,7 @@ class ConvergenceLoop(
                 env.spec.image, env.spec.envVarsMap["TYPE"] ?: "-", env.spec.envVarsMap["VERSION"] ?: "-",
                 env.spec.containerName
             )
-        }
-        else {
+        } else {
             log.info(
                 "Desired state for {}: desired={} forceRestart={} force={} noRestart={} (no spec)",
                 env.serverId,
@@ -150,22 +147,16 @@ class ConvergenceLoop(
 
     /**
      * CPU cap (millicores, 0 = unlimited) the server's container was allocated, used to normalize
-     * reported CPU usage onto the allocation. Prefers the applied spec (the cap the running
-     * container actually has); falls back to the desired spec before convergence has applied it.
+     * reported CPU usage onto the allocation.
      */
-    fun cpuLimitMillicores(serverId: String): Int {
-        val state = store.get(serverId)
-        return state.appliedSpec?.cpuLimitMillicores ?: state.spec?.cpuLimitMillicores ?: 0
-    }
+    fun cpuLimitMillicores(serverId: String): Int = store.get(serverId).spec?.cpuLimitMillicores ?: 0
 
     /**
      * Input for the player-count probe, or null when the server cannot be probed: mc-monitor speaks
      * the Java TCP status protocol, so UDP servers are skipped, as are servers with no known spec.
-     * Prefers the applied spec so the port/flag match the running container.
      */
     fun playerCountProbe(serverId: String): PlayerCountProbe? {
-        val state = store.get(serverId)
-        val spec = state.appliedSpec ?: state.spec ?: return null
+        val spec = store.get(serverId).spec ?: return null
         if (spec.containerProtocol.equals("UDP", ignoreCase = true)) return null
         return PlayerCountProbe(
             internalListenPort = spec.internalListenPort,
@@ -242,77 +233,57 @@ class ConvergenceLoop(
         val state = store.get(serverId)
         if (state.desired == ServerDesiredState.Desired.DESIRED_UNSPECIFIED) return
         val containerName = state.spec?.containerName ?: names.container(serverId)
-        // One Docker inspect answers presence, run state AND spec match — the converge decision is
-        // based on the live container, not only the in-memory applied spec (which is lost when the
-        // agent process restarts).
+        // One Docker inspect answers presence and run state. Every start recreates, so the live
+        // container's config never needs comparing to the spec.
         val snapshot = operator.inspect(containerName)
         val containerPresent = snapshot != null
         val running = snapshot?.running == true
-        val specDiff = if (snapshot != null && state.spec != null) {
-            operator.diff(snapshot, state.spec)
-        }
-        else {
-            null
-        }
-        val specMatches = specDiff?.let { it is SpecDiff.Match }
-        if (specMatches == true && state.appliedSpec == null) {
-            // Cache the confirmed spec so a later uninspectable converge still knows what is applied.
-            store.upsert(serverId) { it.copy(appliedSpec = state.spec) }
-        }
-        val actual = ActualState(containerPresent = containerPresent, running = running, specMatches = specMatches)
+        val actual = ActualState(containerPresent = containerPresent, running = running)
         // The restart budget is install-wide and lives in the runtime settings snapshot, not on the
         // per-server envelope; overlay it here so the machine stays pure and never reads the store.
         val budget = runtimeSettings.current().restartBudget.toProto()
         val result = ConvergenceMachine.decide(state, actual, budget)
         log.info(
-            "Converge {}: desired={} present={} running={} specMatches={} noRestart={} restartCount={}/{} -> {}",
-            serverId, state.desired, containerPresent, running, specMatches, state.noRestart,
+            "Converge {}: desired={} present={} running={} noRestart={} restartCount={}/{} -> {}",
+            serverId, state.desired, containerPresent, running, state.noRestart,
             state.restartCount, budget.maxAttempts, result.decision::class.simpleName
         )
         store.upsert(serverId) { result.next }
-        if (result.decision.recreateRequested()) {
-            log.info(
-                "Recreating container {} for server {} — live config differs from desired spec: {}",
-                containerName,
-                serverId,
-                (specDiff as? SpecDiff.Mismatch)?.reasons ?: "spec not inspectable; differs from last applied"
-            )
-        }
         // Graceful stop must use the stop command carried in the stored spec (text stdin or a
         // signal sentinel like "^C"/"SIGTERM"). Dropping it degrades every envelope-driven stop
         // to a bare Docker SIGTERM.
         val stopCommand = state.spec?.stopCommand ?: ""
         when (val decision = result.decision) {
-            is ConvergenceDecision.EnsureRunning      -> executeEnsureRunning(serverId, decision.recreate)
+            is ConvergenceDecision.EnsureRunning -> executeEnsureRunning(serverId)
 
-            is ConvergenceDecision.ConditionalRestart -> executeConditionalRestart(serverId, decision.recreate, stopCommand = stopCommand)
+            is ConvergenceDecision.ConditionalRestart -> executeConditionalRestart(serverId, stopCommand = stopCommand)
 
-            is ConvergenceDecision.EnsureStopped      -> {
+            is ConvergenceDecision.EnsureStopped -> {
                 if (actual.running) executeEnsureStopped(serverId, containerName, stopCommand = stopCommand)
             }
 
-            is ConvergenceDecision.ForceKill          -> executeForceKill(serverId, containerName)
+            is ConvergenceDecision.ForceKill -> executeForceKill(serverId, containerName)
 
-            is ConvergenceDecision.CrashLooped        -> {
+            is ConvergenceDecision.CrashLooped -> {
                 log.warn("Server {} crash-looped: {}", serverId, decision.reason)
                 out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.CRASH_LOOPED)
             }
 
-            is ConvergenceDecision.NoOp               -> {
+            is ConvergenceDecision.NoOp -> {
                 // Observed running supersedes any earlier intentional-stop flag (e.g. a stop that
                 // failed and left the container up); otherwise a later genuine death stays suppressed.
                 if (actual.running) gate.clearStopping(serverId)
                 val status = when (state.desired) {
-                    ServerDesiredState.Desired.RUNNING if actual.running  -> ServerStatusUpdate.ServerStatus.HEALTHY
+                    ServerDesiredState.Desired.RUNNING if actual.running -> ServerStatusUpdate.ServerStatus.HEALTHY
                     ServerDesiredState.Desired.STOPPED if !actual.running -> ServerStatusUpdate.ServerStatus.STOPPED
-                    else                                                  -> null
+                    else -> null
                 }
                 if (status != null) out.tryServerStatus(serverId, status)
             }
         }
     }
 
-    private suspend fun executeEnsureRunning(serverId: String, recreate: Boolean) {
+    private suspend fun executeEnsureRunning(serverId: String) {
         val spec = store.get(serverId).spec
         if (spec == null) {
             log.warn("Cannot ensure RUNNING for server $serverId — no spec stored")
@@ -320,21 +291,17 @@ class ConvergenceLoop(
         }
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
         out.withStatus(serverId, ServerStatusUpdate.ServerStatus.HEALTHY, log, "Failed to ensure RUNNING for server $serverId") {
-            // Only a container that was actually created/recreated has this spec applied; a plain
-            // start of an existing container must not claim it (that would hide a stale container
-            // behind a matching appliedSpec and abort every future recreate).
-            val created = operator.ensureRunning(spec, recreate)
-            if (created) recordAppliedSpec(serverId, spec)
+            operator.ensureRunning(spec)
         }
     }
 
-    private suspend fun executeConditionalRestart(serverId: String, recreate: Boolean, stopCommand: String = "") {
+    private suspend fun executeConditionalRestart(serverId: String, stopCommand: String = "") {
         val containerName = store.get(serverId).spec?.containerName ?: names.container(serverId)
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
         // No success status of its own: executeEnsureRunning reports HEALTHY/UNHEALTHY.
         out.withStatus(serverId, null, log, "Failed to restart server $serverId") {
             operator.ensureStopped(containerName, stopCommand = stopCommand)
-            executeEnsureRunning(serverId, recreate)
+            executeEnsureRunning(serverId)
         }
     }
 
@@ -348,18 +315,6 @@ class ConvergenceLoop(
         out.withStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to force-kill server $serverId") {
             operator.forceKill(containerName)
         }
-    }
-
-    /**
-     * Records the spec the container was actually created/recreated with (drives recreate-if-diff).
-     * Called only when [ContainerOperator.ensureRunning] created a container — never on a plain
-     * start of an existing one. It does NOT touch the crash-restart budget: a start that immediately
-     * dies must keep accumulating so a crash loop is eventually reported as
-     * [ConvergenceDecision.CrashLooped]. The budget is cleared by an explicit user (re)start
-     * ([applyDesired]) or by the window lapsing in [ConvergenceMachine].
-     */
-    private fun recordAppliedSpec(serverId: String, appliedSpec: StartContainerCommand) {
-        store.upsert(serverId) { state -> state.copy(appliedSpec = appliedSpec) }
     }
 }
 

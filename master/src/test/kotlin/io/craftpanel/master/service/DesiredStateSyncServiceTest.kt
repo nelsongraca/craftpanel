@@ -19,18 +19,22 @@ class DesiredStateSyncServiceTest :
         lateinit var gateway: TestAgentGateway
         lateinit var nodeId: Uuid
 
-        fun service() = DesiredStateSyncService(
-            lifecycle = ContainerLifecycle(
+        fun service(): DesiredStateSyncService {
+            val lifecycle = ContainerLifecycle(
                 gateway = gateway,
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository,
                 extraPortRepository = repos.extraPortRepository,
-                serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
-            ),
-            serverRepository = repos.serverRepository,
-            serverIntent = ServerIntent(repos.serverRepository)
-        )
+                serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository)
+            )
+            return DesiredStateSyncService(
+                lifecycle = lifecycle,
+                serverRepository = repos.serverRepository,
+                serverIntent = ServerIntent(repos.serverRepository),
+                specSync = ServerSpecSync(lifecycle, repos.serverRepository)
+            )
+        }
 
         fun createNode(): Uuid = transaction {
             Nodes.insert {
@@ -50,26 +54,20 @@ class DesiredStateSyncServiceTest :
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServer(
-            nodeId: Uuid,
-            desiredStatus: String?,
-            status: String = "STOPPED",
-            customHostname: String? = null,
-            dnsRecordName: String? = null,
-            exposedExternally: Boolean = false
-        ): Uuid = transaction {
-            Servers.insert {
-                it[Servers.nodeId] = nodeId
-                it[Servers.name] = "s-${Uuid.random()}"
-                it[Servers.hostPort] = 25565
-                it[Servers.memoryMb] = 1024
-                it[Servers.status] = status
-                it[Servers.desiredStatus] = desiredStatus
-                it[Servers.customHostname] = customHostname
-                it[Servers.dnsRecordName] = dnsRecordName
-                it[Servers.exposedExternally] = exposedExternally
-            }[Servers.id].let { Uuid.parse(it.toString()) }
-        }
+        fun createServer(nodeId: Uuid, desiredStatus: String?, status: String = "STOPPED", customHostname: String? = null, dnsRecordName: String? = null, exposedExternally: Boolean = false): Uuid =
+            transaction {
+                Servers.insert {
+                    it[Servers.nodeId] = nodeId
+                    it[Servers.name] = "s-${Uuid.random()}"
+                    it[Servers.hostPort] = 25565
+                    it[Servers.memoryMb] = 1024
+                    it[Servers.status] = status
+                    it[Servers.desiredStatus] = desiredStatus
+                    it[Servers.customHostname] = customHostname
+                    it[Servers.dnsRecordName] = dnsRecordName
+                    it[Servers.exposedExternally] = exposedExternally
+                }[Servers.id].let { Uuid.parse(it.toString()) }
+            }
 
         beforeTest {
             TestDatabase.initIfNeeded()

@@ -240,7 +240,7 @@ class ConvergenceLoopTest :
                 .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
-        test("applyDesired RUNNING recreates a stopped container when the pushed spec differs") {
+        test("applyDesired RUNNING recreates a stopped container (always recreate)") {
             val cm = FakeContainerManager()
             val (channel, out) = newOutbound()
             val loop = newLoop(cm, out)
@@ -263,9 +263,9 @@ class ConvergenceLoopTest :
                 .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
-        test("applyDesired RUNNING re-push of the same spec does not recreate") {
+        test("every start recreates, even a re-push of an identical spec") {
             val cm = FakeContainerManager()
-            val (channel, out) = newOutbound()
+            val (_, out) = newOutbound()
             val loop = newLoop(cm, out)
 
             runBlocking {
@@ -280,78 +280,13 @@ class ConvergenceLoopTest :
                 loop.applyDesired(desiredRunning(spec = startCmd(image = "img-a"))).join()
             }
 
-            cm.calls.any { it.startsWith("remove:") || it.startsWith("create:") } shouldBe false
-            cm.calls.filter { it.startsWith("start:") } shouldBe listOf("start:craftpanel-srv-1")
-        }
-
-        test("a same-tag image id drift recreates the container on the next start") {
-            val cm = FakeContainerManager()
-            val (_, out) = newOutbound()
-            val loop = newLoop(cm, out)
-
-            runBlocking {
-                loop.applyDesired(desiredRunning(spec = startCmd(image = "img:latest"))).join()
-                loop.applyDesired(
-                    serverDesiredState {
-                        serverId = "srv-1"
-                        desired = ServerDesiredState.Desired.STOPPED
-                    }
-                ).join()
-                // A newer image is pulled under the same tag: the local tag id moves while the
-                // container still references the old id.
-                cm.imageIds["img:latest"] = "sha256:newer"
-                cm.calls.clear()
-                loop.applyDesired(desiredRunning(spec = startCmd(image = "img:latest"))).join()
-            }
-
             cm.calls.filter { it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
                 listOf("remove:craftpanel-srv-1", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
         }
 
-        test("a restart recreates when the live container config differs from the desired spec") {
-            // The container was created with a different image than the desired spec. Even with an
-            // unknown in-memory applied spec, the inspect proves the mismatch → recreate.
+        test("a forced restart always recreates and applies the new spec") {
             val cm = FakeContainerManager()
-            cm.createContainer(startCmd(image = "old-image"))
-            cm.startContainer("craftpanel-srv-1")
-            cm.calls.clear()
-            val store = DesiredStateStore()
-            store.upsert("srv-1") { it.copy(spec = startCmd(image = "new-image"), appliedSpec = null) }
             val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out, store = store)
-
-            runBlocking {
-                loop.applyDesired(
-                    desiredRunning(spec = startCmd(image = "new-image")).toBuilder().setForceRestart(true).build()
-                ).join()
-            }
-
-            cm.calls.filter { it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
-                listOf("remove:craftpanel-srv-1", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
-            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
-        }
-
-        test("a restart does not recreate when the live container config matches the desired spec") {
-            val cm = FakeContainerManager()
-            val (_, out) = newOutbound()
-            val loop = newLoop(cm, out)
-            val spec = startCmd()
-
-            runBlocking {
-                loop.applyDesired(desiredRunning(spec = spec)).join() // creates the container
-                cm.calls.clear()
-                loop.applyDesired(
-                    desiredRunning(spec = spec).toBuilder().setForceRestart(true).build()
-                ).join()
-            }
-
-            cm.calls.any { it.startsWith("remove:") || it.startsWith("create:") } shouldBe false
-            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
-        }
-
-        test("changing the stop command does not force a recreate") {
-            val cm = FakeContainerManager()
-            val (_, out) = newOutbound()
             val loop = newLoop(cm, out)
             val base = startCmd()
             val withStop = base.toBuilder().setStopCommand("^C").build()
@@ -364,8 +299,16 @@ class ConvergenceLoopTest :
                 ).join()
             }
 
-            cm.calls.any { it.startsWith("remove:") || it.startsWith("create:") } shouldBe false
+            cm.calls.filter {
+                it.startsWith("stop:") || it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:")
+            } shouldBe listOf(
+                "stop:craftpanel-srv-1",
+                "remove:craftpanel-srv-1",
+                "create:craftpanel-srv-1",
+                "start:craftpanel-srv-1"
+            )
             cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
         test("force stop preempts an in-flight graceful stop with SIGKILL") {
@@ -854,7 +797,7 @@ class ConvergenceLoopTest :
             loop.cpuLimitMillicores("srv-unknown") shouldBe 0
         }
 
-        test("cpuLimitMillicores falls back to the desired spec when nothing is applied") {
+        test("cpuLimitMillicores reads the stored spec") {
             val cm = FakeContainerManager()
             val (_, out) = newOutbound()
             val store = DesiredStateStore()
@@ -865,22 +808,6 @@ class ConvergenceLoopTest :
             }
 
             loop.cpuLimitMillicores("srv-1") shouldBe 1500
-        }
-
-        test("cpuLimitMillicores prefers the applied spec over the desired spec") {
-            val cm = FakeContainerManager()
-            val (_, out) = newOutbound()
-            val store = DesiredStateStore()
-            val loop = newLoop(cm, out, store = store)
-
-            store.upsert("srv-1") {
-                it.copy(
-                    spec = startCmd().toBuilder().setCpuLimitMillicores(2000).build(),
-                    appliedSpec = startCmd().toBuilder().setCpuLimitMillicores(1000).build()
-                )
-            }
-
-            loop.cpuLimitMillicores("srv-1") shouldBe 1000
         }
 
         // ── JVM metrics policy lookup ─────────────────────────────────────────

@@ -59,7 +59,10 @@ class ModsRoutesTest :
         val repos = TestRepositories()
 
         fun Route.configureModsTest() {
-            modsRoutes(ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository, client = modrinthClientWithCompatibleVersion()))
+            modsRoutes(
+                ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository, client = modrinthClientWithCompatibleVersion()),
+                testServerSpecSync(repos)
+            )
         }
 
         fun createUser(email: String = "admin@example.com"): Uuid = transaction {

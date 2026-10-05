@@ -21,6 +21,7 @@ import io.craftpanel.master.service.ProxySettingsResponse
 import io.craftpanel.master.service.ProxySettingsService
 import io.craftpanel.master.service.UnprocessableException
 import io.craftpanel.master.service.UpdateProxySettingsRequest
+import io.craftpanel.master.testServerSpecSync
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.call.*
@@ -46,15 +47,19 @@ class ConfigRoutesTest :
     FunSpec({
         val repos = TestRepositories()
         val proxyConfigPatchService = ProxyConfigPatchService(repos.proxyBackendRepository, repos.serverRepository)
+        val specSync = testServerSpecSync(repos)
         val backendForwardingService = BackendForwardingService(
             serverRepository = repos.serverRepository,
             proxyBackendRepository = repos.proxyBackendRepository,
             envVarsRepository = repos.envVarsRepository,
-            cipher = SecretCipher(ByteArray(32) { 0x42 })
-        ) { _, _, _ -> }
-        val proxyBackendService = ProxyBackendService(repos.serverRepository, repos.proxyBackendRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService)
-        val envVarsService = EnvVarsService(repos.serverRepository, repos.envVarsRepository)
-        val proxySettingsService = ProxySettingsService(repos.serverRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService)
+            cipher = SecretCipher(ByteArray(32) { 0x42 }),
+            writeFile = { _, _, _ -> },
+            specSync = specSync
+        )
+        val proxyBackendService =
+            ProxyBackendService(repos.serverRepository, repos.proxyBackendRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService, specSync)
+        val envVarsService = EnvVarsService(repos.serverRepository, repos.envVarsRepository, specSync)
+        val proxySettingsService = ProxySettingsService(repos.serverRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService, specSync)
 
         val jwtConfig = JwtConfig(
             secret = "test-secret-that-is-at-least-32-characters!!",

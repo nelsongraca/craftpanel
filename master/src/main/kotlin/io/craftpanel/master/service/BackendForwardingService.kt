@@ -21,7 +21,8 @@ class BackendForwardingService(
     private val proxyBackendRepository: ProxyBackendRepository,
     private val envVarsRepository: EnvVarsRepository,
     private val cipher: SecretCipher,
-    private val writeFile: suspend (Uuid, String, ByteArray) -> Unit
+    private val writeFile: suspend (Uuid, String, ByteArray) -> Unit,
+    private val specSync: ServerSpecSync
 ) {
 
     /**
@@ -58,22 +59,25 @@ class BackendForwardingService(
                     val secret = mintOrReadSecret(proxyServerId)
                     val patchJson = BackendForwardingRenderer.render(classification.file, secret)
                     writeFile(backend.backendServerId, patchFileName(classification.file), patchJson.toByteArray())
-                    transaction {
-                        val existingOnline = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "ONLINE_MODE") }.firstOrNull()
-                        if (existingOnline != null) {
-                            existingOnline.value = "false"
-                        } else {
-                            EnvVar.new {
-                                this.serverId = EntityID(backend.backendServerId, Servers)
-                                key = "ONLINE_MODE"
-                                value = "false"
+                    // ONLINE_MODE / PATCH_DEFINITIONS changes alter the container env, so a running
+                    // backend needs its spec refreshed (applied on the next start/crash-recreate).
+                    specSync.reconcile(backend.backendServerId) {
+                        transaction {
+                            val existingOnline = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "ONLINE_MODE") }.firstOrNull()
+                            if (existingOnline != null) {
+                                existingOnline.value = "false"
+                            } else {
+                                EnvVar.new {
+                                    this.serverId = EntityID(backend.backendServerId, Servers)
+                                    key = "ONLINE_MODE"
+                                    value = "false"
+                                }
                             }
-                        }
-                        val existingPatch = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "PATCH_DEFINITIONS") }.firstOrNull()
-                        existingPatch?.delete()
-                        Server.findById(backend.backendServerId)?.let {
-                            it.forwardingPatchFile = patchFileContainerPath(classification.file)
-                            it.restartPending = true
+                            val existingPatch = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "PATCH_DEFINITIONS") }.firstOrNull()
+                            existingPatch?.delete()
+                            Server.findById(backend.backendServerId)?.let {
+                                it.forwardingPatchFile = patchFileContainerPath(classification.file)
+                            }
                         }
                     }
                 }

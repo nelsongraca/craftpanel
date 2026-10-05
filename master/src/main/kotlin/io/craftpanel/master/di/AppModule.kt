@@ -217,19 +217,21 @@ val appModule = module {
             jvmMetricsPollIntervalProvider = { settingsProvider.current().jvmMetricsPollIntervalSeconds }
         )
     }
+    single { ServerSpecSync(lifecycle = get(), serverRepository = get()) }
     single {
         ServerLifecycleService(
             lifecycle = get(),
             serverRepository = get(),
             serverIntent = get(),
             proxyPatchWriter = get(),
-            backendForwardingService = get()
+            backendForwardingService = get(),
+            specSync = get()
         )
     }
     single {
         ServerExposureService(
             dnsProvider = { get<DnsProviderResolver>().current() },
-            lifecycle = get(),
+            specSync = get(),
             serverRepository = get(),
             nodeRepository = get(),
             serverHostnames = get()
@@ -245,7 +247,7 @@ val appModule = module {
             nodeRepository = get(),
             networkRepository = get(),
             settingsProvider = get(),
-            lifecycle = get()
+            specSync = get()
         )
     }
     single {
@@ -274,7 +276,7 @@ val appModule = module {
         )
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get(), get(named("containerPrefix"))) }
-    single { DesiredStateSyncService(lifecycle = get(), serverRepository = get(), serverIntent = get()) }
+    single { DesiredStateSyncService(lifecycle = get(), serverRepository = get(), serverIntent = get(), specSync = get()) }
     single {
         SecretCipher(
             java.util.Base64.getDecoder()
@@ -288,12 +290,13 @@ val appModule = module {
             proxyBackendRepository = get(),
             envVarsRepository = get(),
             cipher = get(),
-            writeFile = dataServiceProxy::writeFile
+            writeFile = dataServiceProxy::writeFile,
+            specSync = get()
         )
     }
-    single { ProxyBackendService(get(), get(), get(), get()) }
-    single { ProxySettingsService(get(), get(), get()) }
-    single { EnvVarsService(get(), get()) }
+    single { ProxyBackendService(get(), get(), get(), get(), get()) }
+    single { ProxySettingsService(get(), get(), get(), get()) }
+    single { EnvVarsService(get(), get(), get()) }
     single { DashboardService(get(), get(), get(), get(), get()) }
     single {
         ExportService(

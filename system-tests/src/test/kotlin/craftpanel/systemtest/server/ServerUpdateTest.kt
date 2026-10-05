@@ -118,6 +118,54 @@ class ServerUpdateTest : BaseSystemTest() {
                 helper.awaitStoppedOrGone(serverId)
             }
 
+            should("recreate and apply a pending env change when the server restarts itself") {
+                api.replaceEnvVars(
+                    serverId,
+                    PutEnvVarsRequest(envVars = listOf(EnvVarItem(key = "SELF_RESTART_MARKER", value = "present")))
+                )
+                api.startServer(serverId)
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
+                val before = docker.inspectContainerCmd(containerName(serverId)).exec().id
+
+                // A second change while running: reconfigure-only, same container, marker pending.
+                api.replaceEnvVars(
+                    serverId,
+                    PutEnvVarsRequest(
+                        envVars = listOf(
+                            EnvVarItem(key = "SELF_RESTART_MARKER", value = "replaced"),
+                            EnvVarItem(key = "IN_SERVER_MARKER", value = "applied")
+                        )
+                    )
+                )
+                api.getServer(serverId).status shouldBe ServerStatus.HEALTHY
+                docker.inspectContainerCmd(containerName(serverId)).exec().id shouldBe before
+                api.getServer(serverId).restartPending shouldBe true
+
+                // Restart from inside the server: the process exits out-of-band (not a panel call).
+                // Containers run with RestartPolicy.noRestart, so the agent owns the restart. Every
+                // start recreates, so the new env must be applied.
+                docker.stopContainerCmd(containerName(serverId)).exec()
+                var after = before
+                val deadline = System.currentTimeMillis() + 90_000
+                while (System.currentTimeMillis() < deadline && after == before) {
+                    delay(250.milliseconds)
+                    after = runCatching {
+                        docker.inspectContainerCmd(containerName(serverId)).exec().id
+                    }.getOrNull() ?: before
+                }
+                after shouldNotBe before
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
+                docker.inspectContainerCmd(containerName(serverId)).exec()
+                    .config?.env?.toList().orEmpty()
+                    .any { it.startsWith("IN_SERVER_MARKER=applied") } shouldBe true
+                // `restart_pending=false` is the serialization default, so the field is omitted from
+                // the wire and the generated client surfaces it as null.
+                (api.getServer(serverId).restartPending ?: false) shouldBe false
+
+                api.stopServer(serverId)
+                helper.awaitStoppedOrGone(serverId)
+            }
+
             should("recreate on restart after an env var is removed") {
                 api.replaceEnvVars(
                     serverId,

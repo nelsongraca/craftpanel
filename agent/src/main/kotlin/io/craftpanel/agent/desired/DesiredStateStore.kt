@@ -15,8 +15,6 @@ data class DesiredState(
     val desired: ServerDesiredState.Desired,
     /** Full runtime spec the agent converges to; null until the first push with a spec. */
     val spec: StartContainerCommand?,
-    /** Spec the current container was created/started with — drives the recreate-if-diff decision. */
-    val appliedSpec: StartContainerCommand?,
     /** Consecutive crash-restarts within the current window. */
     val restartCount: Int,
     /** Epoch millis of the current budget window; null before the first restart. */
@@ -38,7 +36,6 @@ data class DesiredState(
             serverId = serverId,
             desired = ServerDesiredState.Desired.DESIRED_UNSPECIFIED,
             spec = null,
-            appliedSpec = null,
             restartCount = 0,
             windowStartEpochMillis = null,
             forceRestart = false,

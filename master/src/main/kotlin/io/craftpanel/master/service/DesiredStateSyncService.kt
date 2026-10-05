@@ -16,11 +16,7 @@ import kotlin.uuid.Uuid
  * (`RUNNING`) and persisted before the push — otherwise such rows are skipped silently and the
  * agent never converges (a stopped container then stays down until a human intervenes).
  */
-class DesiredStateSyncService(
-    private val lifecycle: ContainerLifecycle,
-    private val serverRepository: ServerRepository,
-    private val serverIntent: ServerIntent
-) {
+class DesiredStateSyncService(private val lifecycle: ContainerLifecycle, private val serverRepository: ServerRepository, private val serverIntent: ServerIntent, private val specSync: ServerSpecSync) {
 
     private val log = LoggerFactory.getLogger(DesiredStateSyncService::class.java)
 
@@ -39,12 +35,14 @@ class DesiredStateSyncService(
         var pushed = 0
         for (server in servers) {
             val desired = resolveDesiredStatus(server) ?: continue
+            // The envelope always carries the current spec, so a successful push means the agent
+            // holds it — the reconnect/boot path that recovers a previously-failed spec push.
             val ok = lifecycle.sendDesiredState(server, desired)
+            specSync.markDelivered(server.id, ok)
             if (ok) {
                 pushed++
                 log.info("pushAll: pushed desired={} for server {}", desired, server.id)
-            }
-            else {
+            } else {
                 log.warn("pushAll: agent not connected for server {} (node {})", server.id, server.nodeId)
             }
         }

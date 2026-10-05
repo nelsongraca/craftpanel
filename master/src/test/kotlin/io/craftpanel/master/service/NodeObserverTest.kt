@@ -80,6 +80,16 @@ class NodeObserverTest :
             Servers.update({ Servers.id eq serverId }) { it[Servers.restartPending] = value }
         }
 
+        fun dbSpecDelivered(): Boolean = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .first()[Servers.specDelivered]
+        }
+
+        fun setSpecDelivered(value: Boolean) = transaction {
+            Servers.update({ Servers.id eq serverId }) { it[Servers.specDelivered] = value }
+        }
+
         fun historyStatuses(): List<String> = transaction {
             ServerStatusEvents.selectAll()
                 .where { ServerStatusEvents.serverId eq serverId }
@@ -136,6 +146,41 @@ class NodeObserverTest :
                 delay(50.milliseconds)
 
                 dbRestartPending() shouldBe false
+                job.cancel()
+            }
+        }
+
+        test("keeps restart_pending on STARTING when the spec was never delivered") {
+            runTest {
+                // An offline config save left the marker set but the spec unpushed; a STARTING that
+                // used the stale spec must not clear the marker.
+                setRestartPending(true)
+                setSpecDelivered(false)
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STARTING))
+                delay(50.milliseconds)
+
+                dbRestartPending() shouldBe true
+                job.cancel()
+            }
+        }
+
+        test("clears restart_pending on STARTING once delivery is restored") {
+            runTest {
+                setRestartPending(true)
+                setSpecDelivered(true)
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STARTING))
+                delay(50.milliseconds)
+
+                dbRestartPending() shouldBe false
+                dbSpecDelivered() shouldBe true
                 job.cancel()
             }
         }

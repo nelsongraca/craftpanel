@@ -15,9 +15,9 @@ import kotlin.uuid.Uuid
 @Serializable
 data class ModsListResponse(val mods: List<ModResponse>)
 
-fun Route.modsRoutes(modService: ModService) = with(ModsRoutes(modService)) { register() }
+fun Route.modsRoutes(modService: ModService, specSync: ServerSpecSync) = with(ModsRoutes(modService, specSync)) { register() }
 
-class ModsRoutes(val modService: ModService) {
+class ModsRoutes(val modService: ModService, private val specSync: ServerSpecSync) {
 
     private val log = LoggerFactory.getLogger(ModsRoutes::class.java)
 
@@ -57,7 +57,7 @@ class ModsRoutes(val modService: ModService) {
                 }) {
                     val auth = call.requireServerPermission(Permission.SERVER_MODS)
                     val req = call.receive<CreateModRequest>()
-                    call.respond(HttpStatusCode.Created, modService.addMod(auth.serverId, req))
+                    call.respond(HttpStatusCode.Created, specSync.reconcile(auth.serverId) { modService.addMod(auth.serverId, req) })
                 }
 
                 patch("/{modId}", {
@@ -84,7 +84,7 @@ class ModsRoutes(val modService: ModService) {
                     }
                         ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid mod ID"))
                     val req = call.receive<PatchModRequest>()
-                    call.respond(modService.updateMod(auth.serverId, modId, req))
+                    call.respond(specSync.reconcile(auth.serverId) { modService.updateMod(auth.serverId, modId, req) })
                 }
 
                 delete("/{modId}", {
@@ -108,7 +108,7 @@ class ModsRoutes(val modService: ModService) {
                         }.getOrNull()
                     }
                         ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid mod ID"))
-                    modService.deleteMod(auth.serverId, modId)
+                    specSync.reconcile(auth.serverId) { modService.deleteMod(auth.serverId, modId) }
                     call.respond(HttpStatusCode.NoContent)
                 }
 
