@@ -18,7 +18,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test -c playwright.smoke.config.ts",
-    "merge:e2e-coverage": "node tests/e2e/merge-coverage.mjs"
+    "test:e2e:mobile": "playwright test -c playwright.mobile.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

@@ -152,13 +152,9 @@ jobs:
           fail_ci_if_error: false
 
   e2e-tests:
-    name: E2E Tests (MSW) (${{ matrix.shard }}/4)
+    name: E2E Tests (MSW)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -185,61 +181,19 @@ jobs:
         run: cd frontend && .node/bin/pnpm exec playwright install-deps chromium
 
       - name: Run E2E tests
-        run: ./gradlew :frontend:testE2eCoverage -Pe2eShard=${{ matrix.shard }}/4 --configuration-cache-problems=warn
+        run: ./gradlew :frontend:testE2eCoverage --configuration-cache-problems=warn
 
       - name: Upload test reports
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-reports-${{ matrix.shard }}
+          name: e2e-reports
           path: frontend/build/reports/playwright/
           retention-days: 3
 
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+      - uses: ./.github/actions/codecov-upload
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: frontend/build/reports/junit/playwright.xml
           flags: e2e
-          report_type: test_results
-
-      # Shards collect raw coverage only; the merge job below combines and uploads it.
-      - name: Upload raw E2E coverage
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-coverage-shard-${{ matrix.shard }}
-          path: frontend/build/reports/coverage-e2e/.cache/
-          include-hidden-files: true
-          retention-days: 1
-
-  merge-e2e-coverage:
-    name: Merge E2E Coverage
-    needs: e2e-tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/setup-gradle
-        with:
-          cache-read-only: true
-
-      - name: Download shard coverage artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: e2e-coverage-shard-*
-          path: frontend/build/coverage-shards
-
-      - name: Generate merged coverage report
-        run: ./gradlew :frontend:mergeE2eCoverage
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
+          test-results: frontend/build/reports/junit/playwright.xml
+          coverage-files: frontend/build/reports/coverage-e2e/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: frontend/build/reports/coverage-e2e/lcov.info
-          flags: e2e
-          # Codecov outages (frequent) must not block the build; the tests above are the gate.
-          fail_ci_if_error: false

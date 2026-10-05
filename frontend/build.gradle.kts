@@ -28,10 +28,6 @@ tasks.named("clean") {
 
 val withCoverage = project.hasProperty("withCoverage")
 
-// Optional Playwright shard for CI, e.g. -Pe2eShard=1/4. Captured at configuration time so the
-// Exec task stays configuration-cache safe.
-val e2eShard = (project.findProperty("e2eShard") as String?)?.takeIf { it.isNotBlank() }
-
 tasks.register<Exec>("typecheckFrontend") {
     group = "verification"
     description = "Runs TypeScript type checking"
@@ -72,36 +68,12 @@ tasks.register<Exec>("testE2eMocked") {
 
 tasks.register<Exec>("testE2eCoverage") {
     group = "verification"
-    description = "Runs MSW-backed Playwright E2E tests with V8 code coverage (optionally one -Pe2eShard=N/4 shard)"
+    description = "Runs MSW-backed Playwright E2E tests with V8 code coverage"
     dependsOn("generateApiTypes")
     workingDir = layout.projectDirectory.asFile
-    val pnpm = layout.projectDirectory.file(".node/bin/pnpm").asFile
-    commandLine(
-        buildList {
-            add(pnpm)
-            add("run")
-            add("test:e2e")
-            e2eShard?.let {
-                add("--")
-                add("--shard=$it")
-            }
-        }
-    )
+    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "test:e2e")
     environment("CI", "true")
     environment("E2E_COVERAGE", "true")
-    if (e2eShard != null) {
-        // Shards upload their raw cache; the merge job generates the combined report. Generating
-        // here would purge the cache MCR needs for the merge.
-        environment("E2E_COVERAGE_REPORT", "false")
-    }
-}
-
-tasks.register<Exec>("mergeE2eCoverage") {
-    group = "verification"
-    description = "Merges raw E2E coverage caches from all shards into a single report"
-    dependsOn("installFrontend")
-    workingDir = layout.projectDirectory.asFile
-    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "merge:e2e-coverage")
 }
 
 tasks.named("check") {

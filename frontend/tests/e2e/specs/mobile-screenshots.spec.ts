@@ -4,10 +4,11 @@ import {http, HttpResponse} from "msw";
 import type {Page} from "@playwright/test";
 import {expect, test} from "../fixture";
 
-// One-off mobile usability screenshot sweep. NOT part of :frontend:testE2eMocked or CI —
-// run explicitly, then review the PNGs under build/reports/mobile/.
+// One-off mobile usability screenshot sweep. Excluded from the default suite and CI via
+// testIgnore in playwright.config.ts — run explicitly, then review the PNGs under
+// build/reports/mobile/.
 //
-//   .node/bin/pnpm exec playwright test mobile-screenshots
+//   .node/bin/pnpm run test:e2e:mobile
 //
 // Every route (and key dialog state) is captured at three portrait viewports. For each
 // screenshot the runner prints the page's scrollWidth vs clientWidth so horizontal
