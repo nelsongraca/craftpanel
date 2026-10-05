@@ -17,9 +17,12 @@ test("lists nodes with columns and status filter", async ({page}) => {
 
 test("opens the node detail page with tabs", async ({page}) => {
     await page.goto("/nodes");
+    await expect(table(page).getByText("Primary Node", {exact: true})).toBeVisible();
     await table(page).getByText("Primary Node", {exact: true}).click();
 
-    await expect(page).toHaveURL("/nodes/node-1");
+    // Row navigation is a client-side push and `next dev` compiles /nodes/[id] on first visit,
+    // which can exceed the default expect timeout.
+    await expect(page).toHaveURL("/nodes/node-1", {timeout: 30_000});
     await expect(page.getByRole("heading", {name: "Primary Node"})).toBeVisible();
     await expect(page.getByRole("tab", {name: /Overview/})).toBeVisible();
 });
@@ -38,7 +41,7 @@ test("edits a node through the modal", async ({page}) => {
 test("trusts a pending node", async ({page, network}) => {
     network.use(
         http.get("/api/nodes", () => HttpResponse.json([pendingNode()])),
-        http.post("/api/nodes/node-9/trust", () => new HttpResponse(null, {status: 204}))
+        http.post("/api/nodes/node-9/trust", () => new HttpResponse(null, {status: 204})),
     );
 
     await page.goto("/nodes");
@@ -49,13 +52,11 @@ test("trusts a pending node", async ({page, network}) => {
 test("rejects a pending node after confirming", async ({page, network}) => {
     let rejected = false;
     network.use(
-        http.get("/api/nodes", () =>
-            HttpResponse.json(rejected ? [] : [pendingNode()])
-        ),
+        http.get("/api/nodes", () => HttpResponse.json(rejected ? [] : [pendingNode()])),
         http.post("/api/nodes/node-9/reject", () => {
             rejected = true;
             return new HttpResponse(null, {status: 204});
-        })
+        }),
     );
 
     await page.goto("/nodes");
@@ -68,9 +69,7 @@ test("rejects a pending node after confirming", async ({page, network}) => {
 
 test("rotates a node key and shows the token modal", async ({page, network}) => {
     network.use(
-        http.post("/api/nodes/node-1/token/rotate", () =>
-            HttpResponse.json({node_key: "rotated-node-key-abc123"})
-        )
+        http.post("/api/nodes/node-1/token/rotate", () => HttpResponse.json({node_key: "rotated-node-key-abc123"})),
     );
 
     await page.goto("/nodes");
@@ -83,11 +82,7 @@ test("rotates a node key and shows the token modal", async ({page, network}) => 
 });
 
 test("shuts down an active node after confirming", async ({page, network}) => {
-    network.use(
-        http.post("/api/nodes/node-1/shutdown", () =>
-            new HttpResponse(null, {status: 204})
-        )
-    );
+    network.use(http.post("/api/nodes/node-1/shutdown", () => new HttpResponse(null, {status: 204})));
 
     await page.goto("/nodes");
     await page.getByRole("button", {name: "Shutdown"}).first().click();
@@ -98,7 +93,7 @@ test("shuts down an active node after confirming", async ({page, network}) => {
 test("decommissions a node with no servers", async ({page, network}) => {
     network.use(
         http.get("/api/nodes", () => HttpResponse.json([emptyNode()])),
-        http.get("/api/servers", () => HttpResponse.json([]))
+        http.get("/api/servers", () => HttpResponse.json([])),
     );
 
     await page.goto("/nodes");

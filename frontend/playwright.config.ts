@@ -12,9 +12,12 @@ export default defineConfig({
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
-    // The suite parallelises well (the dev server is not the bottleneck); a handful of workers
-    // keeps the single CI job to a couple of minutes without sharding.
+    // A test that only passes on retry still exits non-zero — flakiness is a bug, not noise.
+    failOnFlakyTests: true,
     workers: process.env.CI ? 3 : undefined,
+    // `next dev` compiles routes on first visit; a cold /nodes/[id] or tab chunk can take
+    // several seconds, so give expect()s more than the 5s default.
+    expect: {timeout: 15_000},
     reporter: [
         ["html", {outputFolder: "build/reports/playwright"}],
         ["junit", {outputFile: "build/reports/junit/playwright.xml"}],
