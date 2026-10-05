@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import {AlertTriangle, Check, GitCompare, Pin, Plus, RefreshCw, Search, Trash2, X} from "lucide-react";
 import {addMod, checkModCompatibility, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
 import type {ModResponse as Mod} from "@/lib/generated/types.gen";
@@ -54,24 +54,49 @@ interface ModrinthVersion {
     date_published: string;
 }
 
+interface ModrinthVersionsResult {
+    ok: boolean;
+    versions: ModrinthVersion[];
+}
+
 async function fetchModrinthVersions(
     projectId: string,
     serverType: string,
     mcVersion: string,
-): Promise<ModrinthVersion[]> {
+): Promise<ModrinthVersionsResult> {
     try {
         const params = new URLSearchParams();
         // Mod loaders (Fabric/Forge/NeoForge/Quilt) map directly to a loader filter;
-        // proxies expose plugins filtered by game version only.
-        if (isModLoaderType(serverType)) params.set("loaders", `["${serverType.toUpperCase()}"]`);
+        // proxies expose plugins filtered by game version only. Modrinth loader facets are lowercase.
+        if (isModLoaderType(serverType)) params.set("loaders", `["${serverType.toLowerCase()}"]`);
         if (mcVersion) params.set("game_versions", `["${mcVersion}"]`);
         const query = params.toString();
         const res = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version${query ? `?${query}` : ""}`);
-        if (!res.ok) return [];
-        return (await res.json()) as ModrinthVersion[];
+        if (!res.ok) return {ok: false, versions: []};
+        return {ok: true, versions: (await res.json()) as ModrinthVersion[]};
     } catch {
-        return [];
+        return {ok: false, versions: []};
     }
+}
+
+const ALLOWED_VERSION_TYPES: Record<Exclude<PinStrategy, "PINNED">, string[]> = {
+    LATEST: ["release"],
+    BETA: ["release", "beta"],
+    ALPHA: ["release", "beta", "alpha"],
+};
+
+/** Whether a version matching [strategy]'s release-type rule exists for the target, mirroring itzg. */
+function channelHasVersion(strategy: PinStrategy, versions: ModrinthVersion[]): boolean {
+    if (strategy === "PINNED") return versions.length > 0;
+    return versions.some((v) => ALLOWED_VERSION_TYPES[strategy].includes(v.version_type));
+}
+
+/** The most stable release channel with any version for the target, or null when none exist. */
+function bestAvailableChannel(versions: ModrinthVersion[]): PinStrategy | null {
+    if (versions.some((v) => v.version_type === "release")) return "LATEST";
+    if (versions.some((v) => v.version_type === "beta")) return "BETA";
+    if (versions.some((v) => v.version_type === "alpha")) return "ALPHA";
+    return null;
 }
 
 interface ModrinthHit {
@@ -115,7 +140,9 @@ export function ModsTab({
     const [addDisplayName, setAddDisplayName] = useState("");
     const [addProjectId, setAddProjectId] = useState("");
     const [addVersions, setAddVersions] = useState<ModrinthVersion[]>([]);
+    const [addVersionsOk, setAddVersionsOk] = useState(false);
     const [loadingAddVersions, setLoadingAddVersions] = useState(false);
+    const [addError, setAddError] = useState<string | null>(null);
 
     // Edit state
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -146,6 +173,25 @@ export function ModsTab({
         load();
     }, [load]);
 
+    // Enabled mods first (alphabetical), disabled ones collected at the bottom.
+    const sortedMods = useMemo(
+        () =>
+            [...mods].sort(
+                (a, b) =>
+                    Number(b.enabled !== false) - Number(a.enabled !== false) ||
+                    a.display_name.localeCompare(b.display_name),
+            ),
+        [mods],
+    );
+
+    // Pre-select the newest version when switching to PINNED — including when the version list
+    // resolves after the switch (the fetch is kicked off by startAdd).
+    useEffect(() => {
+        if (adding && addPinStrategy === "PINNED" && !addVersionId && addVersions.length > 0) {
+            setAddVersionId(addVersions[0].id);
+        }
+    }, [adding, addPinStrategy, addVersionId, addVersions]);
+
     async function handleSearch() {
         if (!searchQuery.trim()) return;
         setSearching(true);
@@ -170,22 +216,27 @@ export function ModsTab({
         setAddPinStrategy("LATEST");
         setAddVersionId("");
         setAddVersions([]);
+        setAddVersionsOk(false);
+        setAddError(null);
+        void loadAddVersions(hit.project_id);
     }
 
-    async function handleAddStrategyChange(strategy: PinStrategy, projectId: string) {
+    async function loadAddVersions(projectId: string) {
+        setLoadingAddVersions(true);
+        const {ok, versions} = await fetchModrinthVersions(projectId, serverType, mcVersion);
+        setAddVersions(versions);
+        setAddVersionsOk(ok);
+        setLoadingAddVersions(false);
+    }
+
+    function handleAddStrategyChange(strategy: PinStrategy) {
         setAddPinStrategy(strategy);
         setAddVersionId("");
-        if (strategy === "PINNED" && addVersions.length === 0) {
-            setLoadingAddVersions(true);
-            const vs = await fetchModrinthVersions(projectId, serverType, mcVersion);
-            setAddVersions(vs);
-            if (vs.length > 0) setAddVersionId(vs[0].id);
-            setLoadingAddVersions(false);
-        }
     }
 
     async function confirmAdd() {
         if (!addProjectId || !addDisplayName) return;
+        setAddError(null);
         const res = await addMod({
             path: {id: serverId},
             body: {
@@ -196,9 +247,10 @@ export function ModsTab({
             },
         });
         if (res.error) {
-            setError((res.error as {message?: string})?.message ?? "Failed to add mod");
+            setAddError((res.error as {message?: string})?.message ?? "Failed to add mod");
         } else {
             setAdding(null);
+            setAddError(null);
             setShowSearch(false);
             setSearchResults([]);
             setSearchQuery("");
@@ -239,8 +291,8 @@ export function ModsTab({
         setEditVersions([]);
         if (strategy === "PINNED" && mod.modrinth_project_id) {
             setLoadingEditVersions(true);
-            const vs = await fetchModrinthVersions(mod.modrinth_project_id, serverType, mcVersion);
-            setEditVersions(vs);
+            const {versions} = await fetchModrinthVersions(mod.modrinth_project_id, serverType, mcVersion);
+            setEditVersions(versions);
             setLoadingEditVersions(false);
         }
     }
@@ -250,9 +302,9 @@ export function ModsTab({
         setEditVersionId("");
         if (strategy === "PINNED" && mod.modrinth_project_id && editVersions.length === 0) {
             setLoadingEditVersions(true);
-            const vs = await fetchModrinthVersions(mod.modrinth_project_id, serverType, mcVersion);
-            setEditVersions(vs);
-            if (vs.length > 0) setEditVersionId(vs[0].id);
+            const {versions} = await fetchModrinthVersions(mod.modrinth_project_id, serverType, mcVersion);
+            setEditVersions(versions);
+            if (versions.length > 0) setEditVersionId(versions[0].id);
             setLoadingEditVersions(false);
         }
     }
@@ -518,6 +570,14 @@ export function ModsTab({
                         <div className="max-h-64 space-y-2 overflow-y-auto">
                             {searchResults.map((hit) => {
                                 const alreadyAdded = mods.some((m) => m.modrinth_project_id === hit.project_id);
+                                // Warn before the round-trip when the selected channel has no compatible
+                                // version but another one does (e.g. only an alpha build exists).
+                                const bestChannel = bestAvailableChannel(addVersions);
+                                const showChannelHint =
+                                    addPinStrategy !== "PINNED" &&
+                                    addVersionsOk &&
+                                    addVersions.length > 0 &&
+                                    !channelHasVersion(addPinStrategy, addVersions);
                                 return (
                                     <div
                                         key={hit.project_id}
@@ -554,10 +614,7 @@ export function ModsTab({
                                                     className="w-full"
                                                     value={addPinStrategy}
                                                     onChange={(e) =>
-                                                        void handleAddStrategyChange(
-                                                            e.target.value as PinStrategy,
-                                                            hit.project_id,
-                                                        )
+                                                        handleAddStrategyChange(e.target.value as PinStrategy)
                                                     }
                                                 >
                                                     {(Object.keys(PIN_LABELS) as PinStrategy[]).map((s) => (
@@ -591,6 +648,24 @@ export function ModsTab({
                                                             className="w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary focus:border-accent focus:outline-none"
                                                         />
                                                     ))}
+                                                {showChannelHint && (
+                                                    <p className="text-xs text-warning">
+                                                        No {PIN_LABELS[addPinStrategy]} version for{" "}
+                                                        {mcVersion || "this version"}.
+                                                        {bestChannel && bestChannel !== addPinStrategy && (
+                                                            <>
+                                                                {" "}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleAddStrategyChange(bestChannel)}
+                                                                    className="underline hover:no-underline"
+                                                                >
+                                                                    Switch to {PIN_LABELS[bestChannel]}?
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </p>
+                                                )}
                                                 <div className="flex gap-1">
                                                     <button
                                                         onClick={confirmAdd}
@@ -600,12 +675,16 @@ export function ModsTab({
                                                         Add
                                                     </button>
                                                     <button
-                                                        onClick={() => setAdding(null)}
+                                                        onClick={() => {
+                                                            setAdding(null);
+                                                            setAddError(null);
+                                                        }}
                                                         className="rounded border border-border px-2 py-1 text-xs text-text-dim hover:text-text-primary"
                                                     >
                                                         ✕
                                                     </button>
                                                 </div>
+                                                {addError && <p className="text-xs text-error">{addError}</p>}
                                             </div>
                                         ) : (
                                             <button
@@ -630,7 +709,7 @@ export function ModsTab({
                 </Empty>
             ) : (
                 <div className="space-y-2">
-                    {mods.map((mod) => (
+                    {sortedMods.map((mod) => (
                         <div
                             key={mod.id}
                             className={`rounded-lg border border-border bg-surface px-4 py-3 ${
