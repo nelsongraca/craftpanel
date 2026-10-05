@@ -8,7 +8,7 @@ import okhttp3.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreRuntime")
 class ServerConsoleTest : BaseSystemTest() {
 
     private val wsClient = OkHttpClient.Builder()

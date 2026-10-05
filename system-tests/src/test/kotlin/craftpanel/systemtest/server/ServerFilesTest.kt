@@ -13,7 +13,7 @@ import org.openapitools.client.infrastructure.ClientException
 import java.nio.charset.StandardCharsets
 
 @Isolate
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreRuntime")
 class ServerFilesTest : BaseSystemTest() {
 
     init {

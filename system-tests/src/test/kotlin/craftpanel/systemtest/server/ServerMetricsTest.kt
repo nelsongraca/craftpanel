@@ -11,7 +11,7 @@ import org.openapitools.client.infrastructure.ClientException
 import java.time.Duration
 import java.time.Instant
 
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreRuntime")
 class ServerMetricsTest : BaseSystemTest() {
 
     private fun now() = Instant.now()

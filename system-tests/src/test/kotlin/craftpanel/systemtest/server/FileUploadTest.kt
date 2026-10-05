@@ -9,7 +9,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 
 @Isolate
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreRuntime")
 class FileUploadTest : BaseSystemTest() {
 
     init {

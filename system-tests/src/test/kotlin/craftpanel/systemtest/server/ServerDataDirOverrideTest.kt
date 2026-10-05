@@ -19,7 +19,7 @@ import java.io.File
  * `servers/<serverId>`, including after a live change to a running server.
  */
 @Isolate
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreLifecycle")
 class ServerDataDirOverrideTest : BaseSystemTest() {
 
     private lateinit var serverId: String

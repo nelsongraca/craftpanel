@@ -7,7 +7,7 @@ import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreRuntime")
 class ScheduledJobsTest : BaseSystemTest() {
 
     init {

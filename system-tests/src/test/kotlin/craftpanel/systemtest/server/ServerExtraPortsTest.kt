@@ -10,7 +10,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 
 @Isolate
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreLifecycle")
 class ServerExtraPortsTest : BaseSystemTest() {
 
     init {

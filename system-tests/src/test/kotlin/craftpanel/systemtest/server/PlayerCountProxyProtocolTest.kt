@@ -19,7 +19,7 @@ import io.kotest.matchers.shouldBe
  * The proxy's internal listen port is 25577, so the fixture is pinned there via `GAME_PORT` (the
  * fake server reads `GAME_PORT`, defaulting to 25565 otherwise).
  */
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreRuntime")
 class PlayerCountProxyProtocolTest : BaseSystemTest() {
 
     init {

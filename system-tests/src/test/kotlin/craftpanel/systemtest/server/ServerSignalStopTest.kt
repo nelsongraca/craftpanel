@@ -19,7 +19,7 @@ import io.kotest.matchers.shouldBe
  * an immediate stop would be lost and fall back to the 45s force-stop (exit 143, no hook log).
  */
 @Isolate
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreLifecycle")
 class ServerSignalStopTest : BaseSystemTest() {
 
     init {

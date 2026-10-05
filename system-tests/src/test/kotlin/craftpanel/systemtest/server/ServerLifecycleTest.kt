@@ -16,7 +16,7 @@ import org.openapitools.client.infrastructure.ClientException
 import io.kotest.matchers.string.shouldContain as stringContain
 
 @Isolate
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreLifecycle")
 class ServerLifecycleTest : BaseSystemTest() {
 
     init {

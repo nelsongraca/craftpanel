@@ -10,7 +10,7 @@ import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
 @Isolate
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreLifecycle")
 class ProxyLifecycleTest : BaseSystemTest() {
 
     init {

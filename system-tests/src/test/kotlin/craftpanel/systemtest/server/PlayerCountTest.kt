@@ -6,7 +6,7 @@ import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreRuntime")
 class PlayerCountTest : BaseSystemTest() {
 
     init {

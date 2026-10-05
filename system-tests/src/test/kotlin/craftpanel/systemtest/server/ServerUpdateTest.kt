@@ -14,7 +14,7 @@ import kotlinx.coroutines.delay
 import org.openapitools.client.infrastructure.ClientException
 import kotlin.time.Duration.Companion.milliseconds
 
-@Tags("ServerCore")
+@Tags("ServerCore", "ServerCoreLifecycle")
 class ServerUpdateTest : BaseSystemTest() {
 
     init {

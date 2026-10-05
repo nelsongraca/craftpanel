@@ -16,7 +16,8 @@ Domain-based tags added to each spec class (`io.kotest.core.annotation.Tags`), n
 
 | Tag | Classes |
 |---|---|
-| `ServerCore` | ServerLifecycleTest, ServerConsoleTest, ServerFilesTest, FileUploadTest, ServerUpdateTest, ServerEdgeCasesTest, ServerMetricsTest, PlayerCountTest |
+| `ServerCoreLifecycle` | ServerLifecycleTest, ServerForceStopTest, ServerSignalStopTest, ServerUpdateTest, ServerDataDirOverrideTest, ServerExtraPortsTest, ProxyLifecycleTest (all also carry `ServerCore`) |
+| `ServerCoreRuntime` | ServerFilesTest, FileUploadTest, ServerConsoleTest, ServerMetricsTest, ServerEdgeCasesTest, PlayerCountTest, PlayerCountProxyProtocolTest, ScheduledJobsTest (all also carry `ServerCore`) |
 | `ServerOps` | MigrationSecurityTest, ServerModsTest, SearchModsTest, ModrinthInjectionTest, ServerUpgradeTest, ServerCrashRestartTest |
 | `ServerMigration` | ServerMigrationTest |
 | `ServerMigrationTarget` | ServerMigrationTargetTest |
@@ -28,6 +29,8 @@ Domain-based tags added to each spec class (`io.kotest.core.annotation.Tags`), n
 `server` package was the long pole if left as one shard, so it's split into `ServerCore`/`ServerOps` (~7 each) to keep shards roughly balanced (~4-8 classes each).
 
 Later, ServerOps was still the long pole (~370-384s per run vs ~190-243s for every other shard): a single spec, `ServerMigrationTest`, accounted for ~220s of its ~249s of test time — six sequential migrations at ~30-38s each. Splitting that spec into `ServerMigrationTest` (lifecycle: stopped/running/healthy, ~115s) and `ServerMigrationTargetTest` (post-migration: start-on-target, WebSocket events, list, ~105s), each on its own shard, drops the critical path by ~2m15s. Splitting the six migrations into more than two shards gains nothing — the other shards become the pole.
+
+`ServerCore` later grew to 15 classes (~297s, the new pole) as specs were added, so it was split 2-way into `ServerCoreLifecycle` (lifecycle/process control/update/proxy) and `ServerCoreRuntime` (files/console/metrics/players/jobs) while keeping `ServerCore` as a run-all umbrella tag. Each shard pays its own `SharedStack` startup, so the gain is bounded by that overhead. Per-spec timings from `TimingListener` are uploaded as the `system-test-junit-<tag>` artifact so the partition can be rebalanced from real numbers.
 
 Harness/helper files (`BaseSystemTest`, `CraftPanelStack`, `*Helper.kt`, `PortBandAllocator`, `PollUtil`, `TimingListener`, `SystemTestConfig`) are untagged infra, unaffected.
 
@@ -57,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tag: [ServerCore, ServerOps, Node, Auth, BackupAlerts, Misc]
+        tag: [ServerCoreLifecycle, ServerCoreRuntime, ServerOps, Node, Auth, BackupAlerts, Misc]
     steps:
       # checkout, setup-java, gradle cache
       # download-artifact + docker load
