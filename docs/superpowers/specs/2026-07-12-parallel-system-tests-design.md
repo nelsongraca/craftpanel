@@ -16,8 +16,8 @@ Domain-based tags added to each spec class (`io.kotest.core.annotation.Tags`), n
 
 | Tag | Classes |
 |---|---|
-| `ServerCoreLifecycle` | ServerLifecycleTest, ServerForceStopTest, ServerSignalStopTest, ServerUpdateTest, ServerDataDirOverrideTest, ServerExtraPortsTest, ProxyLifecycleTest (all also carry `ServerCore`) |
-| `ServerCoreRuntime` | ServerFilesTest, FileUploadTest, ServerConsoleTest, ServerMetricsTest, ServerEdgeCasesTest, PlayerCountTest, PlayerCountProxyProtocolTest, ScheduledJobsTest (all also carry `ServerCore`) |
+| `ServerCoreLifecycle` | ServerLifecycleTest, ServerForceStopTest, ServerSignalStopTest, ServerUpdateTest, ServerDataDirOverrideTest, ServerExtraPortsTest, ProxyLifecycleTest, ServerEdgeCasesTest (all also carry `ServerCore`) |
+| `ServerCoreRuntime` | ServerFilesTest, FileUploadTest, ServerConsoleTest, ServerMetricsTest, PlayerCountTest, PlayerCountProxyProtocolTest, ScheduledJobsTest (all also carry `ServerCore`) |
 | `ServerOps` | MigrationSecurityTest, ServerModsTest, SearchModsTest, ModrinthInjectionTest, ServerUpgradeTest, ServerCrashRestartTest |
 | `ServerMigration` | ServerMigrationTest |
 | `ServerMigrationTarget` | ServerMigrationTargetTest |

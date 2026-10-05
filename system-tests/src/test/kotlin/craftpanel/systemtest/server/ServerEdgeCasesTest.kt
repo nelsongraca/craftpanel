@@ -9,7 +9,7 @@ import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
 @Isolate
-@Tags("ServerCore", "ServerCoreRuntime")
+@Tags("ServerCore", "ServerCoreLifecycle")
 class ServerEdgeCasesTest : BaseSystemTest() {
 
     init {
