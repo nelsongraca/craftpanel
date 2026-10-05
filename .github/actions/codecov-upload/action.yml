@@ -35,4 +35,5 @@ runs:
         token: ${{ inputs.token }}
         files: ${{ inputs.coverage-files }}
         flags: ${{ inputs.flags }}
-        fail_ci_if_error: true
+        # Codecov outages (frequent) must not block the build; the tests above are the gate.
+        fail_ci_if_error: false

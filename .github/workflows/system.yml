@@ -138,7 +138,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: system-tests/build/reports/kover/system-tests/report.xml
           flags: system
-          fail_ci_if_error: true
+          # Codecov outages (frequent) must not block the build; the tests above are the gate.
+          fail_ci_if_error: false
 
   e2e-tests:
     name: E2E Tests (MSW)
