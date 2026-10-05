@@ -21,11 +21,12 @@ runs:
   steps:
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
-      uses: codecov/test-results-action@v1
+      uses: codecov/codecov-action@v5
       with:
         token: ${{ inputs.token }}
         files: ${{ inputs.test-results }}
         flags: ${{ inputs.flags }}
+        report_type: test_results
 
     - name: Upload coverage to Codecov
       if: ${{ inputs.coverage-files != '' }}

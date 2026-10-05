@@ -93,11 +93,12 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: system-tests/build/test-results/**/*.xml
           flags: system
+          report_type: test_results
 
       - name: Upload raw coverage .ic files
         uses: actions/upload-artifact@v4
