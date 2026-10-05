@@ -94,7 +94,8 @@ export interface ServerListProps {
     /** Hide the Node column when the list is already scoped to one node (node detail). */
     showNodeColumn?: boolean;
     onRowClick?: (server: Server) => void;
-    renderActions?: (server: Server) => ReactNode;
+    /** Receives the server and its live player count (WS stream, falling back to the last known value). */
+    renderActions?: (server: Server, playerCount: number) => ReactNode;
     actionsHeader?: ReactNode;
 }
 
@@ -160,6 +161,8 @@ export function ServerList({
             unsubStatus();
         };
     }, [subscribe]);
+
+    const playerCountFor = (server: Server) => playerUsage[server.id] ?? server.last_player_count ?? 0;
 
     function toggleSort(key: SortKey) {
         if (sortKey === key) {
@@ -338,7 +341,7 @@ export function ServerList({
                     </div>
                     {renderActions && (
                         <div className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            {renderActions(server)}
+                            {renderActions(server, playerCountFor(server))}
                         </div>
                     )}
                 </div>
@@ -354,7 +357,7 @@ export function ServerList({
             loading={loading}
             skeletonRows={5}
             empty={empty}
-            actions={renderActions}
+            actions={renderActions ? (server: Server) => renderActions(server, playerCountFor(server)) : undefined}
             actionsHeader={actionsHeader}
             onRowClick={onRowClick}
             mobileCard={renderMobileCard}

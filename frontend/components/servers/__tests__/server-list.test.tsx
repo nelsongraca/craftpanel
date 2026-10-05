@@ -70,3 +70,25 @@ describe("ServerList players column", () => {
         expect(screen.getByText("3")).toBeInTheDocument();
     });
 });
+
+describe("ServerList renderActions player count", () => {
+    it("passes the live player count to renderActions", () => {
+        render(
+            <ServerList
+                servers={[makeServer({last_player_count: 2})]}
+                nodes={[]}
+                renderActions={(server, count) => <span data-testid={`count-${server.id}`}>{count}</span>}
+            />,
+        );
+
+        const before = screen.getAllByTestId("count-s1");
+        expect(before.length).toBeGreaterThan(0);
+        before.forEach((el) => expect(el).toHaveTextContent("2"));
+
+        act(() => {
+            ws.listeners["server.players"]({server_id: "s1", player_count: 5, player_list: []});
+        });
+
+        screen.getAllByTestId("count-s1").forEach((el) => expect(el).toHaveTextContent("5"));
+    });
+});

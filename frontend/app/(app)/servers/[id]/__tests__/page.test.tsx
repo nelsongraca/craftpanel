@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach} from "vitest";
-import {act, render, screen, waitFor} from "@testing-library/react";
+import {act, render, screen, waitFor, within} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const wsHandlers = vi.hoisted(() => ({}) as Record<string, (payload: unknown) => void>);
@@ -236,7 +236,7 @@ describe("ServerDetailPage", () => {
             await renderDetail({status: "STOPPED"}, ["server.migrate", "server.export", "server.create"]);
 
             const user = userEvent.setup();
-            await user.click(screen.getByRole("button"));
+            await user.click(screen.getByRole("button", {name: "More actions"}));
 
             expect(screen.getByText("Export")).toBeInTheDocument();
         });
@@ -245,7 +245,7 @@ describe("ServerDetailPage", () => {
             await renderDetail({status: "STOPPED"}, ["server.migrate"]);
 
             const user = userEvent.setup();
-            await user.click(screen.getByRole("button"));
+            await user.click(screen.getByRole("button", {name: "More actions"}));
 
             expect(screen.queryByText("Export")).not.toBeInTheDocument();
         });
@@ -282,6 +282,50 @@ describe("ServerDetailPage", () => {
 
             expect(screen.getByText("2.0 MB / 4.0 MB heap")).toBeInTheDocument();
             expect(screen.queryByText("JVM heap unavailable")).not.toBeInTheDocument();
+        });
+    });
+
+    describe("Restart with players online", () => {
+        it("prompts before restarting when players are connected", async () => {
+            vi.mocked(restartServer).mockResolvedValue({data: {}, response: new Response()} as never);
+            await renderDetail({status: "HEALTHY"}, ["server.restart"]);
+
+            act(() => {
+                wsHandlers["server.players"]({server_id: "s1", player_count: 2, player_list: ["a", "b"]});
+            });
+
+            const user = userEvent.setup();
+            await user.click(screen.getByRole("button", {name: "Restart"}));
+
+            const dialog = await screen.findByRole("alertdialog");
+            expect(within(dialog).getByText(/2 players are online/)).toBeInTheDocument();
+            await user.click(within(dialog).getByRole("button", {name: "Restart"}));
+
+            await waitFor(() => expect(restartServer).toHaveBeenCalledWith({path: {id: "s1"}}));
+        });
+
+        it("restarts immediately when no players are online", async () => {
+            vi.mocked(restartServer).mockResolvedValue({data: {}, response: new Response()} as never);
+            await renderDetail({status: "HEALTHY"}, ["server.restart"]);
+
+            const user = userEvent.setup();
+            await user.click(screen.getByRole("button", {name: "Restart"}));
+
+            await waitFor(() => expect(restartServer).toHaveBeenCalledWith({path: {id: "s1"}}));
+        });
+    });
+
+    describe("Server ID", () => {
+        it("copies the server id from the header", async () => {
+            await renderDetail({status: "STOPPED"});
+
+            const user = userEvent.setup();
+            // userEvent.setup() installs its own clipboard stub, so override it afterwards.
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            Object.defineProperty(navigator, "clipboard", {value: {writeText}, configurable: true});
+            await user.click(screen.getByRole("button", {name: "Copy server ID"}));
+
+            expect(writeText).toHaveBeenCalledWith("s1");
         });
     });
 });

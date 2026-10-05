@@ -29,7 +29,11 @@ export function allowedServerActions(server: Server, permissions: string[]): Ser
     const status = server.status;
     const actions: ServerActionKind[] = [];
     if (status === "STOPPED" && !disabled && hasPermission(permissions, "server.start")) actions.push("start");
-    if ((status === "HEALTHY" || status === "STARTING" || status === "UNHEALTHY") && hasPermission(permissions, "server.stop")) actions.push("stop");
+    if (
+        (status === "HEALTHY" || status === "STARTING" || status === "UNHEALTHY") &&
+        hasPermission(permissions, "server.stop")
+    )
+        actions.push("stop");
     if (status === "STOPPING" && hasPermission(permissions, "server.force_stop")) actions.push("forceStop");
     if (status === "HEALTHY" && !disabled && hasPermission(permissions, "server.restart")) actions.push("restart");
     if (hasPermission(permissions, "server.create")) actions.push("duplicate");
@@ -39,12 +43,12 @@ export function allowedServerActions(server: Server, permissions: string[]): Ser
 
 /** Pure renderer for the list contexts: maps an allowed-action list to icon buttons. */
 export function ServerActions({
-                                  actions,
-                                  pending,
-                                  onAction,
-                                  onDelete,
-                                  onDuplicate,
-                              }: {
+    actions,
+    pending,
+    onAction,
+    onDelete,
+    onDuplicate,
+}: {
     actions: ServerActionKind[];
     pending: string | undefined;
     onAction: (action: ServerLifecycleAction) => void;
@@ -53,22 +57,34 @@ export function ServerActions({
 }) {
     const iconFor = (action: ServerActionKind) => {
         switch (action) {
-            case "start": return <Play size={11} strokeWidth={2.5}/>;
-            case "stop": return <Square size={11} strokeWidth={2.5}/>;
-            case "forceStop": return <Skull size={11} strokeWidth={2.5}/>;
-            case "restart": return <RotateCcw size={11} strokeWidth={2.5}/>;
-            case "duplicate": return <CopyPlus size={11} strokeWidth={2.5}/>;
-            case "delete": return <Trash2 size={11} strokeWidth={2.5}/>;
+            case "start":
+                return <Play size={11} strokeWidth={2.5} />;
+            case "stop":
+                return <Square size={11} strokeWidth={2.5} />;
+            case "forceStop":
+                return <Skull size={11} strokeWidth={2.5} />;
+            case "restart":
+                return <RotateCcw size={11} strokeWidth={2.5} />;
+            case "duplicate":
+                return <CopyPlus size={11} strokeWidth={2.5} />;
+            case "delete":
+                return <Trash2 size={11} strokeWidth={2.5} />;
         }
     };
     const labelFor = (action: ServerActionKind) => {
         switch (action) {
-            case "start": return "Start";
-            case "stop": return "Stop";
-            case "forceStop": return "Force Stop";
-            case "restart": return "Restart";
-            case "duplicate": return "Duplicate";
-            case "delete": return "Delete";
+            case "start":
+                return "Start";
+            case "stop":
+                return "Stop";
+            case "forceStop":
+                return "Force Stop";
+            case "restart":
+                return "Restart";
+            case "duplicate":
+                return "Duplicate";
+            case "delete":
+                return "Delete";
         }
     };
 
@@ -98,11 +114,11 @@ export function ServerActions({
  * the allowed-action policy; each context renders the returned actions with its own button style.
  */
 export function useServerActions({
-                                     permissions,
-                                     serverPermissionsMap,
-                                     onChanged,
-                                     onDeleted,
-                                 }: {
+    permissions,
+    serverPermissionsMap,
+    onChanged,
+    onDeleted,
+}: {
     permissions: string[];
     serverPermissionsMap: Record<string, string[]>;
     onChanged: () => void;
@@ -158,5 +174,5 @@ export function useServerActions({
         return pendingAction[serverId];
     }
 
-    return {allowedActions, run, remove, duplicate, pendingFor, actionError, setActionError, dialog};
+    return {allowedActions, run, remove, duplicate, confirm, pendingFor, actionError, setActionError, dialog};
 }

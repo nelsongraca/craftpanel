@@ -41,11 +41,27 @@ export default function ServersPage() {
     const {data: servers, initialLoad, reload: reloadServers} = useResourceList(listServers, []);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
-    const {allowedActions, run, remove, duplicate, pendingFor, actionError, setActionError, dialog} = useServerActions({
-        permissions,
-        serverPermissionsMap: user?.server_permissions ?? {},
-        onChanged: reloadServers,
-    });
+    const {allowedActions, run, remove, duplicate, confirm, pendingFor, actionError, setActionError, dialog} =
+        useServerActions({
+            permissions,
+            serverPermissionsMap: user?.server_permissions ?? {},
+            onChanged: reloadServers,
+        });
+
+    // Restarts disconnect anyone online, so confirm first when players are connected.
+    function requestRestart(serverId: string, playerCount: number) {
+        if (playerCount > 0) {
+            confirm({
+                title: "Restart Server?",
+                description: `${playerCount} player${playerCount === 1 ? " is" : "s are"} online and will be disconnected. Restart anyway?`,
+                destructive: true,
+                confirmLabel: "Restart",
+                onConfirm: () => run(serverId, "restart"),
+            });
+        } else {
+            void run(serverId, "restart");
+        }
+    }
     const [showImport, setShowImport] = useState(false);
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importNode, setImportNode] = useState("");
@@ -81,8 +97,9 @@ export default function ServersPage() {
             if (
                 !s.display_name.toLowerCase().includes(q) &&
                 !s.name.toLowerCase().includes(q) &&
-                !(s.canonical_hostname?.toLowerCase().includes(q))
-            ) return false;
+                !s.canonical_hostname?.toLowerCase().includes(q)
+            )
+                return false;
         }
         if (filterStatus) {
             const allowed = FILTER_MATCHES[filterStatus] ?? [];
@@ -103,7 +120,7 @@ export default function ServersPage() {
             const data = JSON.parse(text);
             const {error} = await importServer({body: {data, node_id: importNode}});
             if (error) {
-                setImportError((error as { message?: string }).message ?? "Failed to import server");
+                setImportError((error as {message?: string}).message ?? "Failed to import server");
             } else {
                 setShowImport(false);
                 setImportFile(null);
@@ -127,17 +144,20 @@ export default function ServersPage() {
                     action={
                         <div className="flex items-center gap-2">
                             {hasPermission(permissions, "server.create") && (
-                                <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 bg-surface-higher hover:bg-surface-higher/80 text-text-primary font-heading font-bold text-xs uppercase tracking-widest px-3 py-1.5 rounded transition-colors border border-border">
-                                    <Upload size={12} strokeWidth={3}/>
+                                <button
+                                    onClick={() => setShowImport(true)}
+                                    className="flex items-center gap-1.5 rounded border border-border bg-surface-higher px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-text-primary uppercase transition-colors hover:bg-surface-higher/80"
+                                >
+                                    <Upload size={12} strokeWidth={3} />
                                     Import
                                 </button>
                             )}
                             {canCreate ? (
                                 <Link
                                     href="/servers/new"
-                                    className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-xs uppercase tracking-widest px-3 py-1.5 rounded transition-colors hover:shadow-[0_0_16px_var(--accent-glow)]"
+                                    className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-bg uppercase transition-colors hover:bg-accent-bright hover:shadow-[0_0_16px_var(--accent-glow)]"
                                 >
-                                    <Plus size={12} strokeWidth={3}/>
+                                    <Plus size={12} strokeWidth={3} />
                                     New Server
                                 </Link>
                             ) : undefined}
@@ -146,36 +166,40 @@ export default function ServersPage() {
                 />
 
                 {/* Filter bar */}
-                <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-border bg-surface">
+                <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-6 py-3">
                     <input
                         type="text"
                         placeholder="Search servers…"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="h-7 bg-surface-higher border border-border rounded px-2.5 text-xs font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent w-full sm:w-48"
+                        className="h-7 w-full rounded border border-border bg-surface-higher px-2.5 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none sm:w-48"
                     />
                     <SelectField
                         surface="surface-higher"
                         fieldSize="sm"
-                        className="h-7 w-full sm:w-40 font-heading"
+                        className="h-7 w-full font-heading sm:w-40"
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
                     >
                         {FILTER_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
+                            <option key={o.value} value={o.value}>
+                                {o.label}
+                            </option>
                         ))}
                     </SelectField>
                     {networks.length > 0 && (
                         <SelectField
                             surface="surface-higher"
                             fieldSize="sm"
-                            className="h-7 w-full sm:w-40 font-heading"
+                            className="h-7 w-full font-heading sm:w-40"
                             value={filterNetwork}
                             onChange={(e) => setFilterNetwork(e.target.value)}
                         >
                             <option value="">All Networks</option>
                             {networks.map((n) => (
-                                <option key={n.id} value={n.id}>{n.name}</option>
+                                <option key={n.id} value={n.id}>
+                                    {n.name}
+                                </option>
                             ))}
                         </SelectField>
                     )}
@@ -183,13 +207,15 @@ export default function ServersPage() {
                         <SelectField
                             surface="surface-higher"
                             fieldSize="sm"
-                            className="h-7 w-full sm:w-40 font-heading"
+                            className="h-7 w-full font-heading sm:w-40"
                             value={filterNode}
                             onChange={(e) => setFilterNode(e.target.value)}
                         >
                             <option value="">All Nodes</option>
                             {nodes.map((n) => (
-                                <option key={n.id} value={n.id}>{n.display_name}</option>
+                                <option key={n.id} value={n.id}>
+                                    {n.display_name}
+                                </option>
                             ))}
                         </SelectField>
                     )}
@@ -197,13 +223,15 @@ export default function ServersPage() {
                         <SelectField
                             surface="surface-higher"
                             fieldSize="sm"
-                            className="h-7 w-full sm:w-40 font-heading"
+                            className="h-7 w-full font-heading sm:w-40"
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value)}
                         >
                             <option value="">All Types</option>
                             {typeOptions.map((t) => (
-                                <option key={t} value={t}>{t}</option>
+                                <option key={t} value={t}>
+                                    {t}
+                                </option>
                             ))}
                         </SelectField>
                     )}
@@ -211,10 +239,14 @@ export default function ServersPage() {
 
                 {/* Error banner */}
                 {actionError && (
-                    <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
+                    <div className="mx-6 mt-4 flex items-center justify-between rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
                         <span>{actionError}</span>
-                        <button onClick={() => setActionError(null)} className="ml-4 hover:opacity-70" aria-label="Dismiss">
-                            <X size={13}/>
+                        <button
+                            onClick={() => setActionError(null)}
+                            className="ml-4 hover:opacity-70"
+                            aria-label="Dismiss"
+                        >
+                            <X size={13} />
                         </button>
                     </div>
                 )}
@@ -231,11 +263,15 @@ export default function ServersPage() {
                                 : "No servers match the current filters"
                         }
                         onRowClick={(server) => router.push(`/servers/${server.id}`)}
-                        renderActions={(server) => (
+                        renderActions={(server, playerCount) => (
                             <ServerActions
                                 actions={allowedActions(server)}
                                 pending={pendingFor(server.id)}
-                                onAction={(action) => run(server.id, action)}
+                                onAction={(action) =>
+                                    action === "restart"
+                                        ? requestRestart(server.id, playerCount)
+                                        : run(server.id, action)
+                                }
                                 onDelete={() => remove(server)}
                                 onDuplicate={() => duplicate(server)}
                             />
@@ -245,34 +281,64 @@ export default function ServersPage() {
                 </div>
             </div>
             {showImport && (
-                <Dialog open onOpenChange={(o) => { if (!o) { setShowImport(false); setImportError(""); setImportFile(null); } }}>
+                <Dialog
+                    open
+                    onOpenChange={(o) => {
+                        if (!o) {
+                            setShowImport(false);
+                            setImportError("");
+                            setImportFile(null);
+                        }
+                    }}
+                >
                     <DialogContent className="sm:max-w-md">
-                        <DialogHeader><DialogTitle>Import Server</DialogTitle></DialogHeader>
-                    <div className="space-y-4">
-                        <input
-                            type="file"
-                            accept=".json"
-                            onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
-                            className="block w-full text-xs text-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-heading file:font-bold file:uppercase file:tracking-wider file:bg-surface-high file:text-text-primary hover:file:bg-surface-higher"
-                        />
-                        {importFile && (
-                            <Field label="Destination Node" htmlFor="import-node">
-                                <SelectField id="import-node" value={importNode} onChange={(e) => setImportNode(e.target.value)}>
-                                    <option value="">Select a node…</option>
-                                    {nodes.map((n) => (
-                                        <option key={n.id} value={n.id}>{n.display_name}</option>
-                                    ))}
-                                </SelectField>
-                            </Field>
-                        )}
-                        {importError && <p className="text-xs text-error">{importError}</p>}
-                        <div className="flex justify-end gap-2 pt-1">
-                            <button className={BTN_GHOST} onClick={() => { setShowImport(false); setImportError(""); setImportFile(null); }}>Cancel</button>
-                            <button className={BTN_PRIMARY} disabled={!importFile || !importNode || importing} onClick={doImportServer}>
-                                {importing ? "Importing…" : "Import"}
-                            </button>
+                        <DialogHeader>
+                            <DialogTitle>Import Server</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <input
+                                type="file"
+                                accept=".json"
+                                onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+                                className="block w-full text-xs text-text-muted file:mr-3 file:rounded file:border-0 file:bg-surface-high file:px-3 file:py-1.5 file:font-heading file:text-xs file:font-bold file:tracking-wider file:text-text-primary file:uppercase hover:file:bg-surface-higher"
+                            />
+                            {importFile && (
+                                <Field label="Destination Node" htmlFor="import-node">
+                                    <SelectField
+                                        id="import-node"
+                                        value={importNode}
+                                        onChange={(e) => setImportNode(e.target.value)}
+                                    >
+                                        <option value="">Select a node…</option>
+                                        {nodes.map((n) => (
+                                            <option key={n.id} value={n.id}>
+                                                {n.display_name}
+                                            </option>
+                                        ))}
+                                    </SelectField>
+                                </Field>
+                            )}
+                            {importError && <p className="text-xs text-error">{importError}</p>}
+                            <div className="flex justify-end gap-2 pt-1">
+                                <button
+                                    className={BTN_GHOST}
+                                    onClick={() => {
+                                        setShowImport(false);
+                                        setImportError("");
+                                        setImportFile(null);
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className={BTN_PRIMARY}
+                                    disabled={!importFile || !importNode || importing}
+                                    onClick={doImportServer}
+                                >
+                                    {importing ? "Importing…" : "Import"}
+                                </button>
+                            </div>
                         </div>
-                    </div>
                     </DialogContent>
                 </Dialog>
             )}

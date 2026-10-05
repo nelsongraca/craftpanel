@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {
+    Check,
     ChevronRight,
     Copy,
     Download,
@@ -100,6 +101,17 @@ export default function ServerDetailPage() {
 
     // Bumped to force-open the General Settings edit form from another tab (e.g. Configuration).
     const [generalOpenSignal, setGeneralOpenSignal] = useState<number | undefined>(undefined);
+    const [idCopied, setIdCopied] = useState(false);
+
+    async function copyServerId(serverId: string) {
+        try {
+            await navigator.clipboard.writeText(serverId);
+            setIdCopied(true);
+            setTimeout(() => setIdCopied(false), 1500);
+        } catch {
+            // Clipboard unavailable (e.g. insecure context) — nothing to do.
+        }
+    }
 
     // Data fetching
 
@@ -235,12 +247,28 @@ export default function ServerDetailPage() {
 
     // Actions
 
-    const {allowedActions, run, remove, pendingFor, actionError, setActionError, dialog} = useServerActions({
+    const {allowedActions, run, remove, confirm, pendingFor, actionError, setActionError, dialog} = useServerActions({
         permissions,
         serverPermissionsMap: user?.server_permissions ?? {},
         onChanged: () => void fetchServer(),
         onDeleted: () => router.push("/servers"),
     });
+
+    // Restarts disconnect anyone online, so confirm first when players are connected.
+    function requestRestart(serverId: string) {
+        const count = livePlayers?.count ?? 0;
+        if (count > 0) {
+            confirm({
+                title: "Restart Server?",
+                description: `${count} player${count === 1 ? " is" : "s are"} online and will be disconnected. Restart anyway?`,
+                destructive: true,
+                confirmLabel: "Restart",
+                onConfirm: () => run(serverId, "restart"),
+            });
+        } else {
+            void run(serverId, "restart");
+        }
+    }
 
     async function doExport() {
         if (!server) return;
@@ -343,7 +371,13 @@ export default function ServerDetailPage() {
                                         icon={icon}
                                         label={label}
                                         loading={pendingFor(server.id) === action}
-                                        onClick={() => (action === "delete" ? remove(server) : run(server.id, action))}
+                                        onClick={() =>
+                                            action === "delete"
+                                                ? remove(server)
+                                                : action === "restart"
+                                                  ? requestRestart(server.id)
+                                                  : run(server.id, action)
+                                        }
                                         variant={variant}
                                     />
                                 );
@@ -359,6 +393,7 @@ export default function ServerDetailPage() {
                                         e.nativeEvent.stopImmediatePropagation();
                                         setMenuOpen((o) => !o);
                                     }}
+                                    aria-label="More actions"
                                     className="flex h-8 w-8 items-center justify-center rounded border border-border text-text-muted transition-colors hover:bg-surface-high hover:text-text-primary"
                                 >
                                     <MoreHorizontal size={14} strokeWidth={2} />
@@ -442,6 +477,20 @@ export default function ServerDetailPage() {
                         </Link>
                     </p>
                 )}
+
+                {/* Server ID (with copy) */}
+                <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-text-muted">
+                    ID <span className="text-text-dim">{server.id}</span>
+                    <button
+                        type="button"
+                        onClick={() => void copyServerId(server.id)}
+                        title={idCopied ? "Copied" : "Copy server ID"}
+                        aria-label="Copy server ID"
+                        className="text-text-muted transition-colors hover:text-text-primary"
+                    >
+                        {idCopied ? <Check size={11} strokeWidth={2.5} /> : <Copy size={11} strokeWidth={2.5} />}
+                    </button>
+                </p>
             </div>
 
             {/* Restart required banner */}
@@ -450,7 +499,7 @@ export default function ServerDetailPage() {
                     <span>Settings saved. Restart the server for changes to take effect.</span>
                     {allowedActions(server).includes("restart") && (
                         <button
-                            onClick={() => void run(server.id, "restart")}
+                            onClick={() => requestRestart(server.id)}
                             className="ml-4 shrink-0 font-heading text-xs font-bold tracking-wider uppercase underline hover:no-underline"
                         >
                             Restart Now
