@@ -27,6 +27,20 @@ describe("allowedServerActions", () => {
         expect(allowedServerActions(server("STOPPED"), ["*"])).toEqual(["start", "duplicate", "delete"]);
     });
 
+    it("treats CRASH_LOOPED like a stopped server: start, stop, duplicate and delete", () => {
+        expect(allowedServerActions(server("CRASH_LOOPED"), ["*"])).toEqual([
+            "start",
+            "stop",
+            "duplicate",
+            "delete",
+        ]);
+    });
+
+    it("hides start for a crash-looped server without server.start", () => {
+        expect(allowedServerActions(server("CRASH_LOOPED"), ["server.stop"])).toEqual(["stop"]);
+        expect(allowedServerActions(server("CRASH_LOOPED", {disabled: true}), ["server.start"])).toEqual([]);
+    });
+
     it("allows stop while HEALTHY, STARTING or UNHEALTHY", () => {
         const perms = ["server.stop"];
         expect(allowedServerActions(server("HEALTHY"), perms)).toEqual(["stop"]);

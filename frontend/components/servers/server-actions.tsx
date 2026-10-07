@@ -27,17 +27,21 @@ const LIFECYCLE_FNS = {
 export function allowedServerActions(server: Server, permissions: string[]): ServerActionKind[] {
     const disabled = serverDisabled(server);
     const status = server.status;
+    // A crash-looped container is stopped and the agent has given up auto-restarting it. Treat it
+    // like a stopped server: Start recovers it (master forces a restart past the exhausted budget),
+    // Stop settles the intent, Delete removes it.
+    const startable = status === "STOPPED" || status === "CRASH_LOOPED";
     const actions: ServerActionKind[] = [];
-    if (status === "STOPPED" && !disabled && hasPermission(permissions, "server.start")) actions.push("start");
+    if (startable && !disabled && hasPermission(permissions, "server.start")) actions.push("start");
     if (
-        (status === "HEALTHY" || status === "STARTING" || status === "UNHEALTHY") &&
+        (status === "HEALTHY" || status === "STARTING" || status === "UNHEALTHY" || status === "CRASH_LOOPED") &&
         hasPermission(permissions, "server.stop")
     )
         actions.push("stop");
     if (status === "STOPPING" && hasPermission(permissions, "server.force_stop")) actions.push("forceStop");
     if (status === "HEALTHY" && !disabled && hasPermission(permissions, "server.restart")) actions.push("restart");
     if (hasPermission(permissions, "server.create")) actions.push("duplicate");
-    if (status === "STOPPED" && hasPermission(permissions, "server.delete")) actions.push("delete");
+    if (startable && hasPermission(permissions, "server.delete")) actions.push("delete");
     return actions;
 }
 

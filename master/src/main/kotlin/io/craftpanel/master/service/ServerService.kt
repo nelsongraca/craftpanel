@@ -125,9 +125,12 @@ class ServerService(
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         // Guard on the synthesized status, not the reported one: a start request sets desired=RUNNING
         // before the agent has reported anything, so a "STARTING" server (reported STOPPED) must not
-        // be deletable.
+        // be deletable. CRASH_LOOPED is a settled terminal state (the container is stopped and the
+        // agent has stopped restarting it), so it is safe to delete too.
         val displayed = synthesizeStatus(DesiredStatus.fromDb(existing.desiredStatus), ServerStatus.fromDb(existing.status))
-        if (displayed != ServerStatus.STOPPED) throw ConflictException("Server must be STOPPED before deletion")
+        if (displayed != ServerStatus.STOPPED && displayed != ServerStatus.CRASH_LOOPED) {
+            throw ConflictException("Server must be STOPPED before deletion")
+        }
 
         val recordId = existing.dnsRecordId
         if (recordId != null) {

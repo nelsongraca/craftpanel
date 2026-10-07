@@ -1131,6 +1131,23 @@ class ServersRoutesTest :
             }
         }
 
+        test("DELETE server succeeds when CRASH_LOOPED with a RUNNING intent") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "CRASH_LOOPED")
+                transaction {
+                    Servers.update({ Servers.id eq serverId }) { it[Servers.desiredStatus] = "RUNNING" }
+                }
+                // A crash-looped container is stopped and settled — it must be deletable.
+                val resp = client.delete("/api/servers/$serverId") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.NoContent
+            }
+        }
+
         test("DELETE server removes server and port registry entry") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }
