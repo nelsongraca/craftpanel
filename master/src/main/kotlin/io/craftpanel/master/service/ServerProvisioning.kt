@@ -176,10 +176,21 @@ class ServerProvisioning(
     /**
      * Provision a new server copied from [sourceId]'s runtime definition: env vars, mods, extra
      * ports, proxy fields, config/stop command and container settings. Identity/exposure (hostname,
-     * DNS, exposure), per-instance state (expiry, disabled) and cross-server wiring (proxy backends)
-     * are deliberately not copied.
+     * DNS, exposure), per-instance state (disabled) and cross-server wiring (proxy backends) are
+     * deliberately not copied. Resources, placement and expiry may be overridden via the optional
+     * parameters; a `null` override copies the source value (expiry defaults to none).
      */
-    fun clone(sourceId: Uuid, name: String, displayName: String?, description: String?): ServerView {
+    fun clone(
+        sourceId: Uuid,
+        name: String,
+        displayName: String?,
+        description: String?,
+        memoryMb: Int? = null,
+        cpuLimitMillicores: Int? = null,
+        nodeId: String? = null,
+        networkId: String? = null,
+        expiresAt: String? = null
+    ): ServerView {
         val source = serverRepository.findById(sourceId)
             ?: throw NotFoundException("Source server not found")
 
@@ -187,13 +198,14 @@ class ServerProvisioning(
             name = name,
             displayName = displayName ?: source.displayName,
             description = description ?: source.description,
-            nodeId = source.nodeId.toString(),
-            networkId = source.networkId?.toString(),
+            nodeId = nodeId ?: source.nodeId.toString(),
+            networkId = if (networkId == null) source.networkId?.toString() else networkId.ifBlank { null },
             serverType = source.serverType.toDb(),
             mcVersion = source.mcVersion,
             itzgImageTag = source.itzgImageTag,
-            memoryMb = source.memoryMb,
-            cpuLimitMillicores = source.cpuLimitMillicores,
+            memoryMb = memoryMb ?: source.memoryMb,
+            cpuLimitMillicores = cpuLimitMillicores ?: source.cpuLimitMillicores,
+            expiresAt = expiresAt,
             customServerJar = source.customServerJar,
             containerListenPort = source.containerListenPort,
             containerProtocol = source.containerProtocol,

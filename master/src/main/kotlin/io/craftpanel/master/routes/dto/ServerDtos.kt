@@ -70,7 +70,17 @@ data class CreateServerRequest(
 )
 
 @Serializable
-data class CloneServerRequest(val name: String, @SerialName("display_name") val displayName: String? = null, val description: String? = null)
+data class CloneServerRequest(
+    val name: String,
+    @SerialName("display_name") val displayName: String? = null,
+    val description: String? = null,
+    // Optional overrides; null = copy from source. Blank network_id clears the network.
+    @SerialName("memory_mb") val memoryMb: Int? = null,
+    @SerialName("cpu_limit_millicores") val cpuLimitMillicores: Int? = null,
+    @SerialName("node_id") val nodeId: String? = null,
+    @SerialName("network_id") val networkId: String? = null,
+    @SerialName("expires_at") val expiresAt: String? = null
+)
 
 @Serializable
 data class UpdateServerRequest(

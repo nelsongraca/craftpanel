@@ -93,7 +93,7 @@ fun Route.serversRoutes(
                 operationId = "cloneServer"
                 summary = "Clone a server's configuration under a new name"
                 description =
-                    "Copies display name, description, server type/loader, Minecraft version, node, network, resources, environment variables, and mods/plugins. World/disk data is not copied."
+                    "Copies display name, description, server type/loader, Minecraft version, environment variables, and mods/plugins. World/disk data is not copied. Node, network, resources and expiry may be overridden; omitted fields fall back to the source."
                 request {
                     pathParameter<String>("id")
                     body<CloneServerRequest>()
@@ -110,7 +110,23 @@ fun Route.serversRoutes(
                 call.requirePermission(Permission.SERVER_CREATE)
                 val sourceAuth = call.requireServerPermission(Permission.SERVER_VIEW)
                 val req = call.receive<CloneServerRequest>()
-                val row = provisioning.clone(sourceAuth.serverId, req.name, req.displayName, req.description)
+                if (!req.networkId.isNullOrEmpty()) {
+                    val targetNetworkId = runCatching { Uuid.parse(req.networkId) }.getOrNull()
+                        ?: throw BadRequestException("Invalid network_id")
+                    call.requireNetworkPermission(targetNetworkId, Permission.NETWORK_VIEW)
+                }
+                if (req.expiresAt != null) call.requirePermission(Permission.SERVER_EXPIRES)
+                val row = provisioning.clone(
+                    sourceAuth.serverId,
+                    req.name,
+                    req.displayName,
+                    req.description,
+                    memoryMb = req.memoryMb,
+                    cpuLimitMillicores = req.cpuLimitMillicores,
+                    nodeId = req.nodeId,
+                    networkId = req.networkId,
+                    expiresAt = req.expiresAt
+                )
                 call.respond(HttpStatusCode.Created, row.toResponse(serverHostnames, false))
             }
 

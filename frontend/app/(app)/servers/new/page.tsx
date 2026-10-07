@@ -77,6 +77,7 @@ export default function NewServerPage() {
     const [networks, setNetworks] = useState<Network[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const latestVersionsRef = useRef<string[]>([]);
+    const cloneSourceNetworkIdRef = useRef("");
 
     const [name, setName] = useState("");
     const [displayName, setDisplayName] = useState("");
@@ -141,6 +142,7 @@ export default function NewServerPage() {
                       setForceRedownload(data.force_redownload ?? false);
                       setNodeId(data.node_id);
                       setNetworkId(data.network_id ?? "");
+                      cloneSourceNetworkIdRef.current = data.network_id ?? "";
                       setRamMb(data.memory_mb);
                       setCpuCores(data.cpu_limit_millicores / 1000);
                   })
@@ -192,7 +194,16 @@ export default function NewServerPage() {
             const {data, error: apiError} = cloneId
                 ? await cloneServer({
                       path: {id: cloneId},
-                      body: {name, display_name: displayName || undefined, description: description || undefined},
+                      body: {
+                          name,
+                          display_name: displayName || undefined,
+                          description: description || undefined,
+                          memory_mb: ramMb,
+                          cpu_limit_millicores: Math.round(cpuCores * 1000),
+                          node_id: nodeId,
+                          network_id: networkId === cloneSourceNetworkIdRef.current ? undefined : networkId,
+                          expires_at: canSetExpiry ? toExpiresAtIso(expiresAt) : undefined,
+                      },
                   })
                 : await createServer({body: buildBody()});
             if (apiError) {
@@ -278,156 +289,160 @@ export default function NewServerPage() {
                     </div>
                 </div>
 
-                {/* Server software */}
-                <SectionHeading>Software</SectionHeading>
+                {/* Server software — hidden when cloning; the source's software is always copied. */}
+                {!cloneId && (
+                    <>
+                        <SectionHeading>Software</SectionHeading>
 
-                <div className="space-y-4 rounded border border-border bg-surface p-4">
-                    <div>
-                        <Label required htmlFor="server-type">
-                            Server Type
-                        </Label>
-                        <FieldSelect
-                            id="server-type"
-                            value={serverType}
-                            onChange={(e) => setServerType(e.target.value)}
-                        >
-                            <optgroup label="Game Servers">
-                                {GAME_SERVER_TYPES.map((t) => (
-                                    <option key={t} value={t}>
-                                        {t}
-                                    </option>
-                                ))}
-                            </optgroup>
-                            <optgroup label="Proxies">
-                                {PROXY_TYPES.map((t) => (
-                                    <option key={t} value={t}>
-                                        {t}
-                                    </option>
-                                ))}
-                            </optgroup>
-                        </FieldSelect>
-                    </div>
-
-                    {!isCustom && !isPicolimbo && (
-                        <div>
-                            <Label required htmlFor="mc-version">
-                                Minecraft Version
-                            </Label>
-                            <McVersionSelect
-                                id="mc-version"
-                                value={mcVersion}
-                                onChange={setMcVersion}
-                                placeholder="1.21.4"
-                                required
-                                onLoaded={(vs) => {
-                                    latestVersionsRef.current = vs;
-                                    setMcVersion((prev) => prev || vs[0] || prev);
-                                }}
-                            />
-                            <p className="mt-1 text-xs text-text-muted">
-                                Release versions from Mojang. Passed to itzg as VERSION env var.
-                            </p>
-                        </div>
-                    )}
-
-                    {isCustom && (
-                        <>
+                        <div className="space-y-4 rounded border border-border bg-surface p-4">
                             <div>
-                                <Label required htmlFor="custom-server-jar">
-                                    Custom Server Jar
+                                <Label required htmlFor="server-type">
+                                    Server Type
+                                </Label>
+                                <FieldSelect
+                                    id="server-type"
+                                    value={serverType}
+                                    onChange={(e) => setServerType(e.target.value)}
+                                >
+                                    <optgroup label="Game Servers">
+                                        {GAME_SERVER_TYPES.map((t) => (
+                                            <option key={t} value={t}>
+                                                {t}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                    <optgroup label="Proxies">
+                                        {PROXY_TYPES.map((t) => (
+                                            <option key={t} value={t}>
+                                                {t}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                </FieldSelect>
+                            </div>
+
+                            {!isCustom && !isPicolimbo && (
+                                <div>
+                                    <Label required htmlFor="mc-version">
+                                        Minecraft Version
+                                    </Label>
+                                    <McVersionSelect
+                                        id="mc-version"
+                                        value={mcVersion}
+                                        onChange={setMcVersion}
+                                        placeholder="1.21.4"
+                                        required
+                                        onLoaded={(vs) => {
+                                            latestVersionsRef.current = vs;
+                                            setMcVersion((prev) => prev || vs[0] || prev);
+                                        }}
+                                    />
+                                    <p className="mt-1 text-xs text-text-muted">
+                                        Release versions from Mojang. Passed to itzg as VERSION env var.
+                                    </p>
+                                </div>
+                            )}
+
+                            {isCustom && (
+                                <>
+                                    <div>
+                                        <Label required htmlFor="custom-server-jar">
+                                            Custom Server Jar
+                                        </Label>
+                                        <FieldInput
+                                            id="custom-server-jar"
+                                            value={customServerJar}
+                                            onChange={(e) => setCustomServerJar(e.target.value)}
+                                            placeholder="/data/server.jar or https://example.com/server.jar"
+                                            required
+                                        />
+                                        <p className="mt-1 text-xs text-text-muted">
+                                            Absolute path in the data volume (e.g. /data/MyServer.jar) or download URL.
+                                            Passed to itzg as CUSTOM_SERVER.
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <Label htmlFor="container-listen-port">Container Port</Label>
+                                            <FieldInput
+                                                id="container-listen-port"
+                                                type="number"
+                                                value={containerListenPort}
+                                                onChange={(e) => setContainerListenPort(e.target.value)}
+                                                placeholder="25565"
+                                                min={1}
+                                                max={65535}
+                                            />
+                                            <p className="mt-1 text-xs text-text-muted">
+                                                Internal port your server listens on. Empty = 25565.
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <Label htmlFor="container-protocol">Protocol</Label>
+                                            <FieldSelect
+                                                id="container-protocol"
+                                                value={containerProtocol}
+                                                onChange={(e) => setContainerProtocol(e.target.value)}
+                                            >
+                                                <option value="TCP">TCP</option>
+                                                <option value="UDP">UDP</option>
+                                            </FieldSelect>
+                                            <p className="mt-1 text-xs text-text-muted">
+                                                UDP servers cannot be routed by mc-router.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-4">
+                                        <label className="flex items-center gap-2 text-xs text-text-primary">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4"
+                                                checked={disableHealthcheck}
+                                                onChange={(e) => setDisableHealthcheck(e.target.checked)}
+                                            />
+                                            Disable healthcheck
+                                        </label>
+                                        <label className="flex items-center gap-2 text-xs text-text-primary">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4"
+                                                checked={forceRedownload}
+                                                onChange={(e) => setForceRedownload(e.target.checked)}
+                                            />
+                                            Force redownload on start
+                                        </label>
+                                    </div>
+                                </>
+                            )}
+
+                            <div>
+                                <Label required htmlFor="itzg-image-tag">
+                                    itzg Image Tag
                                 </Label>
                                 <FieldInput
-                                    id="custom-server-jar"
-                                    value={customServerJar}
-                                    onChange={(e) => setCustomServerJar(e.target.value)}
-                                    placeholder="/data/server.jar or https://example.com/server.jar"
+                                    id="itzg-image-tag"
+                                    value={itzgImageTag}
+                                    onChange={(e) => setItzgImageTag(e.target.value)}
+                                    placeholder="latest"
                                     required
+                                    list="itzg-tags"
                                 />
+                                <datalist id="itzg-tags">
+                                    <option value="latest" />
+                                    <option value="java21" />
+                                    <option value="java21-jdk" />
+                                    <option value="java17" />
+                                    <option value="java17-jdk" />
+                                    <option value="java11" />
+                                    <option value="java8" />
+                                </datalist>
                                 <p className="mt-1 text-xs text-text-muted">
-                                    Absolute path in the data volume (e.g. /data/MyServer.jar) or download URL. Passed
-                                    to itzg as CUSTOM_SERVER.
+                                    Docker image tag for itzg/minecraft-server or itzg/mc-proxy.
                                 </p>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label htmlFor="container-listen-port">Container Port</Label>
-                                    <FieldInput
-                                        id="container-listen-port"
-                                        type="number"
-                                        value={containerListenPort}
-                                        onChange={(e) => setContainerListenPort(e.target.value)}
-                                        placeholder="25565"
-                                        min={1}
-                                        max={65535}
-                                    />
-                                    <p className="mt-1 text-xs text-text-muted">
-                                        Internal port your server listens on. Empty = 25565.
-                                    </p>
-                                </div>
-                                <div>
-                                    <Label htmlFor="container-protocol">Protocol</Label>
-                                    <FieldSelect
-                                        id="container-protocol"
-                                        value={containerProtocol}
-                                        onChange={(e) => setContainerProtocol(e.target.value)}
-                                    >
-                                        <option value="TCP">TCP</option>
-                                        <option value="UDP">UDP</option>
-                                    </FieldSelect>
-                                    <p className="mt-1 text-xs text-text-muted">
-                                        UDP servers cannot be routed by mc-router.
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-4">
-                                <label className="flex items-center gap-2 text-xs text-text-primary">
-                                    <input
-                                        type="checkbox"
-                                        className="h-4 w-4"
-                                        checked={disableHealthcheck}
-                                        onChange={(e) => setDisableHealthcheck(e.target.checked)}
-                                    />
-                                    Disable healthcheck
-                                </label>
-                                <label className="flex items-center gap-2 text-xs text-text-primary">
-                                    <input
-                                        type="checkbox"
-                                        className="h-4 w-4"
-                                        checked={forceRedownload}
-                                        onChange={(e) => setForceRedownload(e.target.checked)}
-                                    />
-                                    Force redownload on start
-                                </label>
-                            </div>
-                        </>
-                    )}
-
-                    <div>
-                        <Label required htmlFor="itzg-image-tag">
-                            itzg Image Tag
-                        </Label>
-                        <FieldInput
-                            id="itzg-image-tag"
-                            value={itzgImageTag}
-                            onChange={(e) => setItzgImageTag(e.target.value)}
-                            placeholder="latest"
-                            required
-                            list="itzg-tags"
-                        />
-                        <datalist id="itzg-tags">
-                            <option value="latest" />
-                            <option value="java21" />
-                            <option value="java21-jdk" />
-                            <option value="java17" />
-                            <option value="java17-jdk" />
-                            <option value="java11" />
-                            <option value="java8" />
-                        </datalist>
-                        <p className="mt-1 text-xs text-text-muted">
-                            Docker image tag for itzg/minecraft-server or itzg/mc-proxy.
-                        </p>
-                    </div>
-                </div>
+                        </div>
+                    </>
+                )}
 
                 {/* Infrastructure */}
                 <SectionHeading>Infrastructure</SectionHeading>

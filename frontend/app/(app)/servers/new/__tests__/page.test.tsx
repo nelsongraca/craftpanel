@@ -6,17 +6,28 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     listNodes: vi.fn(),
     listNetworks: vi.fn(),
     createServer: vi.fn(),
+    getServer: vi.fn(),
+    cloneServer: vi.fn(),
 }));
 
 const mockAuth = vi.hoisted(() => ({
     useAuth: vi.fn(() => ({user: {permissions: ["server.create"]}})),
 }));
 
+const nav = vi.hoisted(() => ({params: new URLSearchParams()}));
+
+vi.mock("next/navigation", () => ({
+    useRouter: () => ({push: vi.fn(), replace: vi.fn(), back: vi.fn()}),
+    usePathname: () => "/",
+    useParams: () => ({}),
+    useSearchParams: () => nav.params,
+}));
+
 vi.mock("@/lib/auth-context", () => ({
     useAuth: mockAuth.useAuth,
 }));
 
-import {listNodes, listNetworks, createServer} from "@/lib/generated/sdk.gen";
+import {listNodes, listNetworks, createServer, getServer, cloneServer} from "@/lib/generated/sdk.gen";
 import type {NodeResponse, NetworkResponse, ServerResponse} from "@/lib/generated/types.gen";
 import NewServerPage from "../page";
 import {selectComboboxOption} from "@/lib/test-utils";
@@ -41,18 +52,22 @@ function network(overrides: Record<string, unknown> = {}): Record<string, unknow
     };
 }
 
-function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+function deferred<T>(): {promise: Promise<T>; resolve: (v: T) => void} {
     let resolve!: (v: T) => void;
-    const promise = new Promise<T>((r) => { resolve = r; });
+    const promise = new Promise<T>((r) => {
+        resolve = r;
+    });
     return {promise, resolve};
 }
 
-async function renderWith(mocks: {
-    nodes?: Record<string, unknown>[];
-    networks?: Record<string, unknown>[];
-    mojangVersions?: string[];
-    permissions?: string[];
-} = {}) {
+async function renderWith(
+    mocks: {
+        nodes?: Record<string, unknown>[];
+        networks?: Record<string, unknown>[];
+        mojangVersions?: string[];
+        permissions?: string[];
+    } = {},
+) {
     const {
         nodes: ns = [node()],
         networks: nets = [],
@@ -65,13 +80,14 @@ async function renderWith(mocks: {
     vi.mocked(listNetworks).mockResolvedValue({data: nets as unknown as NetworkResponse[]});
 
     const mockFetch = vi.fn().mockResolvedValue({
-        json: () => Promise.resolve({
-            versions: vs.map((id) => ({id, type: "release", releaseTime: "2026-01-01T00:00:00Z"})),
-        }),
+        json: () =>
+            Promise.resolve({
+                versions: vs.map((id) => ({id, type: "release", releaseTime: "2026-01-01T00:00:00Z"})),
+            }),
     });
     vi.stubGlobal("fetch", mockFetch);
 
-    const ui = render(<NewServerPage/>);
+    const ui = render(<NewServerPage />);
     await waitFor(() => expect(screen.queryByText(/loading/i)).toBeNull());
     return ui;
 }
@@ -80,6 +96,7 @@ describe("NewServerPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.unstubAllGlobals();
+        nav.params = new URLSearchParams();
     });
 
     it("shows permission denied when user lacks server.create", () => {
@@ -88,7 +105,7 @@ describe("NewServerPage", () => {
         vi.mocked(listNetworks).mockResolvedValue({data: undefined});
         const fetchMock = vi.fn().mockResolvedValue({json: () => Promise.resolve({versions: []})});
         vi.stubGlobal("fetch", fetchMock);
-        render(<NewServerPage/>);
+        render(<NewServerPage />);
         expect(screen.getByText(/do not have permission/i)).toBeTruthy();
     });
 
@@ -182,14 +199,14 @@ describe("NewServerPage", () => {
     it("submit button disabled while loading data", async () => {
         const nodeD = deferred<Awaited<ReturnType<typeof listNodes>>>();
         const netD = deferred<Awaited<ReturnType<typeof listNetworks>>>();
-        const fetchD = deferred<{ json: () => Promise<{ versions: unknown[] }> }>();
+        const fetchD = deferred<{json: () => Promise<{versions: unknown[]}>}>();
         vi.mocked(listNodes).mockReturnValue(nodeD.promise);
         vi.mocked(listNetworks).mockReturnValue(netD.promise);
         const mockFetch = vi.fn().mockReturnValue(fetchD.promise);
         vi.stubGlobal("fetch", mockFetch);
 
         mockAuth.useAuth.mockReturnValue({user: {permissions: ["server.create"]}});
-        render(<NewServerPage/>);
+        render(<NewServerPage />);
 
         expect(screen.getByText("Create Server")).toBeDisabled();
 
@@ -220,5 +237,62 @@ describe("NewServerPage", () => {
     it("renders back link to /servers", async () => {
         await renderWith();
         expect(screen.getByText("Servers")).toBeTruthy();
+    });
+
+    it("in clone mode hides software fields and submits resource overrides", async () => {
+        nav.params = new URLSearchParams("clone=srv-1");
+        vi.mocked(getServer).mockResolvedValue({
+            data: {
+                id: "srv-1",
+                server_type: "PAPER",
+                mc_version: "1.21.5",
+                itzg_image_tag: "1.21.5",
+                node_id: "node-1",
+                network_id: "net-1",
+                memory_mb: 4096,
+                cpu_limit_millicores: 1024,
+                display_name: "Survival World",
+                description: "Main survival server",
+                custom_server_jar: null,
+                container_listen_port: 25565,
+                container_protocol: "TCP",
+                disable_healthcheck: false,
+                force_redownload: false,
+            } as unknown as ServerResponse,
+            error: undefined,
+        });
+        vi.mocked(cloneServer).mockResolvedValue({
+            data: {id: "new-srv"} as ServerResponse,
+            error: undefined,
+        });
+
+        await renderWith({nodes: [node({id: "node-1"})], networks: [network({id: "net-1"})]});
+
+        // Software is copied from the source and must not be rendered in clone mode.
+        expect(screen.queryByText("Software")).toBeNull();
+        expect(document.getElementById("server-type")).toBeNull();
+        expect(document.getElementById("itzg-image-tag")).toBeNull();
+        // Resources remain editable, prefilled from the source.
+        expect(screen.getByDisplayValue("4096")).toBeTruthy();
+
+        const user = userEvent.setup();
+        await user.type(screen.getByPlaceholderText("survival-1"), "survival-copy");
+        await user.click(screen.getByRole("button", {name: "Clone Server"}));
+
+        await waitFor(() => {
+            expect(cloneServer).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    path: {id: "srv-1"},
+                    body: expect.objectContaining({
+                        name: "survival-copy",
+                        memory_mb: 4096,
+                        cpu_limit_millicores: 1024,
+                        node_id: "node-1",
+                    }),
+                }),
+            );
+        });
+        // The network is unchanged from the source, so it is left for the backend to inherit.
+        expect(vi.mocked(cloneServer).mock.calls[0][0].body?.network_id).toBeUndefined();
     });
 });

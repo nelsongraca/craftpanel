@@ -2243,6 +2243,151 @@ class ServersRoutesTest :
             }
         }
 
+        test("POST clone honours a memory override instead of copying the source's") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                // totalRamMb 4096 with the default 1024 reserved leaves 3072 allocatable.
+                val nodeId = createNode(totalRamMb = 4096)
+                val sourceId = createServer(nodeId, "source", memoryMb = 2048)
+
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-small","memory_mb":1024}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                resp.body<JsonObject>()["memory_mb"]!!.jsonPrimitive.content.toInt() shouldBe 1024
+            }
+        }
+
+        test("POST clone returns 409 when a memory override exceeds node capacity") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode(totalRamMb = 4096)
+                val sourceId = createServer(nodeId, "source", memoryMb = 2048)
+
+                // Source (2048) + override (2048) exceeds the 3072 allocatable.
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-big","memory_mb":2048}""")
+                }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
+        test("POST clone honours a node_id override") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeA = createNode("node-a")
+                val nodeB = createNode("node-b")
+                val sourceId = createServer(nodeA, "source")
+
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-move","node_id":"$nodeB"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val cloneId = Uuid.parse(resp.body<JsonObject>()["id"]!!.jsonPrimitive.content)
+                repos.serverRepository.findById(cloneId)!!.nodeId shouldBe nodeB
+            }
+        }
+
+        test("POST clone clears the network when network_id is blank") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val netA = createNetwork("net-a")
+                val sourceId = createServer(nodeId, "source", networkId = netA)
+
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-nonet","network_id":""}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val cloneId = Uuid.parse(resp.body<JsonObject>()["id"]!!.jsonPrimitive.content)
+                repos.serverRepository.findById(cloneId)!!.networkId shouldBe null
+            }
+        }
+
+        test("POST clone with no network_id keeps the source's network") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val netA = createNetwork("net-a")
+                val sourceId = createServer(nodeId, "source", networkId = netA)
+
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-net","network_id":null}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val cloneId = Uuid.parse(resp.body<JsonObject>()["id"]!!.jsonPrimitive.content)
+                repos.serverRepository.findById(cloneId)!!.networkId shouldBe netA
+            }
+        }
+
+        test("POST clone stores an expires_at override") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val sourceId = createServer(nodeId, "source")
+
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-exp","expires_at":"2027-03-15T09:30:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val stored = transaction {
+                    Servers.selectAll()
+                        .where { Servers.name eq "clone-exp" }
+                        .first()
+                }
+                stored[Servers.expiresAt] shouldBe kotlinx.datetime.LocalDateTime(2027, 3, 15, 9, 30, 0)
+            }
+        }
+
+        test("POST clone returns 403 when setting expires_at without server-expires permission") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                createGroupWithPermissions("CreateAndView", "server.create", "server.view")
+                assignGlobalGroup(userId, "CreateAndView")
+                val nodeId = createNode()
+                val sourceId = createServer(nodeId, "source")
+
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-exp","expires_at":"2027-01-01T00:00:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
         test("POST clone returns 409 when name is taken") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }

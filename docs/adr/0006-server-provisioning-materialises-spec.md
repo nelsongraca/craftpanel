@@ -36,10 +36,13 @@ callers map into it at the seam (REST `CreateServerRequest`, export `ServerExpor
   transaction; the SQLState-23 port-collision retry wraps that transaction. `provision` never
   swallows a failure. Anything the caller cannot express in the spec (cross-server proxy
   backends) is resolved by the caller, not ignored by the module.
-- **Clone is runtime-faithful.** `clone` copies the runtime definition — env vars, mods, extra
-  ports, proxy fields, config/stop command, container settings. It deliberately excludes
-  identity/exposure (hostname, DNS, `exposedExternally`), per-instance state (expiry, disabled)
-  and cross-server wiring (proxy backends).
+- **Clone is runtime-faithful, with caller overrides.** `clone` copies the runtime definition —
+  env vars, mods, extra ports, proxy fields, config/stop command, container settings. It
+  deliberately excludes identity/exposure (hostname, DNS, `exposedExternally`), per-instance state
+  (disabled) and cross-server wiring (proxy backends). A caller may pass explicit overrides for
+  resources (`memoryMb`, `cpuLimitMillicores`), placement (`nodeId`, `networkId`) and expiry
+  (`expiresAt`); a non-null override wins, otherwise the source value applies — expiry defaults to
+  none when omitted.
 - **Import remaps proxy backends by server name.** `ProxyBackendExportItem` gains
   `backend_server_name`. Network import runs two passes: pass 1 provisions every server; pass 2
   wires each proxy's backends by resolving `backend_server_name` to the now-existing server
