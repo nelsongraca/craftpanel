@@ -1,26 +1,43 @@
 import {SerwistProvider} from "@serwist/turbopack/react";
 import type {Metadata, Viewport} from "next";
-import {Barlow, Barlow_Condensed, JetBrains_Mono} from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import {AuthProvider} from "@/lib/auth-context";
 import {fetchBrandingConfig} from "@/lib/config";
 
-const barlow = Barlow({
+// Self-hosted (latin subset) rather than next/font/google: the Google loader fetches font files
+// over the network at dev/build time, which flakes on CI runners with a transient outage and fails
+// the whole dev server ("Can't resolve '@vercel/turbopack-next/internal/font/google/font'"). Local
+// fonts keep the build deterministic and offline.
+const barlow = localFont({
+    src: [
+        {path: "./fonts/Barlow-400.woff2", weight: "400", style: "normal"},
+        {path: "./fonts/Barlow-500.woff2", weight: "500", style: "normal"},
+        {path: "./fonts/Barlow-600.woff2", weight: "600", style: "normal"},
+    ],
     variable: "--font-sans",
-    subsets: ["latin"],
-    weight: ["400", "500", "600"],
+    display: "swap",
+    fallback: ["system-ui", "sans-serif"],
 });
 
-const barlowCondensed = Barlow_Condensed({
+const barlowCondensed = localFont({
+    src: [
+        {path: "./fonts/BarlowCondensed-400.woff2", weight: "400", style: "normal"},
+        {path: "./fonts/BarlowCondensed-500.woff2", weight: "500", style: "normal"},
+        {path: "./fonts/BarlowCondensed-600.woff2", weight: "600", style: "normal"},
+        {path: "./fonts/BarlowCondensed-700.woff2", weight: "700", style: "normal"},
+        {path: "./fonts/BarlowCondensed-800.woff2", weight: "800", style: "normal"},
+    ],
     variable: "--font-condensed",
-    subsets: ["latin"],
-    weight: ["400", "500", "600", "700", "800"],
+    display: "swap",
+    fallback: ["system-ui", "sans-serif"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+    src: [{path: "./fonts/JetBrainsMono-Variable.woff2", weight: "100 800", style: "normal"}],
     variable: "--font-mono",
-    subsets: ["latin"],
-    weight: ["400", "500", "600"],
+    display: "swap",
+    fallback: ["ui-monospace", "monospace"],
 });
 
 export async function generateMetadata(): Promise<Metadata> {

@@ -2,10 +2,8 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
 import {render, screen} from '@testing-library/react'
 import type {ReactNode} from 'react'
 
-vi.mock('next/font/google', () => ({
-    Barlow: () => ({variable: '--font-sans'}),
-    Barlow_Condensed: () => ({variable: '--font-condensed'}),
-    JetBrains_Mono: () => ({variable: '--font-mono'}),
+vi.mock('next/font/local', () => ({
+    default: ({variable}: { variable: string }) => ({variable}),
 }))
 
 vi.mock('@/lib/auth-context', () => ({
