@@ -127,6 +127,12 @@ registered via `registerAppRoutes()` in `AppRoutes.kt` — add new routes there 
 GitHub Actions builds images and pushes to GHCR (`ghcr.io/nelsongraca`). Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties. Push is opt-in via `-Ppush=true`
 (default off — `dockerBuildAll` only loads into the local Docker daemon via `com.flowkode.buildx`'s `buildxBuild` task; `dockerPushAll` requires `-Ppush=true`). CI config not yet written.
 
+### Releasing
+
+A call for a release or a hotfix always means **cut from the latest `master`** — `git pull` first. There is no maintenance branch: hotfix/patch versions are force-tagged on
+`master` rather than branched from an old tag, and the changelog covers everything since the last tag. Cut with `./gradlew release` (minor bump auto-derived from Conventional
+Commits) or `./gradlew release -PreleaseVersion=<x.y.z>` to force a version. The tag push triggers `publish.yml` (images + GitHub Release).
+
 ## gRPC
 
 Proto files live at repo root `/proto/`, shared by master and agent. Two services:

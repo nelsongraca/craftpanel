@@ -150,6 +150,12 @@ Workflows in `.github/workflows/`:
 Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties (`ghcr.io/nelsongraca`). Push is opt-in via `-Ppush=true` (default off — `dockerBuildAll` only loads into the
 local Docker daemon via `com.flowkode.buildx`'s `buildxBuild` task; `dockerPushAll` requires `-Ppush=true`).
 
+### Releasing
+
+A call for a release or a hotfix always means **cut from the latest `master`** — `git pull` first. There is no maintenance branch: hotfix/patch versions are force-tagged on
+`master` rather than branched from an old tag, and the changelog covers everything since the last tag. Cut with `./gradlew release` (minor bump auto-derived from Conventional
+Commits) or `./gradlew release -PreleaseVersion=<x.y.z>` to force a version. The tag push triggers `publish.yml` (images + GitHub Release).
+
 ### Local dev compose
 
 `docker-compose.yml` / `docker-compose.dev.yml` at repo root.
