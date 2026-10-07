@@ -90,7 +90,9 @@
       "@hono/node-server": "^2.1.0",
       "browserslist": "^4.28.7",
       "source-map-js": "^1.2.2",
-      "@modelcontextprotocol/sdk": "^1.31.0"
+      "@modelcontextprotocol/sdk": "^1.31.0",
+      "@codemirror/state": "^6.7.6",
+      "@codemirror/view": "^6.43.13"
     }
   }
 }
