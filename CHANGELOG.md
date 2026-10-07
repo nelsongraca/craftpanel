@@ -1,3 +1,24 @@
+## [1.1.1] - 2026-10-07
+
+### Features
+
+- allow resource, placement and expiry overrides when cloning (635857e49844d6d)
+- shard Playwright suite and merge shard coverage (a6840874f9f14d2)
+- player-aware restart confirmation and copyable ID (246d4632c2e9630)
+- surface add failures and suggest channels, sort list (d874538f6b1b14b)
+
+### Bug Fixes
+
+- self-host fonts to drop the next/font/google dev-time fetch (83a44c626d7b336)
+- offer start, stop and delete for a crash-looped server (d3deced26b8331e)
+- dedupe CodeMirror state/view packages (4c1f1f6a06ed4b3)
+- always recreate on restart; auto-push changed specs (508c3b8ae5c8f99)
+- return 502 from API proxy when master is unreachable (4a860f9128411e1)
+
+### Performance
+
+- exclude mobile sweep and drop sharding for a single workers job (8b6a7acad597b77)
+
 ## [1.1.0] - 2026-10-04
 
 ### Features
