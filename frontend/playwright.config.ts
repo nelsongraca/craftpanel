@@ -15,6 +15,11 @@ export default defineConfig({
     // A test that only passes on retry still exits non-zero — flakiness is a bug, not noise.
     failOnFlakyTests: true,
     workers: process.env.CI ? 3 : undefined,
+    // `next dev` compiles routes on first visit, and a cold route or tab chunk (e.g. the
+    // Configuration tab's CodeMirror bundle) can take tens of seconds under CI CPU
+    // contention — longer than Playwright's 30s default *test* timeout, which caps every
+    // action and auto-wait. Raise the whole-test budget while keeping expect()s tighter.
+    timeout: 90_000,
     // `next dev` compiles routes on first visit; a cold /nodes/[id] or tab chunk can take
     // several seconds, so give expect()s more than the 5s default.
     expect: {timeout: 15_000},

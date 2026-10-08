@@ -1,6 +1,6 @@
-import { http, HttpResponse } from "msw";
+import {http, HttpResponse} from "msw";
 
-export let fakeExtraPorts = [
+const initialExtraPorts = [
     {
         id: "extra-port-1",
         server_id: "srv-1",
@@ -14,6 +14,13 @@ export let fakeExtraPorts = [
     },
 ];
 
+let fakeExtraPorts = [...initialExtraPorts];
+
+/** Reset the extra-ports mock so a port added in one test cannot leak into the next. */
+export function resetPorts() {
+    fakeExtraPorts = [...initialExtraPorts];
+}
+
 export const portHandlers = [
     http.get("/api/servers/:id/ports", () =>
         HttpResponse.json({
@@ -23,11 +30,11 @@ export const portHandlers = [
                 protocol: "TCP",
             },
             extra_ports: fakeExtraPorts,
-        })
+        }),
     ),
 
-    http.post("/api/servers/:id/ports", async ({ request }) => {
-        const body = (await request.json()) as { name: string; container_port: number; protocol?: string };
+    http.post("/api/servers/:id/ports", async ({request}) => {
+        const body = (await request.json()) as {name: string; container_port: number; protocol?: string};
         const newPort = {
             id: `extra-port-${Date.now()}`,
             server_id: "srv-1",
@@ -40,11 +47,11 @@ export const portHandlers = [
             updated_at: new Date().toISOString(),
         };
         fakeExtraPorts.push(newPort);
-        return HttpResponse.json(newPort, { status: 201 });
+        return HttpResponse.json(newPort, {status: 201});
     }),
 
-    http.delete("/api/servers/:id/ports/:portId", ({ params }) => {
+    http.delete("/api/servers/:id/ports/:portId", ({params}) => {
         fakeExtraPorts = fakeExtraPorts.filter((p) => p.id !== params.portId);
-        return new HttpResponse(null, { status: 204 });
+        return new HttpResponse(null, {status: 204});
     }),
 ];
