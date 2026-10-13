@@ -163,9 +163,9 @@ jobs:
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
-          path: frontend/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-global-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-global-
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
