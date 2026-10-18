@@ -92,11 +92,13 @@ jobs:
       if: matrix.language == 'java-kotlin'
       shell: bash
       run: |
-        # `-x test` does not exclude `:frontend:testE2eMocked`, which `:frontend:check` pulls in
-        # (frontend/build.gradle.kts). That is a Playwright suite needing browsers this job never
-        # installs, so it failed every CodeQL run since it was wired into check. Compiling the
-        # sources is all CodeQL needs here.
-        ./gradlew build -x test -x :frontend:testE2eMocked --no-build-cache --no-daemon
+        # Compile the JVM sources only, which is all the Java/Kotlin extractor needs. The TS/JS is
+        # analyzed by the javascript-typescript matrix entry (build-mode: none), so `build` here
+        # wasted minutes on the frontend chain (node install, next build, vitest, lint) and still
+        # pulled in :frontend:testE2eMocked via :frontend:check - a Playwright suite needing
+        # browsers this job never installs.
+        ./gradlew :common:classes :master:classes :agent:classes :fake-server:classes :system-tests:classes \
+          --no-build-cache --no-daemon
       env:
         ORG_GRADLE_PROJECT_org_gradle_jvmargs: "-Xmx4g -XX:MaxMetaspaceSize=512m"
 
