@@ -92,7 +92,11 @@ jobs:
       if: matrix.language == 'java-kotlin'
       shell: bash
       run: |
-        ./gradlew build -x test --no-build-cache --no-daemon
+        # `-x test` does not exclude `:frontend:testE2eMocked`, which `:frontend:check` pulls in
+        # (frontend/build.gradle.kts). That is a Playwright suite needing browsers this job never
+        # installs, so it failed every CodeQL run since it was wired into check. Compiling the
+        # sources is all CodeQL needs here.
+        ./gradlew build -x test -x :frontend:testE2eMocked --no-build-cache --no-daemon
       env:
         ORG_GRADLE_PROJECT_org_gradle_jvmargs: "-Xmx4g -XX:MaxMetaspaceSize=512m"
 
