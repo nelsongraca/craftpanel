@@ -55,7 +55,7 @@ class ExportServiceTest :
             description: String? = null,
             nodeId: String,
             networkId: String? = null,
-            serverType: String,
+            serverType: ServerType,
             mcVersion: String = "LATEST",
             itzgImageTag: String = "latest",
             memoryMb: Int,
@@ -131,7 +131,7 @@ class ExportServiceTest :
                     description = "A server to export",
                     nodeId = nodeId.toString(),
                     networkId = null,
-                    serverType = "PAPER",
+                    serverType = ServerType.PAPER,
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 2048,
@@ -170,7 +170,7 @@ class ExportServiceTest :
                 export.name shouldBe "export-me"
                 export.displayName shouldBe "Export Me"
                 export.description shouldBe "A server to export"
-                export.serverType shouldBe "PAPER"
+                export.serverType shouldBe ServerType.PAPER
                 export.mcVersion shouldBe "1.21.4"
                 export.itzgImageTag shouldBe "latest"
                 export.memoryMb shouldBe 2048
@@ -217,7 +217,7 @@ class ExportServiceTest :
                     description = null,
                     nodeId = nodeId.toString(),
                     networkId = null,
-                    serverType = "PAPER",
+                    serverType = ServerType.PAPER,
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 1024,
@@ -291,7 +291,7 @@ class ExportServiceTest :
                     description = null,
                     nodeId = nodeId.toString(),
                     networkId = net.id,
-                    serverType = "PAPER",
+                    serverType = ServerType.PAPER,
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 512,
@@ -304,7 +304,7 @@ class ExportServiceTest :
                     description = null,
                     nodeId = nodeId.toString(),
                     networkId = net.id,
-                    serverType = "VELOCITY",
+                    serverType = ServerType.VELOCITY,
                     mcVersion = "latest",
                     itzgImageTag = "latest",
                     memoryMb = 384,

@@ -145,7 +145,9 @@ class ServersRoutesTest :
                     nodeRepository = nodeRepository,
                     networkRepository = networkRepository,
                     settingsProvider = SettingsProvider(settingsRepository),
-                    specSync = specSync
+                    specSync = specSync,
+                    modRepository = repos.modRepository,
+                    proxyBackendRepository = repos.proxyBackendRepository
                 ),
                 provisioning,
                 ServerQueryService(
@@ -260,14 +262,15 @@ class ServersRoutesTest :
             status: String = "STOPPED",
             memoryMb: Int = 1024,
             port: Int = 25565,
-            mcVersion: String = "1.21.4"
+            mcVersion: String = "1.21.4",
+            serverType: String = "VANILLA"
         ): Uuid = transaction {
             Servers.insert {
                 it[Servers.nodeId] = nodeId
                 it[Servers.networkId] = networkId
                 it[Servers.name] = name
                 it[Servers.displayName] = name
-                it[Servers.serverType] = "VANILLA"
+                it[Servers.serverType] = serverType
                 it[Servers.mcVersion] = mcVersion
                 it[Servers.hostPort] = port
                 it[Servers.memoryMb] = memoryMb
@@ -968,6 +971,129 @@ class ServersRoutesTest :
                     setBody("""{"network_id":"$fakeNetId"}""")
                 }
                 resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("PATCH server changes server_type and resets type-exclusive fields") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "retype-me", serverType = "PAPER")
+                transaction {
+                    Servers.update({ Servers.id eq serverId }) {
+                        it[Servers.containerListenPort] = 25570
+                    }
+                }
+
+                val resp = client.patch("/api/servers/$serverId") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"server_type":"VELOCITY"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.serverType] shouldBe "VELOCITY"
+                row[Servers.containerListenPort] shouldBe null
+                row[Servers.stopCommand] shouldBe "end"
+                row[Servers.configMode] shouldBe "MANAGED"
+            }
+        }
+
+        test("PATCH server rejects a type change while the server is running") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "running-retype", status = "HEALTHY", serverType = "PAPER")
+
+                val resp = client.patch("/api/servers/$serverId") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"server_type":"FABRIC"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Conflict
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.serverType] shouldBe "PAPER"
+            }
+        }
+
+        test("PATCH server rejects a type change that invalidates enabled mods") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "modded-retype", serverType = "FABRIC")
+                transaction {
+                    ServerMods.insert {
+                        it[ServerMods.serverId] = EntityID(serverId, Servers)
+                        it[ServerMods.modrinthProjectId] = "fabric-api"
+                        it[ServerMods.displayName] = "Fabric API"
+                        it[ServerMods.pinStrategy] = "LATEST"
+                        it[ServerMods.enabled] = true
+                    }
+                }
+
+                val resp = client.patch("/api/servers/$serverId") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"server_type":"PAPER"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Conflict
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.serverType] shouldBe "FABRIC"
+            }
+        }
+
+        test("PATCH server rejects changing a proxy with backends to a non-proxy type") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val proxyId = createServer(nodeId, "proxy-retype", serverType = "VELOCITY")
+                val backendId = createServer(nodeId, "backend-1", serverType = "PAPER")
+                transaction {
+                    ProxyBackends.insert {
+                        it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                        it[ProxyBackends.backendServerId] = EntityID(backendId, Servers)
+                        it[ProxyBackends.backendName] = "backend-1"
+                        it[ProxyBackends.order] = 0
+                    }
+                }
+
+                val resp = client.patch("/api/servers/$proxyId") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"server_type":"PAPER"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Conflict
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq proxyId }
+                        .first()
+                }
+                row[Servers.serverType] shouldBe "VELOCITY"
             }
         }
 

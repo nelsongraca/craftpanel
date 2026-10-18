@@ -34,7 +34,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                 CreateServerRequest(
                     name = "test-modrinth-${System.currentTimeMillis()}-${Random.nextInt(100000)}",
                     nodeId = nodeId,
-                    serverType = "FABRIC",
+                    serverType = ServerType.FABRIC,
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 512,

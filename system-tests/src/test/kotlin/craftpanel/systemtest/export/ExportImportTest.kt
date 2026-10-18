@@ -30,7 +30,7 @@ class ExportImportTest : BaseSystemTest() {
                     displayName = "Export Test Display",
                     description = "A server for export testing",
                     nodeId = nodeId,
-                    serverType = "PAPER",
+                    serverType = ServerType.PAPER,
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 1024,
@@ -74,7 +74,7 @@ class ExportImportTest : BaseSystemTest() {
                 sourceExport.name shouldBe sourceName
                 sourceExport.displayName shouldBe "Export Test Display"
                 sourceExport.description shouldBe "A server for export testing"
-                sourceExport.serverType shouldBe "PAPER"
+                sourceExport.serverType shouldBe ServerType.PAPER
                 sourceExport.mcVersion shouldBe "1.21.4"
                 sourceExport.itzgImageTag shouldBe "latest"
                 sourceExport.memoryMb shouldBe 1024
@@ -118,7 +118,7 @@ class ExportImportTest : BaseSystemTest() {
                     imported.name shouldBe sourceName
                     imported.displayName shouldBe "Export Test Display"
                     imported.description shouldBe "A server for export testing"
-                    imported.serverType shouldBe "PAPER"
+                    imported.serverType shouldBe ServerType.PAPER
                     imported.mcVersion shouldBe "1.21.4"
                     imported.itzgImageTag shouldBe "latest"
                     imported.memoryMb shouldBe 1024
@@ -196,7 +196,7 @@ class ExportImportTest : BaseSystemTest() {
                     export.servers!! shouldHaveSize 2
 
                     val s1Export = export.servers!!.first { it.memoryMb == 512 }
-                    s1Export.serverType shouldBe "PAPER"
+                    s1Export.serverType shouldBe ServerType.PAPER
                     s1Export.envVars?.let { envs ->
                         envs.first { it.key == "DIFFICULTY" }.`value` shouldBe "hard"
                     }

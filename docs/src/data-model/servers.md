@@ -6,25 +6,57 @@
 
 Determines the server software and, implicitly, the itzg Docker image used.
 
-| Value        | Image                   | Notes |
-|--------------|-------------------------|-------|
-| `VANILLA`    | `itzg/minecraft-server` |       |
-| `PAPER`      | `itzg/minecraft-server` |       |
-| `FABRIC`     | `itzg/minecraft-server` |       |
-| `FOLIA`      | `itzg/minecraft-server` |       |
-| `FORGE`      | `itzg/minecraft-server` |       |
-| `NEOFORGE`   | `itzg/minecraft-server` |       |
-| `QUILT`      | `itzg/minecraft-server` |       |
-| `SPIGOT`     | `itzg/minecraft-server` |       |
-| `LIMBO`      | `itzg/minecraft-server` |       |
-| `CUSTOM`     | `itzg/minecraft-server` | Runs an arbitrary server jar (`TYPE=CUSTOM` + `CUSTOM_SERVER`) |
-| `VELOCITY`   | `itzg/mc-proxy`         |       |
-| `BUNGEECORD` | `itzg/mc-proxy`         |       |
-| `WATERFALL`  | `itzg/mc-proxy`         |       |
+Defined by the `ServerType` enum in master (`domain/ServerType.kt`) — a **curated** set, not the
+full range of itzg `TYPE` values. CraftPanel only provisions types it can classify (image, data
+mount path, plugin/mod kind, proxy role); adding a type is a backend change. The enum is a
+component schema on the OpenAPI spec, so the frontend derives its type list from it instead of
+duplicating it.
+
+| Value        | Image                   | Artifacts  | Notes |
+|--------------|-------------------------|------------|-------|
+| `VANILLA`    | `itzg/minecraft-server` | —          |       |
+| `PAPER`      | `itzg/minecraft-server` | plugins    |       |
+| `PURPUR`     | `itzg/minecraft-server` | plugins    |       |
+| `FOLIA`      | `itzg/minecraft-server` | plugins    | Paper fork with regionised multithreading (`TYPE=FOLIA`) |
+| `SPIGOT`     | `itzg/minecraft-server` | plugins    |       |
+| `BUKKIT`     | `itzg/minecraft-server` | plugins    |       |
+| `FABRIC`     | `itzg/minecraft-server` | mods       |       |
+| `FORGE`      | `itzg/minecraft-server` | mods       |       |
+| `NEOFORGE`   | `itzg/minecraft-server` | mods       |       |
+| `QUILT`      | `itzg/minecraft-server` | mods       |       |
+| `LIMBO`      | `itzg/minecraft-server` | —          | LOOHP Limbo lobby server (`TYPE=LIMBO`); no world/plugin API |
+| `VELOCITY`   | `itzg/mc-proxy`         | plugins    | Proxy |
+| `BUNGEECORD` | `itzg/mc-proxy`         | plugins    | Proxy |
+| `WATERFALL`  | `itzg/mc-proxy`         | plugins    | Proxy |
+| `CUSTOM`     | `itzg/minecraft-server` | —          | Runs an arbitrary server jar (`TYPE=CUSTOM` + `CUSTOM_SERVER`) |
+| `PICOLIMBO`  | `ghcr.io/quozul/picolimbo` | —       | Native binary; config in `server.toml`, no JVM/`server.properties` |
 
 !!! note "Image derivation"
 The Docker image (`itzg/minecraft-server` vs `itzg/mc-proxy`) is **derived from `server_type` in application code** — it is not stored in the database. The mapping is a simple `when` expression in
 Kotlin. If the itzg project restructures its images, the change requires a code update and redeploy, which is the appropriate forcing function for a deliberate decision.
+
+#### Changing server type
+
+`PATCH /api/servers/{id}` accepts `server_type`. Because a type change swaps the software that
+runs under the same data directory, it is guarded:
+
+- **The server must be `STOPPED`** (or `CRASH_LOOPED`). A type change persists immediately but a
+  running container keeps the old `TYPE` until it is recreated; requiring `STOPPED` prevents a
+  later crash-restart from silently recreating the container with the new type.
+- **Installed mods/plugins must not be invalidated.** If enabled artifacts exist and the change
+  crosses artifact kinds (mods ↔ plugins ↔ neither), the request is rejected with `409`. Changes
+  within the same kind (e.g. `PAPER` → `SPIGOT`, `FABRIC` → `NEOFORGE`) are allowed.
+- **Proxy/backend wiring must stay valid.** Changing a proxy that still has backends to a
+  non-proxy type is rejected, and a server acting as a proxy backend cannot change to a type that
+  cannot take a forwarding patch.
+
+On a successful change, type-exclusive fields are reset to the new type's defaults (explicit
+values in the same request win): `custom_server_jar` is cleared unless the target is `CUSTOM`,
+`container_listen_port` is cleared so the new type's default applies, `config_mode` /
+`stop_command` / `jvm_metrics_enabled` return to their defaults for the target, and proxy-only
+settings are cleared when leaving a proxy type. The data directory does not move — only the
+in-container mount path differs (`/data` game, `/server` proxy, `/usr/src/app` PicoLimbo), so
+existing world files may need manual cleanup to suit the new software.
 
 ### `server_status`
 

@@ -53,7 +53,7 @@ vi.mock("@/lib/auth-context", () => ({
 }));
 
 vi.mock("@/app/components/PageHeader", () => ({
-    default: vi.fn(({title, subtitle, action}: { title: string; subtitle?: string; action?: React.ReactNode }) => (
+    default: vi.fn(({title, subtitle, action}: {title: string; subtitle?: string; action?: React.ReactNode}) => (
         <div data-testid="page-header">
             <h1>{title}</h1>
             {subtitle && <p>{subtitle}</p>}
@@ -63,8 +63,13 @@ vi.mock("@/app/components/PageHeader", () => ({
 }));
 
 import {
-    listServers, listNodes, listNetworks,
-    startServer, stopServer, restartServer, deleteServer,
+    listServers,
+    listNodes,
+    listNetworks,
+    startServer,
+    stopServer,
+    restartServer,
+    deleteServer,
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import ServersPage from "../page";
@@ -110,7 +115,7 @@ function network(overrides: Record<string, unknown> = {}): Record<string, unknow
     return {id: "net1", name: "Main Network", ...overrides} as Record<string, unknown>;
 }
 
-function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+function deferred<T>(): {promise: Promise<T>; resolve: (v: T) => void} {
     let resolve!: (v: T) => void;
     const promise = new Promise<T>((r) => {
         resolve = r;
@@ -133,7 +138,7 @@ async function renderWith(
     vi.mocked(listNetworks).mockResolvedValue({data: nw} as never);
     (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions: p}});
 
-    const result = render(<ServersPage/>);
+    const result = render(<ServersPage />);
 
     if (s.length > 0) {
         await waitFor(() => {
@@ -162,7 +167,7 @@ describe("ServersPage", () => {
             vi.mocked(listNodes).mockResolvedValue({data: []} as never);
             vi.mocked(listNetworks).mockResolvedValue({data: []} as never);
 
-            render(<ServersPage/>);
+            render(<ServersPage />);
 
             expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
 
@@ -501,6 +506,34 @@ describe("ServersPage", () => {
         });
     });
 
+    describe("No Network filter", () => {
+        it("renders the network filter even when no networks exist, with a selectable No Network option", async () => {
+            await renderWith({servers: [server({network_id: null})]});
+
+            const user = userEvent.setup();
+            const networkCombo = screen.getAllByRole("combobox").find((c) => c.textContent?.includes("All Networks"));
+            expect(networkCombo).toBeDefined();
+
+            await selectComboboxOption(user, networkCombo!, "No Network");
+            expect(networkCombo).toHaveTextContent("No Network");
+        });
+
+        it("filtering by No Network shows only servers without a network", async () => {
+            const assigned = server({id: "s1", display_name: "Alpha", network_id: "net1"});
+            const unassigned = server({id: "s2", display_name: "Beta", network_id: null});
+            await renderWith({servers: [assigned, unassigned], networks: [network()]});
+
+            const selects = screen.getAllByRole("combobox");
+            const user = userEvent.setup();
+            await selectComboboxOption(user, selects[1], "No Network");
+
+            await waitFor(() => {
+                expect(screen.getAllByText("Beta").length).toBeGreaterThan(0);
+                expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
+            });
+        });
+    });
+
     describe("Type filter", () => {
         it("renders an All Types select with distinct server_type options", async () => {
             await renderWith({
@@ -680,11 +713,13 @@ describe("ServersPage", () => {
     describe("Exposed subdomain", () => {
         it("server with a canonical hostname shows it in the list", async () => {
             await renderWith({
-                servers: [server({
-                    exposed_externally: true,
-                    public_subdomain: "survival",
-                    canonical_hostname: "mc.example.com",
-                })],
+                servers: [
+                    server({
+                        exposed_externally: true,
+                        public_subdomain: "survival",
+                        canonical_hostname: "mc.example.com",
+                    }),
+                ],
             });
 
             expect(screen.getAllByText("mc.example.com").length).toBeGreaterThan(0);

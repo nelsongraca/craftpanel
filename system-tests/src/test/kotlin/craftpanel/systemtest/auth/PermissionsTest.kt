@@ -157,7 +157,7 @@ class PermissionsTest : BaseSystemTest() {
                     CreateServerRequest(
                         name = "net-s1-${System.currentTimeMillis()}",
                         nodeId = nodeId,
-                        serverType = "PAPER",
+                        serverType = ServerType.PAPER,
                         mcVersion = "1.21.4",
                         itzgImageTag = "latest",
                         memoryMb = 256,
@@ -169,7 +169,7 @@ class PermissionsTest : BaseSystemTest() {
                     CreateServerRequest(
                         name = "net-s2-${System.currentTimeMillis()}",
                         nodeId = nodeId,
-                        serverType = "PAPER",
+                        serverType = ServerType.PAPER,
                         mcVersion = "1.21.4",
                         itzgImageTag = "latest",
                         memoryMb = 256,

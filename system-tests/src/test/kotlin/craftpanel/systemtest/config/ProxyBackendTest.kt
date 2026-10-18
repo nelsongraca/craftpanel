@@ -22,7 +22,7 @@ class ProxyBackendTest : BaseSystemTest() {
                 CreateServerRequest(
                     name = "test-proxy-${System.currentTimeMillis()}",
                     nodeId = nodeId,
-                    serverType = "VELOCITY",
+                    serverType = ServerType.VELOCITY,
                     mcVersion = "latest",
                     itzgImageTag = "latest",
                     memoryMb = 256,
@@ -133,7 +133,7 @@ class ProxyBackendTest : BaseSystemTest() {
                     CreateServerRequest(
                         name = "test-proxy-err-${System.currentTimeMillis()}",
                         nodeId = nodeId,
-                        serverType = "VELOCITY",
+                        serverType = ServerType.VELOCITY,
                         mcVersion = "latest",
                         itzgImageTag = "latest",
                         memoryMb = 256,

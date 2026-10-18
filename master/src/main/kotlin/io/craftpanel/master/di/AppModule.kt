@@ -247,7 +247,9 @@ val appModule = module {
             nodeRepository = get(),
             networkRepository = get(),
             settingsProvider = get(),
-            specSync = get()
+            specSync = get(),
+            modRepository = get(),
+            proxyBackendRepository = get()
         )
     }
     single {

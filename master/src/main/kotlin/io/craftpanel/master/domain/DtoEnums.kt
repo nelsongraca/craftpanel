@@ -9,11 +9,12 @@ import kotlinx.serialization.Serializable
  * which is what the OpenAPI spec advertises and the frontend expects.
  */
 
-// NOTE: server_type is intentionally NOT an enum. itzg/minecraft-server accepts an
-// open-ended, frequently-growing set of TYPE values (PAPER, FABRIC, FORGE, NEOFORGE,
-// QUILT, SPIGOT, FOLIA, LIMBO, PURPUR, …). The backend only special-cases the three
-// proxy types; everything else falls through to the minecraft image. Modelling it as
-// an enum would reject valid server types on deserialization. Kept as String.
+// NOTE: server_type IS modelled by the domain `ServerType` enum (see ServerType.kt), not a
+// plain String. It is a curated set: itzg/minecraft-server accepts a wider, frequently-growing
+// set of TYPE values (ARCLIGHT, MAGMA, PUFFERFISH, …), but CraftPanel only provisions types it
+// can classify (image, mount path, plugin/mod kind, proxy role). Adding a type is a backend
+// change; the enum is exposed on the OpenAPI spec so the frontend derives its type list from it
+// instead of duplicating it.
 
 @Serializable
 enum class ConfigMode {

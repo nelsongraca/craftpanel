@@ -11,24 +11,9 @@ import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elemen
 import {McVersionSelect} from "@/components/ui/mc-version";
 import {Skeleton} from "@/components/ui/skeleton";
 import type {Network, Node} from "@/lib/types";
-import {isCustomType, isPicolimboType, PROXY_TYPES} from "@/lib/server-types";
+import {isCustomType, isPicolimboType, GAME_SERVER_TYPES, PROXY_TYPES} from "@/lib/server-types";
+import type {ServerType} from "@/lib/generated/types.gen";
 import {allocatable} from "@/lib/utils/format";
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const GAME_SERVER_TYPES = [
-    "CUSTOM",
-    "VANILLA",
-    "PAPER",
-    "FABRIC",
-    "FOLIA",
-    "FORGE",
-    "NEOFORGE",
-    "QUILT",
-    "SPIGOT",
-    "LIMBO",
-    "PICOLIMBO",
-] as const;
 
 // ── Field component helpers ───────────────────────────────────────────────────
 
@@ -82,7 +67,7 @@ export default function NewServerPage() {
     const [name, setName] = useState("");
     const [displayName, setDisplayName] = useState("");
     const [description, setDescription] = useState("");
-    const [serverType, setServerType] = useState("PAPER");
+    const [serverType, setServerType] = useState<ServerType>("PAPER");
     const [mcVersion, setMcVersion] = useState("");
     const [itzgImageTag, setItzgImageTag] = useState("latest");
     const [customServerJar, setCustomServerJar] = useState("");
@@ -302,7 +287,7 @@ export default function NewServerPage() {
                                 <FieldSelect
                                     id="server-type"
                                     value={serverType}
-                                    onChange={(e) => setServerType(e.target.value)}
+                                    onChange={(e) => setServerType(e.target.value as ServerType)}
                                 >
                                     <optgroup label="Game Servers">
                                         {GAME_SERVER_TYPES.map((t) => (

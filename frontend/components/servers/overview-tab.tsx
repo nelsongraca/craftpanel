@@ -2,6 +2,7 @@
 
 import {InfoRow} from "@/components/edit/info-row";
 import {EditGeneral} from "./edit-general";
+import {EditServerType} from "./edit-server-type";
 import {EditResources} from "./edit-resources";
 import {EditExposure} from "./edit-exposure";
 import {LiveMetricsCard, LiveMetricsStatCards} from "./live-metrics";
@@ -61,6 +62,8 @@ export function OverviewTab({
                     onSaved={onSaved}
                 />
             )}
+
+            {canConfigure && <EditServerType server={server} onSaved={onSaved} />}
 
             {canResources && <EditResources server={server} onSaved={onSaved} />}
 

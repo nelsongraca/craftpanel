@@ -28,7 +28,7 @@ class ProxySettingsTest : BaseSystemTest() {
                 CreateServerRequest(
                     name = "test-proxy-${System.currentTimeMillis()}",
                     nodeId = nodeId,
-                    serverType = "VELOCITY",
+                    serverType = ServerType.VELOCITY,
                     mcVersion = "latest",
                     itzgImageTag = "latest",
                     memoryMb = 256,
@@ -39,7 +39,7 @@ class ProxySettingsTest : BaseSystemTest() {
                 CreateServerRequest(
                     name = "test-bungee-${System.currentTimeMillis()}",
                     nodeId = nodeId,
-                    serverType = "BUNGEECORD",
+                    serverType = ServerType.BUNGEECORD,
                     mcVersion = "latest",
                     itzgImageTag = "latest",
                     memoryMb = 256,

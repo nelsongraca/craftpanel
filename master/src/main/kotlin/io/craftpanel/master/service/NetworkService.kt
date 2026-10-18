@@ -8,6 +8,7 @@ import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.util.toUtcString
 import kotlinx.serialization.SerialName
@@ -28,7 +29,7 @@ data class NetworkResponse(
 )
 
 @Serializable
-data class NetworkServerItem(val id: String, @SerialName("display_name") val displayName: String, @SerialName("server_type") val serverType: String, val status: ServerStatus)
+data class NetworkServerItem(val id: String, @SerialName("display_name") val displayName: String, @SerialName("server_type") val serverType: ServerType, val status: ServerStatus)
 
 @Serializable
 data class NetworkDetailResponse(
@@ -71,9 +72,11 @@ class NetworkService(
      * being updated. Shared by provisioning and network reassignment.
      */
     fun requireSingleNodeForNetwork(networkId: Uuid, additionalNodeId: Uuid, excludeServerId: Uuid? = null) {
-        val nodeIds = (serverRepository.listByNetworkId(networkId)
-            .filter { it.id != excludeServerId }
-            .map { it.nodeId } + additionalNodeId).distinct()
+        val nodeIds = (
+            serverRepository.listByNetworkId(networkId)
+                .filter { it.id != excludeServerId }
+                .map { it.nodeId } + additionalNodeId
+            ).distinct()
         if (nodeIds.size > 1) validateCrossNodeAssignment(nodeIds)
     }
 
@@ -162,7 +165,7 @@ class NetworkService(
                 NetworkServerItem(
                     id = s.id.toString(),
                     displayName = s.displayName,
-                    serverType = s.serverType.toDb(),
+                    serverType = s.serverType,
                     status = ServerStatus.fromDb(s.status)
                 )
             }

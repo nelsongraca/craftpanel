@@ -1,5 +1,6 @@
 package io.craftpanel.master.routes.dto
 
+import io.craftpanel.master.domain.ServerType
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -10,7 +11,7 @@ data class ServerExportData(
     val name: String,
     @SerialName("display_name") val displayName: String,
     val description: String? = null,
-    @SerialName("server_type") val serverType: String,
+    @SerialName("server_type") val serverType: ServerType,
     @SerialName("mc_version") val mcVersion: String,
     @SerialName("itzg_image_tag") val itzgImageTag: String,
     @SerialName("memory_mb") val memoryMb: Int,

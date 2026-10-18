@@ -161,6 +161,7 @@ All fields optional. Requires `server.configure`.
   "display_name": "Survival SMP",
   "description": "Updated description",
   "network_id": "<uuid>",
+  "server_type": "FOLIA",
   "mc_version": "1.21.5",
   "itzg_image_tag": "2024-11-01",
   "custom_server_jar": "https://download.example.com/paper-build.jar",
@@ -173,15 +174,21 @@ All fields optional. Requires `server.configure`.
 
 Set `network_id` to `null` to remove the server from its network.
 
-`display_name`, `description`, and `network_id` take effect immediately. Spec-level fields (`mc_version`, `itzg_image_tag`, `custom_server_jar`,
+`display_name`, `description`, and `network_id` take effect immediately. Spec-level fields (`server_type`, `mc_version`, `itzg_image_tag`, `custom_server_jar`,
 `container_listen_port`, `container_protocol`, `disable_healthcheck`, `force_redownload`) are persisted and applied on the **next container start or restart**: master rebuilds the
 spec and pushes it, and the agent recreates the container when the new spec differs from the one it last applied. This does **not** restart a running server — it sets `restart_pending`,
 which the UI surfaces with a restart prompt. The recreate decision itself is the agent's (spec-diff); master never drives it from a flag.
+
+`server_type` is an enum (the `ServerType` schema — see [data model](../data-model/servers.md#server_type)). Unlike the other spec fields it is guarded: the server must be
+stopped, installed mods/plugins must not be invalidated by the change, and proxy/backend wiring must stay valid. On success, type-exclusive fields are reset to the new type's defaults.
 
 The CUSTOM fields follow the same create-time rules: `custom_server_jar` is validated against the server type, and `container_listen_port` / `container_protocol` changes are persisted and applied on
 the next start.
 
 **Response `204`.**
+
+**Errors:** `409` if `server_type` is changed while the server is running, if enabled mods/plugins would be invalidated, or if the change would orphan proxy/backend wiring. `422` if an
+invalid `custom_server_jar` / `container_listen_port` / `container_protocol` is supplied.
 
 ---
 

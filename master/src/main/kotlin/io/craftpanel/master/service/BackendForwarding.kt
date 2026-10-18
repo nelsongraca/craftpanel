@@ -9,9 +9,12 @@ sealed interface Classification {
 
 object BackendForwarding {
 
-    private val PAPER_LINEAGE = setOf(ServerType.PAPER, ServerType.PURPUR)
+    private val PAPER_LINEAGE = setOf(ServerType.PAPER, ServerType.PURPUR, ServerType.FOLIA)
     private val SPIGOT_LINEAGE = setOf(ServerType.SPIGOT, ServerType.BUKKIT)
     private val ELIGIBLE = PAPER_LINEAGE + SPIGOT_LINEAGE
+
+    /** True when [serverType] can take a backend-side forwarding patch. */
+    fun isEligible(serverType: ServerType): Boolean = serverType in ELIGIBLE
 
     fun classify(serverType: ServerType, mode: String): Classification {
         if (serverType !in ELIGIBLE) {

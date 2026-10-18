@@ -37,7 +37,7 @@ data class ServerProvisionSpec(
     val description: String? = null,
     val nodeId: String,
     val networkId: String? = null,
-    val serverType: String,
+    val serverType: ServerType,
     val mcVersion: String,
     val itzgImageTag: String,
     val memoryMb: Int,
@@ -123,8 +123,7 @@ class ServerProvisioning(
         if (spec.cpuLimitMillicores < 0) throw UnprocessableException("cpu_limit_millicores must be non-negative")
         val expiryLocal = parseExpiresAt(spec.expiresAt)
 
-        val st = runCatching { ServerType.valueOf(spec.serverType) }.getOrNull()
-            ?: throw UnprocessableException("Invalid server_type: ${spec.serverType}")
+        val st = spec.serverType
         val proto = runCatching { validateContainerProtocol(spec.containerProtocol ?: "TCP") }.getOrNull()
             ?: throw UnprocessableException("Invalid container_protocol: ${spec.containerProtocol ?: "TCP"}")
         if (st.isCustom && spec.customServerJar.isNullOrBlank()) {
@@ -200,7 +199,7 @@ class ServerProvisioning(
             description = description ?: source.description,
             nodeId = nodeId ?: source.nodeId.toString(),
             networkId = if (networkId == null) source.networkId?.toString() else networkId.ifBlank { null },
-            serverType = source.serverType.toDb(),
+            serverType = source.serverType,
             mcVersion = source.mcVersion,
             itzgImageTag = source.itzgImageTag,
             memoryMb = memoryMb ?: source.memoryMb,
@@ -259,7 +258,7 @@ class ServerProvisioning(
         val port = portAllocator.allocate(nodeKotlinId)
 
         val platformName = settingsProvider.current().appName
-        val serverTypeDisplay = spec.serverType.lowercase()
+        val serverTypeDisplay = spec.serverType.name.lowercase()
             .replaceFirstChar { it.uppercase() }
 
         return transaction {

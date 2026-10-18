@@ -173,7 +173,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                     CreateServerRequest(
                         name = "perm-move-srv-${System.currentTimeMillis()}",
                         nodeId = nodeId,
-                        serverType = "PAPER",
+                        serverType = ServerType.PAPER,
                         mcVersion = "1.21.4",
                         itzgImageTag = "latest",
                         memoryMb = 256,

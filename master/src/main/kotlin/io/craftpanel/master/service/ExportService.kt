@@ -66,7 +66,7 @@ class ExportService(
             name = row.name,
             displayName = row.displayName,
             description = row.description,
-            serverType = row.serverType.toDb(),
+            serverType = row.serverType,
             mcVersion = row.mcVersion,
             itzgImageTag = row.itzgImageTag,
             memoryMb = row.memoryMb,

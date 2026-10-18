@@ -3,6 +3,7 @@ package io.craftpanel.master.routes.dto
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.domain.synthesizeStatus
 import io.craftpanel.master.service.ServerHostnames
 import io.craftpanel.master.service.repo.ServerView
@@ -15,7 +16,7 @@ data class ServerResponse(
     val name: String,
     @SerialName("display_name") val displayName: String,
     val description: String?,
-    @SerialName("server_type") val serverType: String,
+    @SerialName("server_type") val serverType: ServerType,
     @SerialName("mc_version") val mcVersion: String,
     @SerialName("itzg_image_tag") val itzgImageTag: String,
     val status: ServerStatus,
@@ -55,7 +56,7 @@ data class CreateServerRequest(
     val description: String? = null,
     @SerialName("node_id") val nodeId: String,
     @SerialName("network_id") val networkId: String? = null,
-    @SerialName("server_type") val serverType: String,
+    @SerialName("server_type") val serverType: ServerType,
     @SerialName("mc_version") val mcVersion: String = "LATEST",
     @SerialName("itzg_image_tag") val itzgImageTag: String = "latest",
     @SerialName("memory_mb") val memoryMb: Int,
@@ -87,6 +88,7 @@ data class UpdateServerRequest(
     @SerialName("display_name") val displayName: String? = null,
     val description: String? = null,
     @SerialName("network_id") val networkId: String? = null,
+    @SerialName("server_type") val serverType: ServerType? = null,
     @SerialName("mc_version") val mcVersion: String? = null,
     @SerialName("itzg_image_tag") val itzgImageTag: String? = null,
     @SerialName("custom_server_jar") val customServerJar: String? = null,
@@ -130,7 +132,7 @@ internal fun ServerView.toResponse(serverHostnames: ServerHostnames, isMigrating
         name = name,
         displayName = displayName,
         description = description,
-        serverType = serverType.toDb(),
+        serverType = serverType,
         mcVersion = mcVersion,
         itzgImageTag = itzgImageTag,
         status = synthesizeStatus(

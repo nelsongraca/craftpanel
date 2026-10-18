@@ -155,6 +155,7 @@ fun Route.serversRoutes(
                 }
                 response {
                     code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
@@ -180,7 +181,8 @@ fun Route.serversRoutes(
                     containerProtocol = body.containerProtocol,
                     disableHealthcheck = body.disableHealthcheck,
                     forceRedownload = body.forceRedownload,
-                    jvmMetricsEnabled = body.jvmMetricsEnabled
+                    jvmMetricsEnabled = body.jvmMetricsEnabled,
+                    serverType = body.serverType
                 )
                 call.respond(HttpStatusCode.NoContent)
             }

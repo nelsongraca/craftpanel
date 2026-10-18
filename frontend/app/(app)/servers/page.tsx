@@ -32,6 +32,9 @@ const FILTER_OPTIONS = [
     {label: "Stopped", value: "STOPPED"},
 ];
 
+/** Sentinel for the network filter: servers with no network assigned. */
+const NO_NETWORK = "__none__";
+
 export default function ServersPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -105,7 +108,11 @@ export default function ServersPage() {
             const allowed = FILTER_MATCHES[filterStatus] ?? [];
             if (!allowed.includes(s.status)) return false;
         }
-        if (filterNetwork && s.network_id !== filterNetwork) return false;
+        if (filterNetwork === NO_NETWORK) {
+            if (s.network_id) return false;
+        } else if (filterNetwork && s.network_id !== filterNetwork) {
+            return false;
+        }
         if (filterNode && s.node_id !== filterNode) return false;
         if (filterType && s.server_type !== filterType) return false;
         return true;
@@ -187,7 +194,7 @@ export default function ServersPage() {
                             </option>
                         ))}
                     </SelectField>
-                    {networks.length > 0 && (
+                    {(networks.length > 0 || servers.some((s) => !s.network_id)) && (
                         <SelectField
                             surface="surface-higher"
                             fieldSize="sm"
@@ -196,6 +203,7 @@ export default function ServersPage() {
                             onChange={(e) => setFilterNetwork(e.target.value)}
                         >
                             <option value="">All Networks</option>
+                            <option value={NO_NETWORK}>No Network</option>
                             {networks.map((n) => (
                                 <option key={n.id} value={n.id}>
                                     {n.name}

@@ -7,9 +7,12 @@ import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.domain.synthesizeStatus
+import io.craftpanel.master.service.repo.ModRepository
 import io.craftpanel.master.service.repo.NetworkRepository
 import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.ProxyBackendRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerView
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
@@ -26,7 +29,9 @@ class ServerService(
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
     private val settingsProvider: SettingsProvider,
-    private val specSync: ServerSpecSync
+    private val specSync: ServerSpecSync,
+    private val modRepository: ModRepository,
+    private val proxyBackendRepository: ProxyBackendRepository
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -45,15 +50,24 @@ class ServerService(
         containerProtocol: String? = null,
         disableHealthcheck: Boolean? = null,
         forceRedownload: Boolean? = null,
-        jvmMetricsEnabled: Boolean? = null
+        jvmMetricsEnabled: Boolean? = null,
+        serverType: ServerType? = null
     ) {
         val newNetworkId: Uuid? = networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        val serverType = serverRow.serverType
-        if (serverType.isCustom && customServerJar != null && customServerJar.isBlank()) {
-            throw UnprocessableException("custom_server_jar cannot be empty for CUSTOM server type")
+        val currentType = serverRow.serverType
+        val targetType = serverType ?: currentType
+        val changingType = targetType != currentType
+        if (changingType) requireTypeChangeAllowed(id, currentType, targetType, serverRow)
+
+        val effectiveJar = customServerJar ?: serverRow.customServerJar
+        if (targetType.isCustom && effectiveJar.isNullOrBlank()) {
+            throw UnprocessableException("custom_server_jar is required for CUSTOM server type")
+        }
+        if (targetType.isPicolimbo && !effectiveJar.isNullOrBlank()) {
+            throw UnprocessableException("custom_server_jar is not supported for PICOLIMBO server type")
         }
         if (containerPortProvidedOrInvalid(containerListenPort)) {
             throw UnprocessableException("container_listen_port must be between 1 and 65535")
@@ -79,15 +93,58 @@ class ServerService(
                 val cleanDesc = description?.ifEmpty { null }
                 if (cleanDesc != null) e.description = cleanDesc
                 if (newNetworkId != null) e.networkId = EntityID(newNetworkId, ServerNetworks)
+
+                if (changingType) {
+                    // Reset type-exclusive fields to the new type's defaults; explicit request
+                    // overrides below win.
+                    e.serverType = targetType.toDb()
+                    if (!targetType.isCustom) e.customServerJar = null
+                    if (containerListenPort == null) e.containerListenPort = null
+                    e.configMode = if (targetType.isCustom || targetType.isPicolimbo) "MANUAL" else "MANAGED"
+                    e.stopCommand = if (targetType.isProxy) "end" else "stop"
+                    e.jvmMetricsEnabled = !targetType.isPicolimbo
+                    if (currentType.isProxy && !targetType.isProxy) {
+                        e.proxyMotd = null
+                        e.proxyMaxPlayers = null
+                        e.proxyForwardingMode = null
+                        e.proxyProtocol = false
+                        e.forwardingSecretEnc = null
+                    }
+                    if (!BackendForwarding.isEligible(targetType)) e.forwardingPatchFile = null
+                }
+
                 if (mcVersion != null) e.mcVersion = mcVersion
                 if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
-                if (customServerJar != null) e.customServerJar = customServerJar
+                if (customServerJar != null) e.customServerJar = customServerJar.ifBlank { null }
                 if (containerListenPort != null) e.containerListenPort = containerListenPort
                 if (containerProtocol != null) e.containerProtocol = validateContainerProtocol(containerProtocol)
                 if (disableHealthcheck != null) e.disableHealthcheck = disableHealthcheck
                 if (forceRedownload != null) e.forceRedownload = forceRedownload
                 if (jvmMetricsEnabled != null) e.jvmMetricsEnabled = jvmMetricsEnabled
             }
+        }
+    }
+
+    /**
+     * Guardrails for changing a server's type: the server must be settled (stopped), the new type
+     * must not orphan proxy/backend wiring, and it must not invalidate installed mods/plugins.
+     */
+    private fun requireTypeChangeAllowed(id: Uuid, currentType: ServerType, targetType: ServerType, serverRow: ServerView) {
+        val displayed = synthesizeStatus(DesiredStatus.fromDb(serverRow.desiredStatus), ServerStatus.fromDb(serverRow.status))
+        if (displayed != ServerStatus.STOPPED && displayed != ServerStatus.CRASH_LOOPED) {
+            throw ConflictException("Server must be STOPPED before changing its type")
+        }
+
+        if (currentType.isProxy && !targetType.isProxy && proxyBackendRepository.listProxyBackends(id).isNotEmpty()) {
+            throw ConflictException("Remove the proxy's backends before changing it to a non-proxy type")
+        }
+        if (proxyBackendRepository.findProxyServersForBackend(id).isNotEmpty() && !BackendForwarding.isEligible(targetType)) {
+            throw ConflictException("Server is a backend of a proxy; the new type does not support forwarding")
+        }
+        if (currentType.artifactKind != targetType.artifactKind && modRepository.listMods(id).any { it.enabled }) {
+            throw ConflictException(
+                "Remove the server's mods/plugins before changing from $currentType to $targetType"
+            )
         }
     }
 

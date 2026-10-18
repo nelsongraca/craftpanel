@@ -2,6 +2,7 @@ package craftpanel.systemtest.proxy
 
 import craftpanel.systemtest.client.model.CreateServerRequest
 import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.ServerType
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
@@ -22,7 +23,7 @@ class ProxyLifecycleTest : BaseSystemTest() {
                 CreateServerRequest(
                     name = "test-proxy-${System.currentTimeMillis()}",
                     nodeId = nodeId,
-                    serverType = "VELOCITY",
+                    serverType = ServerType.VELOCITY,
                     mcVersion = "latest",
                     itzgImageTag = "latest",
                     memoryMb = 256,
