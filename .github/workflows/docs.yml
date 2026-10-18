@@ -25,12 +25,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - uses: ./.github/actions/setup-gradle
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -38,9 +38,12 @@ jobs:
         run: ./gradlew mkdocsBuild
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: docs/build/mkdocs
+          # v4+ dropped dotfiles by default (they were included in v3). Nothing in the
+          # MkDocs output needs them, but keep the pre-v4 behaviour explicitly.
+          include-hidden-files: true
 
   deploy:
     needs: build
@@ -51,4 +54,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

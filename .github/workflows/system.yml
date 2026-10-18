@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -47,7 +47,7 @@ jobs:
             -o /tmp/craftpanel-images.tar
 
       - name: Upload image artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: craftpanel-docker-images
           path: /tmp/craftpanel-images.tar
@@ -63,7 +63,7 @@ jobs:
       matrix:
         tag: [ServerCoreLifecycle, ServerCoreRuntime, ServerOps, ServerMigration, ServerMigrationTarget, Node, Auth, BackupAlerts, Misc]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Fan-out consumer: restore caches, never write (the shards must not each save a partial
       # Gradle User Home / dependency cache).
@@ -72,7 +72,7 @@ jobs:
           cache-read-only: true
 
       - name: Download image artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: craftpanel-docker-images
           path: /tmp
@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload test reports
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: system-test-reports-${{ matrix.tag }}
           path: system-tests/build/reports/tests/test/
@@ -95,7 +95,7 @@ jobs:
       # so shard balance can be tuned from real timings.
       - name: Upload JUnit XML
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: system-test-junit-${{ matrix.tag }}
           path: system-tests/build/test-results/test/
@@ -111,7 +111,7 @@ jobs:
           report_type: test_results
 
       - name: Upload raw coverage .ic files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: system-tests-coverage-${{ matrix.tag }}
           path: system-tests/build/tmp/kover-coverage/
@@ -123,14 +123,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: ./.github/actions/setup-gradle
         with:
           cache-read-only: true
 
       - name: Download all shard coverage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: system-tests-coverage-*
           path: system-tests/build/tmp/kover-coverage
@@ -156,19 +156,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: ./.github/actions/setup-gradle
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.local/share/pnpm/store
           key: ${{ runner.os }}-pnpm-global-${{ hashFiles('frontend/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-global-
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/pnpm-lock.yaml') }}
@@ -185,7 +185,7 @@ jobs:
 
       - name: Upload test reports
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-reports
           path: frontend/build/reports/playwright/

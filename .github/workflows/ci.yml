@@ -22,7 +22,7 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: ./.github/actions/setup-gradle
 
@@ -43,7 +43,7 @@ jobs:
     name: Frontend Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Full history so the Prettier ratchet can diff against origin/master.
           fetch-depth: 0
@@ -51,7 +51,7 @@ jobs:
       - uses: ./.github/actions/setup-gradle
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.local/share/pnpm/store
           key: ${{ runner.os }}-pnpm-global-${{ hashFiles('frontend/pnpm-lock.yaml') }}
