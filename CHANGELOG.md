@@ -1,3 +1,17 @@
+## [1.2.0] - 2026-10-18
+
+### Features
+
+- allow changing a server's type (1f44b307ee5e00f)
+
+### Bug Fixes
+
+- cache pnpm store at its default global location (e132d062dae32e4)
+
+### Documentation
+
+- note releases and hotfixes are cut from latest master (f3f873cdd96a6fb)
+
 ## [1.1.1] - 2026-10-07
 
 ### Features
