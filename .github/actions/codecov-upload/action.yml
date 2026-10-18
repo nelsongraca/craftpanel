@@ -21,7 +21,7 @@ runs:
   steps:
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v6
       with:
         token: ${{ inputs.token }}
         files: ${{ inputs.test-results }}
@@ -30,7 +30,7 @@ runs:
 
     - name: Upload coverage to Codecov
       if: ${{ inputs.coverage-files != '' }}
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v6
       with:
         token: ${{ inputs.token }}
         files: ${{ inputs.coverage-files }}
