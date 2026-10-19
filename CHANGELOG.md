@@ -1,3 +1,21 @@
+## [1.3.0] - 2026-10-19
+
+### Features
+
+- per-path syntax highlighting overrides (d5792b9823c260d)
+- add light/system theme with theme-following chrome (dea77c883a56c78)
+
+### Bug Fixes
+
+- compile only JVM sources in the CodeQL java-kotlin job (059ce50101048b7)
+- stop CodeQL building the Playwright suite it cannot run (9794a6fd7464e78)
+- bump codecov-action to v6 to drop nested node20 github-script (9de436c27fba10b)
+- run all workflow actions on Node 24 runtimes (d9388c9a6099242)
+
+### Documentation
+
+- consolidate agent instructions into AGENTS.md (d2b75161ea4e81d)
+
 ## [1.2.0] - 2026-10-18
 
 ### Features
