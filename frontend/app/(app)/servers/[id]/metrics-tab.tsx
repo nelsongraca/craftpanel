@@ -151,7 +151,7 @@ export function MetricsTab({serverId, ramLimitMb}: {serverId: string; ramLimitMb
                         className={[
                             "rounded border px-3 py-1 font-heading text-xs font-bold tracking-widest uppercase transition-colors",
                             range === r
-                                ? "border-accent bg-accent text-bg"
+                                ? "border-accent bg-accent text-on-accent"
                                 : "border-border text-text-muted hover:bg-surface-high hover:text-text-primary",
                         ].join(" ")}
                     >

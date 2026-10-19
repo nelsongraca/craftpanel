@@ -2,6 +2,14 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/*
+ * Class-style dark variant. Tailwind v4's built-in `dark` variant is
+ * `@media (prefers-color-scheme: dark)`, which silently tracked the OS instead of the app's
+ * own choice. We drive it from `[data-theme]` on <html> so a manual light/dark pick wins over
+ * the OS and `system` mode can resolve to a concrete value at runtime.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme inline {
     --color-background: var(--bg);
     --color-foreground: var(--text-primary);
@@ -52,26 +60,39 @@
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
 
-    /* CraftPanel tokens — these win, defined directly here */
-    --color-bg: #0e0d0c;
-    --color-surface: #1c1917;
-    --color-surface-high: #27241f;
-    --color-surface-higher: #312d27;
-    --color-border: #2e2a24;
-    --color-border-high: #3d3830;
-    --color-accent: #d97706;
-    --color-accent-bright: #f59e0b;
-    --color-text-primary: #f5f0e8;
-    --color-text-dim: #a89880;
-    --color-text-muted: #665e52;
-    --color-healthy: #4ade80;
-    --color-error: #f87171;
-    --color-warning: #fbbf24;
+    /*
+     * CraftPanel tokens. These MUST be `var(--…)` references, never literals: `@theme inline`
+     * bakes the value into the generated utility, so a literal here would freeze the colour and
+     * make the `[data-theme="light"]` overrides below dead code.
+     */
+    --color-bg: var(--bg);
+    --color-surface: var(--surface);
+    --color-surface-high: var(--surface-high);
+    --color-surface-higher: var(--surface-higher);
+    --color-border: var(--border);
+    --color-border-high: var(--border-high);
+    --color-accent: var(--accent);
+    --color-accent-bright: var(--accent-bright);
+    --color-on-accent: var(--on-accent);
+    --color-text-primary: var(--text-primary);
+    --color-text-dim: var(--text-dim);
+    --color-text-muted: var(--text-muted);
+    --color-healthy: var(--healthy);
+    --color-error: var(--error);
+    --color-warning: var(--warning);
 }
 
+/*
+ * Dark is the default palette, so the mode-agnostic values (--header-h, --radius) live here and
+ * do not need repeating per theme. `[data-theme="light"]` below overrides only the colours.
+ */
 :root {
     /* Header height including the standalone-PWA top safe-area inset (0px in a browser). */
     --header-h: calc(48px + env(safe-area-inset-top));
+
+    /* Drives native chrome: scrollbars, <select> popups, autofill, form controls. */
+    color-scheme: dark;
+
     /* CraftPanel raw tokens (used by @theme inline above and directly in CSS) */
     --bg: #0e0d0c;
     --surface: #1c1917;
@@ -82,6 +103,8 @@
 
     --accent: #d97706;
     --accent-bright: #f59e0b;
+    /* Text/icon colour placed on top of an --accent fill. */
+    --on-accent: #0e0d0c;
     --accent-subtle: rgba(217, 119, 6, 0.07);
     --accent-glow: rgba(217, 119, 6, 0.3);
     --terminal-selection: rgba(217, 119, 6, 0.3);
@@ -138,6 +161,79 @@
     --sidebar-accent-foreground: #f5f0e8;
     --sidebar-border: #2e2a24;
     --sidebar-ring: #d97706;
+}
+
+/*
+ * Light palette. Warm stone surfaces to keep the amber identity. Status hues are darkened
+ * relative to their dark-mode counterparts so text clears 4.5:1 against the light surfaces, and
+ * --accent drops to amber-700 (#d97706 on white is only ~3.1:1). Every token the shadcn light
+ * branches consume is set here — a partial palette breaks dialogs, tabs and form controls.
+ */
+[data-theme="light"] {
+    color-scheme: light;
+
+    --bg: #faf8f5;
+    --surface: #ffffff;
+    --surface-high: #f4f1ec;
+    --surface-higher: #ebe6de;
+    --border: #e3ddd3;
+    --border-high: #cfc7b9;
+
+    --accent: #b45309;
+    --accent-bright: #d97706;
+    --on-accent: #ffffff;
+    --accent-subtle: rgba(180, 83, 9, 0.08);
+    --accent-glow: rgba(180, 83, 9, 0.22);
+    --terminal-selection: rgba(180, 83, 9, 0.25);
+
+    --text-primary: #1c1917;
+    --text-dim: #57534e;
+    --text-dim-bg: rgba(87, 83, 78, 0.07);
+    --text-muted: #8a8175;
+
+    --healthy: #15803d;
+    --healthy-bg: rgba(21, 128, 61, 0.08);
+    --healthy-border: rgba(21, 128, 61, 0.22);
+
+    --error: #dc2626;
+    --error-bg: rgba(220, 38, 38, 0.07);
+    --error-border: rgba(220, 38, 38, 0.2);
+
+    --warning: #a16207;
+    --warning-bg: rgba(161, 98, 7, 0.08);
+    --warning-border: rgba(161, 98, 7, 0.22);
+
+    --background: #faf8f5;
+    --foreground: #1c1917;
+    --card: #ffffff;
+    --card-foreground: #1c1917;
+    --popover: #ffffff;
+    --popover-foreground: #1c1917;
+    --primary: #b45309;
+    --primary-foreground: #ffffff;
+    --secondary: #f4f1ec;
+    --secondary-foreground: #1c1917;
+    --muted: #f4f1ec;
+    --muted-foreground: #57534e;
+    --accent-foreground: #1c1917;
+    --destructive: #dc2626;
+    --input: #e3ddd3;
+    --ring: #b45309;
+
+    --chart-1: #b45309;
+    --chart-2: #15803d;
+    --chart-3: #dc2626;
+    --chart-4: #a16207;
+    --chart-5: #57534e;
+
+    --sidebar: #ffffff;
+    --sidebar-foreground: #1c1917;
+    --sidebar-primary: #b45309;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f4f1ec;
+    --sidebar-accent-foreground: #1c1917;
+    --sidebar-border: #e3ddd3;
+    --sidebar-ring: #b45309;
 }
 
 @layer base {

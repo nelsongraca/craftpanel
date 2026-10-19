@@ -3,7 +3,9 @@
 import {useMemo, useRef, useEffect, useCallback} from "react";
 import CodeMirror, {EditorView, keymap} from "@uiw/react-codemirror";
 import {darculaInit} from "@uiw/codemirror-theme-darcula";
+import {githubLightInit} from "@uiw/codemirror-theme-github";
 import {languageIdFromPath, languageExtension} from "@/lib/file-language";
+import {useResolvedTheme} from "@/lib/hooks/useTheme";
 
 interface Props {
     value: string;
@@ -13,15 +15,20 @@ interface Props {
     wrap?: boolean;
 }
 
-const darculaTheme = darculaInit({
-    settings: {
-        fontFamily: "var(--font-mono)",
-        fontSize: "13px",
-        gutterBackground: "var(--surface)",
-        gutterForeground: "var(--text-dim)",
-        gutterActiveForeground: "var(--text-primary)",
-    },
-});
+/**
+ * Gutter colours resolve through the CraftPanel tokens so the editor chrome tracks the palette;
+ * each theme keeps its own syntax colours.
+ */
+const EDITOR_CHROME = {
+    fontFamily: "var(--font-mono)",
+    fontSize: "13px",
+    gutterBackground: "var(--surface)",
+    gutterForeground: "var(--text-dim)",
+    gutterActiveForeground: "var(--text-primary)",
+};
+
+const darculaTheme = darculaInit({settings: EDITOR_CHROME});
+const githubLightTheme = githubLightInit({settings: EDITOR_CHROME});
 
 const editorChrome = EditorView.theme({
     ".cm-gutters": {
@@ -52,6 +59,7 @@ export function FileCodeEditor({value, onChange, onSave, path, wrap = false}: Pr
 
     const langId = languageIdFromPath(path);
     const langExts = useMemo(() => languageExtension(langId), [langId]);
+    const editorTheme = useResolvedTheme() === "light" ? githubLightTheme : darculaTheme;
 
     const saveKeymap = useMemo(
         () =>
@@ -82,7 +90,7 @@ export function FileCodeEditor({value, onChange, onSave, path, wrap = false}: Pr
                 className="h-full"
                 value={value}
                 onChange={handleChange}
-                theme={darculaTheme}
+                theme={editorTheme}
                 extensions={extensions}
                 height="100%"
                 indentWithTab={false}

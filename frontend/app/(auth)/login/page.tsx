@@ -72,7 +72,7 @@ export default function LoginPage() {
     }
 
     function toggleRecovery() {
-        setChallenge((c) => c ? {...c, recovery: !c.recovery} : c);
+        setChallenge((c) => (c ? {...c, recovery: !c.recovery} : c));
         setCode("");
         setError("");
     }
@@ -87,19 +87,25 @@ export default function LoginPage() {
 
     if (challenge) {
         return (
-            <div className="flex-1 flex items-center justify-center">
-                <div className="w-full max-w-sm bg-surface border border-border rounded-lg p-8">
-                    <div className="text-center mb-8">
-                        <div className="flex items-center justify-center gap-3 mb-2">
-                            <Image src={logoUrl(branding)} alt={`${branding?.appName ?? "CraftPanel"} logo`} width={36} height={36} unoptimized/>
-                            <h1 className="text-2xl font-bold font-heading tracking-wide text-accent">
+            <div className="flex flex-1 items-center justify-center">
+                <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-8">
+                    <div className="mb-8 text-center">
+                        <div className="mb-2 flex items-center justify-center gap-3">
+                            <Image
+                                src={logoUrl(branding)}
+                                alt={`${branding?.appName ?? "CraftPanel"} logo`}
+                                width={36}
+                                height={36}
+                                unoptimized
+                            />
+                            <h1 className="font-heading text-2xl font-bold tracking-wide text-accent">
                                 {branding?.appName ?? "CraftPanel"}
                             </h1>
                         </div>
-                        <h2 className="text-sm font-heading font-bold uppercase tracking-widest text-text-primary pt-2">
+                        <h2 className="pt-2 font-heading text-sm font-bold tracking-widest text-text-primary uppercase">
                             Two-factor authentication
                         </h2>
-                        <p className="text-text-muted text-xs mt-1.5">
+                        <p className="mt-1.5 text-xs text-text-muted">
                             {challenge.recovery
                                 ? "Enter one of your backup codes. Each code can only be used once."
                                 : "Enter the 6-digit code from your authenticator app."}
@@ -108,7 +114,7 @@ export default function LoginPage() {
 
                     <form onSubmit={handleChallenge} className="space-y-4">
                         <div>
-                            <label className="block text-xs font-medium text-text-dim mb-1.5">
+                            <label className="mb-1.5 block text-xs font-medium text-text-dim">
                                 {challenge.recovery ? "Recovery code" : "Verification code"}
                             </label>
                             <TextField
@@ -121,20 +127,18 @@ export default function LoginPage() {
                                 placeholder={challenge.recovery ? "XXXX-XXXX" : "123456"}
                                 autoComplete="one-time-code"
                                 autoFocus
-                                className="font-mono tracking-[0.3em] text-center"
+                                className="text-center font-mono tracking-[0.3em]"
                             />
                         </div>
 
-                        {error && (
-                            <p className="text-error text-xs py-1">{error}</p>
-                        )}
+                        {error && <p className="py-1 text-xs text-error">{error}</p>}
 
-                        <label className="flex items-center gap-2 text-text-dim text-xs cursor-pointer">
+                        <label className="flex cursor-pointer items-center gap-2 text-xs text-text-dim">
                             <input
                                 type="checkbox"
                                 checked={trustDevice}
                                 onChange={(e) => setTrustDevice(e.target.checked)}
-                                className="accent-accent w-3.5 h-3.5 rounded border-border bg-surface-high"
+                                className="h-3.5 w-3.5 rounded border-border bg-surface-high accent-accent"
                             />
                             Trust this device for 30 days
                         </label>
@@ -142,18 +146,30 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={submitting || code.trim().length === 0}
-                            className="w-full bg-accent hover:bg-accent-bright text-bg font-semibold text-sm py-2 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                            className="mt-2 w-full rounded bg-accent py-2 text-sm font-semibold text-on-accent transition-colors hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {submitting
-                                ? challenge.recovery ? "Verifying…" : "Verifying…"
-                                : challenge.recovery ? "Use recovery code" : "Verify"}
+                                ? challenge.recovery
+                                    ? "Verifying…"
+                                    : "Verifying…"
+                                : challenge.recovery
+                                  ? "Use recovery code"
+                                  : "Verify"}
                         </button>
 
-                        <div className="flex items-center justify-between text-xs pt-1">
-                            <button type="button" onClick={toggleRecovery} className="text-text-dim hover:text-text-primary transition-colors">
+                        <div className="flex items-center justify-between pt-1 text-xs">
+                            <button
+                                type="button"
+                                onClick={toggleRecovery}
+                                className="text-text-dim transition-colors hover:text-text-primary"
+                            >
                                 {challenge.recovery ? "Use authenticator code" : "Use a recovery code"}
                             </button>
-                            <button type="button" onClick={backToCredentials} className="text-text-dim hover:text-text-primary transition-colors">
+                            <button
+                                type="button"
+                                onClick={backToCredentials}
+                                className="text-text-dim transition-colors hover:text-text-primary"
+                            >
                                 Back
                             </button>
                         </div>
@@ -164,23 +180,27 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="flex-1 flex items-center justify-center">
-            <div className="w-full max-w-sm bg-surface border border-border rounded-lg p-8">
-                <div className="text-center mb-8">
-                    <div className="flex items-center justify-center gap-3 mb-2">
-                        <Image src={logoUrl(branding)} alt={`${branding?.appName ?? "CraftPanel"} logo`} width={36} height={36} unoptimized/>
-                        <h1 className="text-2xl font-bold font-heading tracking-wide text-accent">
+        <div className="flex flex-1 items-center justify-center">
+            <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-8">
+                <div className="mb-8 text-center">
+                    <div className="mb-2 flex items-center justify-center gap-3">
+                        <Image
+                            src={logoUrl(branding)}
+                            alt={`${branding?.appName ?? "CraftPanel"} logo`}
+                            width={36}
+                            height={36}
+                            unoptimized
+                        />
+                        <h1 className="font-heading text-2xl font-bold tracking-wide text-accent">
                             {branding?.appName ?? "CraftPanel"}
                         </h1>
                     </div>
-                    <p className="text-text-muted text-xs mt-2">Sign in to your account</p>
+                    <p className="mt-2 text-xs text-text-muted">Sign in to your account</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-medium text-text-dim mb-1.5">
-                            Email
-                        </label>
+                        <label className="mb-1.5 block text-xs font-medium text-text-dim">Email</label>
                         <TextField
                             type="email"
                             value={email}
@@ -195,9 +215,7 @@ export default function LoginPage() {
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-text-dim mb-1.5">
-                            Password
-                        </label>
+                        <label className="mb-1.5 block text-xs font-medium text-text-dim">Password</label>
                         <TextField
                             type="password"
                             value={password}
@@ -210,14 +228,12 @@ export default function LoginPage() {
                         />
                     </div>
 
-                    {error && (
-                        <p className="text-error text-xs py-1">{error}</p>
-                    )}
+                    {error && <p className="py-1 text-xs text-error">{error}</p>}
 
                     <button
                         type="submit"
                         disabled={submitting}
-                        className="w-full bg-accent hover:bg-accent-bright text-bg font-semibold text-sm py-2 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+                        className="mt-2 w-full rounded bg-accent py-2 text-sm font-semibold text-on-accent transition-colors hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {submitting ? "Signing in…" : "Sign in"}
                     </button>

@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {fetchBrandingConfig, getBrandingSnapshot, logoUrl, subscribeBranding} from "@/lib/config";
 import {useHealth} from "@/lib/hooks/useHealth";
+import {ThemeMenuItems} from "@/app/components/ThemeControl";
 
 interface SidebarItem {
     label: string;
@@ -147,6 +148,9 @@ export default function Shell({children}: {children: React.ReactNode}) {
                                     <LogOut size={13} strokeWidth={2} />
                                     Sign out
                                 </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                            <DropdownMenuGroup>
+                                <ThemeMenuItems />
                             </DropdownMenuGroup>
                         </DropdownMenuContent>
                     </DropdownMenu>

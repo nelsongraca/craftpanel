@@ -210,7 +210,7 @@ export function BackupsTab({serverId}: {serverId: string}) {
                             <button
                                 onClick={handleSaveSchedule}
                                 disabled={savingSchedule}
-                                className="rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
+                                className="rounded bg-accent px-3 py-1.5 text-xs text-on-accent transition-colors hover:bg-accent-bright disabled:opacity-50"
                             >
                                 {savingSchedule ? "Saving…" : "Save"}
                             </button>
@@ -244,7 +244,7 @@ export function BackupsTab({serverId}: {serverId: string}) {
                     <button
                         onClick={handleTrigger}
                         disabled={triggering}
-                        className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-on-accent transition-colors hover:bg-accent-bright disabled:opacity-50"
                     >
                         <Play className="h-3 w-3" />
                         {triggering ? "Triggering…" : "Trigger Backup"}

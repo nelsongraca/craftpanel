@@ -277,7 +277,7 @@ export function PortsTab({
                             <button
                                 onClick={() => void handleSavePrimary()}
                                 disabled={savingPrimary}
-                                className="rounded bg-accent px-4 py-1.5 font-heading text-xs font-bold tracking-wider text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
+                                className="rounded bg-accent px-4 py-1.5 font-heading text-xs font-bold tracking-wider text-on-accent uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
                             >
                                 {savingPrimary ? "Saving..." : "Save"}
                             </button>
@@ -299,7 +299,7 @@ export function PortsTab({
                     </div>
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="flex shrink-0 items-center gap-1.5 self-start rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-wider text-bg uppercase transition-colors hover:bg-accent-bright sm:self-auto"
+                        className="flex shrink-0 items-center gap-1.5 self-start rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-wider text-on-accent uppercase transition-colors hover:bg-accent-bright sm:self-auto"
                     >
                         <Plus size={14} strokeWidth={2.5} />
                         Add Extra Port
@@ -429,7 +429,7 @@ export function PortsTab({
                                 <button
                                     type="submit"
                                     disabled={submitting}
-                                    className="rounded bg-accent px-4 py-1.5 font-heading text-xs font-bold tracking-wider text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
+                                    className="rounded bg-accent px-4 py-1.5 font-heading text-xs font-bold tracking-wider text-on-accent uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
                                 >
                                     {submitting ? "Adding..." : "Add Port"}
                                 </button>

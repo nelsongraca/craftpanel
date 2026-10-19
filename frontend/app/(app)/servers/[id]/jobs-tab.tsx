@@ -2,12 +2,7 @@
 
 import {useCallback, useEffect, useMemo, useState} from "react";
 import {CalendarClock, Pencil, Plus, RefreshCw, Trash2} from "lucide-react";
-import {
-    createScheduledJob,
-    deleteScheduledJob,
-    listScheduledJobs,
-    updateScheduledJob,
-} from "@/lib/generated/sdk.gen";
+import {createScheduledJob, deleteScheduledJob, listScheduledJobs, updateScheduledJob} from "@/lib/generated/sdk.gen";
 import type {ScheduledJobResponse as Job, ScheduledJobType} from "@/lib/generated/types.gen";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {BTN_GHOST, BTN_PRIMARY, Field, SelectField, TextField} from "@/components/ui/form-elements";
@@ -76,7 +71,13 @@ export function JobsTab({serverId, permissions}: {serverId: string; permissions:
     }
 
     function openEdit(job: Job) {
-        setForm({id: job.id, type: job.type, cron: job.cron_expression, payload: job.payload ?? "", enabled: job.enabled});
+        setForm({
+            id: job.id,
+            type: job.type,
+            cron: job.cron_expression,
+            payload: job.payload ?? "",
+            enabled: job.enabled,
+        });
         setError(null);
         setDialogOpen(true);
     }
@@ -86,13 +87,18 @@ export function JobsTab({serverId, permissions}: {serverId: string; permissions:
         setError(null);
         const res = form.id
             ? await updateScheduledJob({
-                path: {id: serverId, jobId: form.id},
-                body: {cron_expression: form.cron, payload: form.payload || null, enabled: form.enabled},
-            })
+                  path: {id: serverId, jobId: form.id},
+                  body: {cron_expression: form.cron, payload: form.payload || null, enabled: form.enabled},
+              })
             : await createScheduledJob({
-                path: {id: serverId},
-                body: {type: form.type, cron_expression: form.cron, payload: form.payload || null, enabled: form.enabled},
-            });
+                  path: {id: serverId},
+                  body: {
+                      type: form.type,
+                      cron_expression: form.cron,
+                      payload: form.payload || null,
+                      enabled: form.enabled,
+                  },
+              });
         if (res.error) {
             setError((res.error as {message?: string})?.message ?? "Failed to save job");
         } else {
@@ -142,8 +148,12 @@ export function JobsTab({serverId, permissions}: {serverId: string; permissions:
                         <button
                             onClick={openCreate}
                             disabled={allowedTypes.length === 0}
-                            title={allowedTypes.length === 0 ? "You lack the permission for any schedulable job type" : undefined}
-                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
+                            title={
+                                allowedTypes.length === 0
+                                    ? "You lack the permission for any schedulable job type"
+                                    : undefined
+                            }
+                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-on-accent transition-colors hover:bg-accent-bright disabled:opacity-50"
                         >
                             <Plus className="h-3 w-3" />
                             Add Job
@@ -164,18 +174,26 @@ export function JobsTab({serverId, permissions}: {serverId: string; permissions:
                             className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3"
                         >
                             <div className="flex min-w-0 items-center gap-3">
-                                <CalendarClock className={`h-4 w-4 shrink-0 ${job.enabled ? "text-accent" : "text-text-muted"}`} />
+                                <CalendarClock
+                                    className={`h-4 w-4 shrink-0 ${job.enabled ? "text-accent" : "text-text-muted"}`}
+                                />
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-text-primary">{JOB_TYPE_LABELS[job.type]}</span>
+                                        <span className="text-sm font-medium text-text-primary">
+                                            {JOB_TYPE_LABELS[job.type]}
+                                        </span>
                                         {!job.enabled && <span className="text-xs text-text-muted">(disabled)</span>}
                                     </div>
-                                    <div className="truncate font-mono text-xs text-text-dim">{job.cron_expression}</div>
+                                    <div className="truncate font-mono text-xs text-text-dim">
+                                        {job.cron_expression}
+                                    </div>
                                     {job.type === "RCON_COMMAND" && job.payload && (
                                         <div className="truncate font-mono text-xs text-text-muted">{job.payload}</div>
                                     )}
                                     {job.last_fired_at && (
-                                        <div className="text-xs text-text-muted">Last fired {fmtDate(job.last_fired_at)}</div>
+                                        <div className="text-xs text-text-muted">
+                                            Last fired {fmtDate(job.last_fired_at)}
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -253,7 +271,9 @@ export function JobsTab({serverId, permissions}: {serverId: string; permissions:
                         {error && <div className="text-xs text-error">{error}</div>}
 
                         <div className="flex justify-end gap-2">
-                            <button onClick={() => setDialogOpen(false)} className={BTN_GHOST}>Cancel</button>
+                            <button onClick={() => setDialogOpen(false)} className={BTN_GHOST}>
+                                Cancel
+                            </button>
                             <button onClick={handleSave} disabled={saving} className={BTN_PRIMARY}>
                                 {saving ? "Saving…" : "Save"}
                             </button>

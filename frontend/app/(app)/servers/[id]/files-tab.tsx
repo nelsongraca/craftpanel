@@ -658,7 +658,7 @@ export function FilesTab({serverId, active = true}: Props) {
                                             <WrapText size={15} />
                                         </button>
                                         <button
-                                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-sm font-bold text-bg disabled:opacity-50"
+                                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-sm font-bold text-on-accent disabled:opacity-50"
                                             onClick={() => void saveFile()}
                                             disabled={savingFile || !dirty}
                                         >

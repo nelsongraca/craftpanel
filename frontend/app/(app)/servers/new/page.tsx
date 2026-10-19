@@ -534,7 +534,7 @@ export default function NewServerPage() {
                     <button
                         type="submit"
                         disabled={submitting || loadingData}
-                        className="rounded bg-accent px-5 py-2 font-heading text-xs font-bold tracking-widest text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
+                        className="rounded bg-accent px-5 py-2 font-heading text-xs font-bold tracking-widest text-on-accent uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
                     >
                         {submitting ? "Creating…" : cloneId ? "Clone Server" : "Create Server"}
                     </button>

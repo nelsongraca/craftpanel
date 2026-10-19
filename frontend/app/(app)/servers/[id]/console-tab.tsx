@@ -8,12 +8,28 @@ import {FULLSCREEN_PANE_CLASS, useFullscreenPane} from "@/lib/hooks/useFullscree
 import {ticketWsUrl} from "@/lib/ws-url";
 import {loadConsoleHistory, saveConsoleHistory} from "@/lib/console-history";
 import {attachXtermTouchScroll} from "@/lib/xterm-touch-scroll";
+import {useResolvedTheme} from "@/lib/hooks/useTheme";
 import {cn} from "@/lib/utils";
 import Anser from "anser";
 
 interface Props {
     serverId: string;
     serverStatus: string;
+}
+
+/**
+ * xterm can't read CSS variables itself, so the palette is snapshotted from the document.
+ * Re-read on every theme change — the variables' values differ per `[data-theme]`.
+ */
+function readTerminalTheme(): import("@xterm/xterm").ITheme {
+    const css = getComputedStyle(document.documentElement);
+    const v = (name: string) => css.getPropertyValue(name).trim();
+    return {
+        background: v("--bg"),
+        foreground: v("--text-primary"),
+        cursor: v("--accent"),
+        selectionBackground: v("--terminal-selection"),
+    };
 }
 
 function ServerLogView({serverId}: {serverId: string}) {
@@ -66,6 +82,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     const roRef = useRef<ResizeObserver | null>(null);
     const detachTouchRef = useRef<(() => void) | null>(null);
     const disposedRef = useRef(false);
+    const resolvedTheme = useResolvedTheme();
 
     const lineBufRef = useRef("");
     const historyRef = useRef<string[]>([]);
@@ -132,16 +149,8 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
             if (disposedRef.current || !containerRef.current) return;
 
-            const css = getComputedStyle(document.documentElement);
-            const v = (name: string) => css.getPropertyValue(name).trim();
-
             const term = new Terminal({
-                theme: {
-                    background: v("--bg"),
-                    foreground: v("--text-primary"),
-                    cursor: v("--accent"),
-                    selectionBackground: v("--terminal-selection"),
-                },
+                theme: readTerminalTheme(),
                 fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)",
                 fontSize: 13,
                 lineHeight: 1.4,
@@ -267,6 +276,13 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
             termRef.current = null;
         };
     }, [serverId, serverStatus, socketRef]);
+
+    // xterm snapshots its theme at construction, so a live theme switch has to be pushed into the
+    // existing instance. `resolvedTheme` is unused here beyond triggering the re-read.
+    useEffect(() => {
+        if (!termRef.current) return;
+        termRef.current.options.theme = readTerminalTheme();
+    }, [resolvedTheme]);
 
     if (serverStatus !== "HEALTHY") {
         return <ServerLogView serverId={serverId} />;

@@ -162,7 +162,7 @@ export default function ServersPage() {
                             {canCreate ? (
                                 <Link
                                     href="/servers/new"
-                                    className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-bg uppercase transition-colors hover:bg-accent-bright hover:shadow-[0_0_16px_var(--accent-glow)]"
+                                    className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-on-accent uppercase transition-colors hover:bg-accent-bright hover:shadow-[0_0_16px_var(--accent-glow)]"
                                 >
                                     <Plus size={12} strokeWidth={3} />
                                     New Server

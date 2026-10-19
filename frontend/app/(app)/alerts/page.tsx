@@ -305,7 +305,7 @@ function CreateThresholdModal({
                     <button
                         onClick={() => void submit()}
                         disabled={saving || !scopeId.trim()}
-                        className="rounded bg-accent px-4 py-1.5 font-heading text-xs font-bold tracking-wider text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
+                        className="rounded bg-accent px-4 py-1.5 font-heading text-xs font-bold tracking-wider text-on-accent uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
                     >
                         {saving ? "Creating…" : "Create"}
                     </button>

@@ -13,6 +13,23 @@ const nextConfig: NextConfig = {
         const target = process.env.DEV_API_PROXY;
         return target ? [{source: "/api/:path*", destination: `${target}/api/:path*`}] : [];
     },
+    // `/manifest.webmanifest` picks its splash and toolbar colours from the OS colour scheme, which
+    // it can only learn through the `Sec-CH-Prefers-Color-Scheme` client hint. The hint is opt-in
+    // (high entropy), so the browser sends nothing until a response asks for it — hence `Accept-CH`
+    // on every route, not just the manifest. `Vary` is scoped to the manifest so it cannot clobber
+    // the `Vary` Next sets on RSC/HTML responses.
+    async headers() {
+        return [
+            {
+                source: "/:path*",
+                headers: [{key: "Accept-CH", value: "Sec-CH-Prefers-Color-Scheme"}],
+            },
+            {
+                source: "/manifest.webmanifest",
+                headers: [{key: "Vary", value: "Sec-CH-Prefers-Color-Scheme"}],
+            },
+        ];
+    },
 };
 
 export default withSerwist(nextConfig);

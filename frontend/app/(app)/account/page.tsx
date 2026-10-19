@@ -8,9 +8,12 @@ import {authTotpDisable, authTotpStatus} from "@/lib/generated";
 import type {TotpStatus} from "@/lib/types";
 import {BTN_GHOST, BTN_PRIMARY, Field, TextField} from "@/components/ui/form-elements";
 import {TotpSetupModal} from "@/components/auth/TotpSetupModal";
+import {ThemeToggle, themeHint} from "@/app/components/ThemeControl";
+import {useThemeMode} from "@/lib/hooks/useTheme";
 
 export default function AccountPage() {
     const {user, changePassword, logoutAll} = useAuth();
+    const themeMode = useThemeMode();
     const [status, setStatus] = useState<TotpStatus | null>(null);
     const [statusError, setStatusError] = useState("");
     const [setupOpen, setSetupOpen] = useState(false);
@@ -96,6 +99,17 @@ export default function AccountPage() {
                             </p>
                             <p className="mt-1 text-sm text-text-primary">{user?.email ?? "—"}</p>
                         </div>
+                    </div>
+                </section>
+
+                {/* ── Appearance ──────────────────────────────────────────── */}
+                <section className="space-y-4 rounded-md border border-border bg-surface p-5">
+                    <h2 className="border-b border-border pb-3 font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
+                        Appearance
+                    </h2>
+                    <div className="space-y-2">
+                        <ThemeToggle />
+                        <p className="text-xs text-text-muted">{themeHint(themeMode)} Saved to this browser only.</p>
                     </div>
                 </section>
 

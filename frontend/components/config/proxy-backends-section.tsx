@@ -99,7 +99,7 @@ function AddBackendModal({
                     <button
                         onClick={() => selected && onAdd(selected, backendName.trim())}
                         disabled={!valid || !selected}
-                        className="rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
+                        className="rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-on-accent uppercase transition-colors hover:bg-accent-bright disabled:opacity-50"
                     >
                         Add
                     </button>
@@ -387,7 +387,7 @@ export function ProxyBackendsSection({
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-60"
+                                className="rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-on-accent uppercase transition-colors hover:bg-accent-bright disabled:opacity-60"
                             >
                                 {saving ? "Saving\u2026" : "Save"}
                             </button>

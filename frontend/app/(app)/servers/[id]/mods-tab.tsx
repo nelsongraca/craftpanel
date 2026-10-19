@@ -406,7 +406,7 @@ export function ModsTab({
                     )}
                     <button
                         onClick={() => setShowSearch(!showSearch)}
-                        className="flex shrink-0 items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs whitespace-nowrap text-bg transition-colors hover:bg-accent-bright"
+                        className="flex shrink-0 items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs whitespace-nowrap text-on-accent transition-colors hover:bg-accent-bright"
                     >
                         <Plus className="h-3 w-3" />
                         Add {isMod ? "Mod" : "Plugin"}
@@ -430,7 +430,7 @@ export function ModsTab({
                         <button
                             onClick={handleCompatCheck}
                             disabled={compatChecking || !compatTargetVersion.trim()}
-                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-on-accent transition-colors hover:bg-accent-bright disabled:opacity-50"
                         >
                             <Search className="h-3 w-3" />
                             {compatChecking ? "Checking…" : "Check"}
@@ -559,7 +559,7 @@ export function ModsTab({
                         <button
                             onClick={handleSearch}
                             disabled={searching}
-                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs text-on-accent transition-colors hover:bg-accent-bright disabled:opacity-50"
                         >
                             <Search className="h-3 w-3" />
                             {searching ? "Searching…" : "Search"}
@@ -670,7 +670,7 @@ export function ModsTab({
                                                     <button
                                                         onClick={confirmAdd}
                                                         disabled={addPinStrategy === "PINNED" && !addVersionId}
-                                                        className="flex-1 rounded bg-accent px-2 py-1 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
+                                                        className="flex-1 rounded bg-accent px-2 py-1 text-xs text-on-accent transition-colors hover:bg-accent-bright disabled:opacity-50"
                                                     >
                                                         Add
                                                     </button>
@@ -815,7 +815,7 @@ export function ModsTab({
                                     <button
                                         onClick={() => saveEdit(mod.id!)}
                                         disabled={savingEdit || (editStrategy === "PINNED" && !editVersionId)}
-                                        className="rounded bg-accent px-2 py-1 text-xs text-bg transition-colors hover:bg-accent-bright disabled:opacity-50"
+                                        className="rounded bg-accent px-2 py-1 text-xs text-on-accent transition-colors hover:bg-accent-bright disabled:opacity-50"
                                     >
                                         {savingEdit ? "Saving…" : "Save"}
                                     </button>

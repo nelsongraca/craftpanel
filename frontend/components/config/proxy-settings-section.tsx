@@ -179,7 +179,7 @@ export function ProxySettingsSection({serverId, serverType}: {serverId: string; 
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className="rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-bg uppercase transition-colors hover:bg-accent-bright disabled:opacity-60"
+                            className="rounded bg-accent px-3 py-1.5 font-heading text-xs font-bold tracking-widest text-on-accent uppercase transition-colors hover:bg-accent-bright disabled:opacity-60"
                         >
                             {saving ? "Saving\u2026" : "Save"}
                         </button>
