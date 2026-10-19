@@ -9,53 +9,63 @@ import {markdown} from "@codemirror/lang-markdown";
 import {properties} from "@codemirror/legacy-modes/mode/properties";
 import {toml} from "@codemirror/legacy-modes/mode/toml";
 
-export type LanguageId =
-  | "yaml"
-  | "json"
-  | "xml"
-  | "markdown"
-  | "properties"
-  | "toml"
-  | "plain";
+export type LanguageId = "yaml" | "json" | "xml" | "markdown" | "properties" | "toml" | "plain";
+
+/** Display order for the language picker; `Auto` is rendered separately. */
+export const LANGUAGE_IDS: readonly LanguageId[] = ["yaml", "json", "toml", "properties", "xml", "markdown", "plain"];
+
+export const LANGUAGE_LABELS: Record<LanguageId, string> = {
+    yaml: "YAML",
+    json: "JSON",
+    toml: "TOML",
+    properties: "Properties",
+    xml: "XML",
+    markdown: "Markdown",
+    plain: "Plain text",
+};
+
+export function isLanguageId(value: unknown): value is LanguageId {
+    return typeof value === "string" && (LANGUAGE_IDS as readonly string[]).includes(value);
+}
 
 export function languageIdFromPath(path: string): LanguageId {
-  const ext = path.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "yaml":
-    case "yml":
-      return "yaml";
-    case "json":
-      return "json";
-    case "xml":
-      return "xml";
-    case "md":
-    case "markdown":
-      return "markdown";
-    case "properties":
-    case "props":
-      return "properties";
-    case "toml":
-      return "toml";
-    default:
-      return "plain";
-  }
+    const ext = path.split(".").pop()?.toLowerCase();
+    switch (ext) {
+        case "yaml":
+        case "yml":
+            return "yaml";
+        case "json":
+            return "json";
+        case "xml":
+            return "xml";
+        case "md":
+        case "markdown":
+            return "markdown";
+        case "properties":
+        case "props":
+            return "properties";
+        case "toml":
+            return "toml";
+        default:
+            return "plain";
+    }
 }
 
 export function languageExtension(lang: LanguageId): Extension[] {
-  switch (lang) {
-    case "yaml":
-      return [yaml()];
-    case "json":
-      return [json()];
-    case "xml":
-      return [xml()];
-    case "markdown":
-      return [markdown()];
-    case "properties":
-      return [StreamLanguage.define(properties)];
-    case "toml":
-      return [StreamLanguage.define(toml)];
-    default:
-      return [];
-  }
+    switch (lang) {
+        case "yaml":
+            return [yaml()];
+        case "json":
+            return [json()];
+        case "xml":
+            return [xml()];
+        case "markdown":
+            return [markdown()];
+        case "properties":
+            return [StreamLanguage.define(properties)];
+        case "toml":
+            return [StreamLanguage.define(toml)];
+        default:
+            return [];
+    }
 }

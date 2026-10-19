@@ -8,6 +8,7 @@ vi.mock("@/components/servers/file-code-editor", () => ({
         value,
         onChange,
         onSave,
+        languageOverride,
     }: {
         value: string;
         onChange: (v: string) => void;
@@ -15,9 +16,11 @@ vi.mock("@/components/servers/file-code-editor", () => ({
         path: string;
         encoding?: string;
         wrap?: boolean;
+        languageOverride?: string;
     }) => (
         <textarea
             data-testid="code-editor"
+            data-language={languageOverride ?? ""}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => {
@@ -121,6 +124,7 @@ function dirEntry(name = "subdir") {
 describe("FilesTab", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        window.localStorage.clear();
     });
 
     it("renders loading state initially", () => {
@@ -944,6 +948,68 @@ describe("FilesTab", () => {
 
             await user.click(screen.getByTitle("Download"));
             await waitFor(() => expect(screen.getByText("Failed to download file")).toBeInTheDocument());
+        });
+    });
+
+    describe("syntax highlighting override", () => {
+        const KEY = "craftpanel:file-language";
+
+        async function setupEditor(fileName = "config") {
+            const user = userEvent.setup();
+            vi.mocked(listServerFiles).mockResolvedValue({
+                data: {entries: [fileEntry(fileName)]},
+            } as never);
+            vi.mocked(readServerFile).mockResolvedValue({
+                data: {content: "key = 1", encoding: "utf-8"},
+            } as never);
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText(fileName)).toBeInTheDocument());
+            await user.click(screen.getByText(fileName));
+            await waitFor(() => expect(getEditorText()).toBe("key = 1"));
+            return {user};
+        }
+
+        it("shows the detected language as Auto for an extension-less file", async () => {
+            await setupEditor();
+            const trigger = screen.getByRole("button", {name: "Syntax highlighting"});
+            expect(within(trigger).getByText("Auto · Plain text")).toBeInTheDocument();
+            expect(screen.getByTestId("code-editor")).toHaveAttribute("data-language", "");
+        });
+
+        it("persists a chosen language and passes it to the editor", async () => {
+            const {user} = await setupEditor();
+
+            await user.click(screen.getByRole("button", {name: "Syntax highlighting"}));
+            await user.click(await screen.findByText("TOML"));
+
+            await waitFor(() => {
+                expect(JSON.parse(window.localStorage.getItem(KEY)!)).toEqual({"/config": "toml"});
+            });
+            expect(screen.getByTestId("code-editor")).toHaveAttribute("data-language", "toml");
+            const trigger = screen.getByRole("button", {name: "Syntax highlighting"});
+            expect(within(trigger).getByText("TOML")).toBeInTheDocument();
+        });
+
+        it("applies a stored override on open and clears it via Auto", async () => {
+            window.localStorage.setItem(KEY, JSON.stringify({"/config": "toml"}));
+            const {user} = await setupEditor();
+
+            expect(screen.getByTestId("code-editor")).toHaveAttribute("data-language", "toml");
+
+            await user.click(screen.getByRole("button", {name: "Syntax highlighting"}));
+            await user.click(await screen.findByText(/^Auto \(/));
+
+            await waitFor(() => {
+                expect(JSON.parse(window.localStorage.getItem(KEY)!)).toEqual({});
+            });
+            expect(screen.getByTestId("code-editor")).toHaveAttribute("data-language", "");
+        });
+
+        it("keeps overrides isolated per path", async () => {
+            window.localStorage.setItem(KEY, JSON.stringify({"/other": "yaml"}));
+            await setupEditor();
+
+            expect(screen.getByTestId("code-editor")).toHaveAttribute("data-language", "");
         });
     });
 });

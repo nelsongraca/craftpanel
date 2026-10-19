@@ -4,7 +4,7 @@ import {useMemo, useRef, useEffect, useCallback} from "react";
 import CodeMirror, {EditorView, keymap} from "@uiw/react-codemirror";
 import {darculaInit} from "@uiw/codemirror-theme-darcula";
 import {githubLightInit} from "@uiw/codemirror-theme-github";
-import {languageIdFromPath, languageExtension} from "@/lib/file-language";
+import {languageIdFromPath, languageExtension, type LanguageId} from "@/lib/file-language";
 import {useResolvedTheme} from "@/lib/hooks/useTheme";
 
 interface Props {
@@ -13,6 +13,8 @@ interface Props {
     onSave: () => void;
     path: string;
     wrap?: boolean;
+    /** User-pinned language; falls back to extension detection when unset. */
+    languageOverride?: LanguageId;
 }
 
 /**
@@ -51,13 +53,13 @@ const editorChrome = EditorView.theme({
     },
 });
 
-export function FileCodeEditor({value, onChange, onSave, path, wrap = false}: Props) {
+export function FileCodeEditor({value, onChange, onSave, path, wrap = false, languageOverride}: Props) {
     const saveRef = useRef(onSave);
     useEffect(() => {
         saveRef.current = onSave;
     }, [onSave]);
 
-    const langId = languageIdFromPath(path);
+    const langId = languageOverride ?? languageIdFromPath(path);
     const langExts = useMemo(() => languageExtension(langId), [langId]);
     const editorTheme = useResolvedTheme() === "light" ? githubLightTheme : darculaTheme;
 

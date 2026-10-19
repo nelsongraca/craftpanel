@@ -20,6 +20,7 @@ import {
     ArrowLeft,
     ChevronDown,
     ChevronRight,
+    Code2,
     Copy,
     Download,
     File,
@@ -39,10 +40,19 @@ import {
 import {FileCodeEditor} from "@/components/servers/file-code-editor";
 import {DirectoryPickerDialog} from "@/components/servers/directory-picker-dialog";
 import {cn} from "@/lib/utils";
+import {LANGUAGE_IDS, LANGUAGE_LABELS, languageIdFromPath, type LanguageId} from "@/lib/file-language";
+import {
+    loadLanguageOverrides,
+    saveLanguageOverrides,
+    setLanguageOverride,
+    type LanguageOverrides,
+} from "@/lib/file-language-overrides";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -104,6 +114,7 @@ export function FilesTab({serverId, active = true}: Props) {
     const [rootLoading, setRootLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [wrap, setWrap] = useState(false);
+    const [languageOverrides, setLanguageOverrides] = useState<LanguageOverrides>({});
     const {confirm, dialog} = useConfirmDialog();
     const {prompt, dialog: promptDialog} = usePromptDialog();
     const [renameNode, setRenameNode] = useState<{path: string; name: string} | null>(null);
@@ -150,6 +161,19 @@ export function FilesTab({serverId, active = true}: Props) {
             setRootLoading(false);
         });
     }, [loadDir]);
+
+    useEffect(() => {
+        setLanguageOverrides(loadLanguageOverrides());
+    }, []);
+
+    function changeLanguage(lang: LanguageId | null) {
+        if (!selectedPath) return;
+        const next = setLanguageOverride(languageOverrides, selectedPath, lang);
+        setLanguageOverrides(next);
+        saveLanguageOverrides(next);
+    }
+
+    const selectedLanguageOverride = selectedPath ? languageOverrides[selectedPath] : undefined;
 
     function updateNode(
         nodes: TreeNode[],
@@ -650,6 +674,42 @@ export function FilesTab({serverId, active = true}: Props) {
                                 </button>
                                 {fileEncoding !== "binary" && (
                                     <>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger
+                                                title="Syntax highlighting"
+                                                aria-label="Syntax highlighting"
+                                                className="flex items-center gap-1 rounded px-1.5 py-1 text-xs text-text-muted transition-colors hover:text-accent"
+                                            >
+                                                <Code2 size={15} />
+                                                <span className="hidden max-w-24 truncate sm:inline">
+                                                    {selectedLanguageOverride
+                                                        ? LANGUAGE_LABELS[selectedLanguageOverride]
+                                                        : `Auto · ${LANGUAGE_LABELS[languageIdFromPath(selectedPath)]}`}
+                                                </span>
+                                                <ChevronDown size={12} />
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent
+                                                align="end"
+                                                className="min-w-[180px] border-border bg-surface-higher"
+                                            >
+                                                <DropdownMenuRadioGroup
+                                                    value={selectedLanguageOverride ?? "auto"}
+                                                    onValueChange={(value: string | null) =>
+                                                        changeLanguage(value === "auto" ? null : (value as LanguageId))
+                                                    }
+                                                >
+                                                    <DropdownMenuRadioItem value="auto" closeOnClick>
+                                                        Auto ({LANGUAGE_LABELS[languageIdFromPath(selectedPath)]})
+                                                    </DropdownMenuRadioItem>
+                                                    <DropdownMenuSeparator />
+                                                    {LANGUAGE_IDS.map((id) => (
+                                                        <DropdownMenuRadioItem key={id} value={id} closeOnClick>
+                                                            {LANGUAGE_LABELS[id]}
+                                                        </DropdownMenuRadioItem>
+                                                    ))}
+                                                </DropdownMenuRadioGroup>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                         <button
                                             title={wrap ? "Disable word wrap" : "Enable word wrap"}
                                             className={`p-1.5 text-text-muted transition-colors hover:text-accent ${wrap ? "text-accent" : ""}`}
@@ -694,6 +754,7 @@ export function FilesTab({serverId, active = true}: Props) {
                                         onSave={saveFile}
                                         path={selectedPath}
                                         wrap={wrap}
+                                        languageOverride={selectedLanguageOverride}
                                     />
                                 )}
                             </div>
