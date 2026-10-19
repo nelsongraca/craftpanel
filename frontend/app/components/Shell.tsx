@@ -123,7 +123,7 @@ export default function Shell({children}: {children: React.ReactNode}) {
                         unoptimized
                         className="shrink-0"
                     />
-                    <span className="font-heading text-base font-bold tracking-widest text-accent uppercase">
+                    <span className="font-display text-base font-bold tracking-widest text-accent uppercase">
                         {branding?.appName ?? "CraftPanel"}
                     </span>
                 </div>
@@ -215,7 +215,7 @@ export default function Shell({children}: {children: React.ReactNode}) {
             </div>
 
             <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-surface px-4 py-1.5">
-                <span className="font-mono text-[10px] text-text-muted">powered by CraftPanel</span>
+                <span className="font-mono text-[0.625rem] text-text-muted">powered by CraftPanel</span>
                 <div className="flex items-center gap-3">
                     {health?.versionMismatch && (
                         <span

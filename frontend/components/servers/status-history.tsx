@@ -89,7 +89,7 @@ export function StatusHistoryPanel({serverId}: {serverId: string}) {
                         return (
                             <li key={`${e.recordedAt}-${i}`} className="flex items-center justify-between gap-3 py-1">
                                 <span
-                                    className={`rounded px-2 py-0.5 font-heading text-[10px] font-bold tracking-wider uppercase ${serverStatusClass(e.status)}`}
+                                    className={`rounded px-2 py-0.5 font-heading text-[0.625rem] font-bold tracking-wider uppercase ${serverStatusClass(e.status)}`}
                                 >
                                     {serverStatusLabel(e.status)}
                                 </span>

@@ -330,7 +330,7 @@ Always hits DB. Cache may be added later.
 
 - Package manager: **pnpm** with `node-linker=hoisted` in `.npmrc` (required for Next.js standalone tracing)
 - Styling: Tailwind CSS v4 + shadcn/ui (base-nova style, uses `@base-ui/react`)
-- Fonts: Barlow (body, `--font-sans`), Barlow Condensed (headings, `--font-condensed`), JetBrains Mono (data values, `--font-mono`)
+- Fonts: Barlow (body + UI labels/headings, `--font-sans`, `--font-heading`), Barlow Condensed (display titles + brand only, `--font-condensed`, `--font-display`), JetBrains Mono (data values, `--font-mono`)
 - Theming: `dark | light | system`, **default `system`**. The preference is `localStorage` only (key `craftpanel:theme`) — no backend field, column, cookie or API endpoint, and never read or written server-side.
   `<html>` always carries a resolved `data-theme="dark" | "light"`.
 

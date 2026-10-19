@@ -75,14 +75,16 @@ This makes node pressure immediately readable without needing to read the percen
 
 ## Typography
 
-| Role                                     | Family           | Weight  | Notes                                |
-|------------------------------------------|------------------|---------|--------------------------------------|
-| Headings, nav, badges                    | Barlow Condensed | 700–800 | Uppercase, letter-spaced for labels  |
-| Body text                                | Barlow           | 400–600 | Used for descriptions and prose      |
-| Data values, hostnames, timestamps, code | JetBrains Mono   | 400–600 | All tabular data, metric values, IPs |
+| Role                                     | Family           | Weight  | Notes                                              |
+|------------------------------------------|------------------|---------|----------------------------------------------------|
+| Page/hero titles, brand wordmark         | Barlow Condensed | 600–800 | Uppercase, letter-spaced — display sizes only      |
+| Nav, table headers, labels, buttons      | Barlow           | 500–700 | Uppercase, letter-spaced; readable at label sizes  |
+| Body text                                | Barlow           | 400–600 | Used for descriptions and prose                    |
+| Data values, hostnames, timestamps, code | JetBrains Mono   | 400–600 | All tabular data, metric values, IPs               |
 
-Barlow Condensed's tall, narrow letterforms suit the density of an admin dashboard. JetBrains Mono is used for anything that benefits from fixed-width alignment — player counts, port numbers, cron
-expressions, API paths.
+Barlow Condensed's tall, narrow letterforms are kept for display type, where the size carries them. At label sizes (13–15px) the condensed face reads optically smaller than Barlow at the same px —
+narrow glyphs plus wide tracking dissolve word shapes — so the `font-heading` role maps to Barlow and condensed is used explicitly via `font-display`. JetBrains Mono is used for anything that benefits
+from fixed-width alignment — player counts, port numbers, cron expressions, API paths.
 
 ---
 

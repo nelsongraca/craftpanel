@@ -15,7 +15,7 @@ export function RamBarInline({usedMb, totalMb}: {usedMb: number | null; totalMb:
     if (usedMb === null) {
         return (
             <div className="flex flex-col gap-1.5">
-                <p className="font-mono text-[20px] leading-none text-text-muted">{"-"}</p>
+                <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-muted">{"-"}</p>
                 <p className="font-mono text-xs text-text-muted">
                     {"-"} / {fmtMb(totalMb)} alloc
                 </p>
@@ -27,7 +27,7 @@ export function RamBarInline({usedMb, totalMb}: {usedMb: number | null; totalMb:
     const barColor = pct > 85 ? "bg-error" : pct > 65 ? "bg-warning" : "bg-healthy";
     return (
         <div className="flex flex-col gap-1.5">
-            <p className="font-mono text-[20px] leading-none text-text-primary">{fmtMb(usedMb)}</p>
+            <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-primary">{fmtMb(usedMb)}</p>
             <p className="font-mono text-xs text-text-muted">
                 {fmtMb(usedMb)} / {fmtMb(totalMb)} alloc
             </p>
@@ -47,7 +47,7 @@ export function HeapBarInline({usedBytes, maxBytes}: {usedBytes: number | null; 
     if (usedBytes === null || maxBytes === null || maxBytes <= 0) {
         return (
             <div className="flex flex-col gap-1.5">
-                <p className="font-mono text-[20px] leading-none text-text-muted">{"-"}</p>
+                <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-muted">{"-"}</p>
                 <p className="font-mono text-xs text-text-muted">JVM heap unavailable</p>
                 <div className="h-1.5 w-full rounded-full bg-surface-higher" />
             </div>
@@ -57,7 +57,7 @@ export function HeapBarInline({usedBytes, maxBytes}: {usedBytes: number | null; 
     const barColor = pct > 85 ? "bg-error" : pct > 65 ? "bg-warning" : "bg-healthy";
     return (
         <div className="flex flex-col gap-1.5">
-            <p className="font-mono text-[20px] leading-none text-text-primary">{fmtBytes(usedBytes)}</p>
+            <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-primary">{fmtBytes(usedBytes)}</p>
             <p className="font-mono text-xs text-text-muted">
                 {fmtBytes(usedBytes)} / {fmtBytes(maxBytes)} heap
             </p>

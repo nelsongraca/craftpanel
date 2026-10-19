@@ -43,12 +43,12 @@ export function LiveMetricsStatCards({
             <StatCard label="Players Online">
                 {livePlayers ? (
                     <>
-                        <p className="font-mono text-[20px] leading-none text-text-primary">{livePlayers.count}</p>
+                        <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-primary">{livePlayers.count}</p>
                         <p className="font-mono text-xs text-text-muted">online now</p>
                     </>
                 ) : (
                     <>
-                        <p className="font-mono text-[20px] leading-none text-text-muted">{"-"}</p>
+                        <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-muted">{"-"}</p>
                         <p className="text-xs text-text-muted">awaiting data</p>
                     </>
                 )}
@@ -68,14 +68,14 @@ export function LiveMetricsStatCards({
             <StatCard label="CPU Usage">
                 {liveMetrics ? (
                     <>
-                        <p className={`font-mono text-[20px] leading-none ${cpuColor}`}>
+                        <p className={`font-mono text-[length:var(--fs-stat)] leading-none ${cpuColor}`}>
                             {liveMetrics.cpuPercent.toFixed(1)}%
                         </p>
                         <p className="font-mono text-xs text-text-muted">{fmtCpuLimit(server.cpu_limit_millicores)}</p>
                     </>
                 ) : (
                     <>
-                        <p className="font-mono text-[20px] leading-none text-text-muted">{"-"}%</p>
+                        <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-muted">{"-"}%</p>
                         <p className="font-mono text-xs text-text-muted">{fmtCpuLimit(server.cpu_limit_millicores)}</p>
                     </>
                 )}

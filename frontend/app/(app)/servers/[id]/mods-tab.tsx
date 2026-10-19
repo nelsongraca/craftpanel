@@ -518,7 +518,7 @@ export function ModsTab({
                                                         <button
                                                             onClick={() => applyCompatChange(r, primary)}
                                                             disabled={applying}
-                                                            className="rounded border border-warning/40 px-2 py-0.5 text-[11px] text-warning transition-colors hover:bg-warning/10 disabled:opacity-50"
+                                                            className="rounded border border-warning/40 px-2 py-0.5 text-[0.6875rem] text-warning transition-colors hover:bg-warning/10 disabled:opacity-50"
                                                         >
                                                             {applying ? "Applying…" : "Apply"}
                                                         </button>
@@ -526,7 +526,7 @@ export function ModsTab({
                                                             <button
                                                                 onClick={() => applyCompatChange(r, alternative)}
                                                                 disabled={applying}
-                                                                className="rounded border border-border px-2 py-0.5 text-[11px] text-text-dim transition-colors hover:text-text-primary disabled:opacity-50"
+                                                                className="rounded border border-border px-2 py-0.5 text-[0.6875rem] text-text-dim transition-colors hover:text-text-primary disabled:opacity-50"
                                                             >
                                                                 Switch to {PIN_LABELS[alternative.pin_strategy]}
                                                             </button>

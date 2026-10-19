@@ -42,7 +42,7 @@ function ResourceBar({used, total, fmt}: {used: number; total: number; fmt: (v: 
     const cls = fillColorBg(pct);
     return (
         <div className="flex flex-col gap-1.5">
-            <p className="font-mono text-[20px] leading-none text-text-primary">{fmt(used)}</p>
+            <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-primary">{fmt(used)}</p>
             <p className="font-mono text-xs text-text-muted">
                 {fmt(used)} / {fmt(total)}
             </p>
@@ -98,7 +98,7 @@ function OverviewTab({
                 </StatCard>
                 <StatCard label="CPU Allocated">
                     <div className="flex flex-col gap-1.5">
-                        <p className="font-mono text-[20px] leading-none text-text-primary">{cpuPct.toFixed(0)}%</p>
+                        <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-primary">{cpuPct.toFixed(0)}%</p>
                         <p className="font-mono text-xs text-text-muted">
                             {fmtCpuCores(node.allocated_cpu_millicores)} / {fmtCpuCores(allocatableCpuMillicores)}
                         </p>
@@ -111,7 +111,7 @@ function OverviewTab({
                     </div>
                 </StatCard>
                 <StatCard label="Servers">
-                    <p className="font-mono text-[20px] leading-none text-text-primary">{servers.length}</p>
+                    <p className="font-mono text-[length:var(--fs-stat)] leading-none text-text-primary">{servers.length}</p>
                     <p className="font-mono text-xs text-text-muted">
                         {servers.filter((s) => s.status === "HEALTHY").length} healthy
                     </p>
@@ -567,7 +567,7 @@ export default function NodeDetailPage() {
                 {/* Name row + actions */}
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-3">
-                        <h1 className="font-heading text-[22px] leading-none font-bold tracking-wide text-text-primary uppercase">
+                        <h1 className="font-display text-[1.375rem] leading-none font-bold tracking-wide text-text-primary uppercase">
                             {node.display_name}
                         </h1>
                         <Badge variant={nodeStatusVariant(node.status, node.health)}>

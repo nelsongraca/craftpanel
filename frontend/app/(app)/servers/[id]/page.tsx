@@ -349,7 +349,7 @@ export default function ServerDetailPage() {
                 {/* Name row + action buttons */}
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-3">
-                        <h1 className="font-heading text-[22px] leading-none font-bold tracking-wide text-text-primary uppercase">
+                        <h1 className="font-display text-[1.375rem] leading-none font-bold tracking-wide text-text-primary uppercase">
                             {server.display_name}
                         </h1>
                         <Badge variant={serverStatusVariant(sStatus)}>{serverStatusLabel(sStatus)}</Badge>

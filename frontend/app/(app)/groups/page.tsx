@@ -73,7 +73,7 @@ const GROUP_COLUMNS: SmartListColumn<Group>[] = [
                     g.permissions.slice(0, 5).map((p) => (
                         <span
                             key={p}
-                            className="inline-flex items-center rounded border border-border bg-surface-higher px-1.5 py-0.5 font-mono text-[9px] text-text-dim"
+                            className="inline-flex items-center rounded border border-border bg-surface-higher px-1.5 py-0.5 font-mono text-[0.5625rem] text-text-dim"
                         >
                             {p === "*" ? "all" : p}
                         </span>

@@ -214,7 +214,7 @@ export default function NewServerPage() {
                     <ChevronLeft size={11} strokeWidth={2.5} />
                     Servers
                 </Link>
-                <h1 className="font-heading text-[22px] leading-none font-bold tracking-wide text-text-primary uppercase">
+                <h1 className="font-display text-[1.375rem] leading-none font-bold tracking-wide text-text-primary uppercase">
                     {cloneId ? "Clone Server" : "New Server"}
                 </h1>
                 {cloneId && (

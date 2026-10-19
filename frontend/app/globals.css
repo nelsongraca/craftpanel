@@ -15,13 +15,18 @@
     --color-foreground: var(--text-primary);
     --font-sans: var(--font-sans);
     --font-mono: var(--font-mono);
-    --font-heading: var(--font-condensed);
+    --font-heading: var(--font-sans);
+    --font-display: var(--font-condensed);
 
-    /* Type scale — overrides Tailwind defaults, drives every text-xs/sm/base/lg usage */
-    --text-xs: 0.8125rem;
-    --text-sm: 0.875rem;
-    --text-base: 1rem;
-    --text-lg: 1.125rem;
+    /*
+     * Type scale — Tailwind's own ramp, retunable through the `--fs-*` knobs in :root
+     * (literal rem values, defined per breakpoint there). Line-height needs no override:
+     * Tailwind's `--text-*--line-height` values are ratios and follow the size.
+     */
+    --text-xs: var(--fs-xs);
+    --text-sm: var(--fs-sm);
+    --text-base: var(--fs-base);
+    --text-lg: var(--fs-lg);
 
     /* shadcn semantic tokens */
     --color-card: var(--card);
@@ -87,6 +92,19 @@
  * do not need repeating per theme. `[data-theme="light"]` below overrides only the colours.
  */
 :root {
+    /*
+     * Font-size knobs. Mobile keeps the sizes the design was tuned against (13/14/16/18);
+     * `text-xs`/`text-sm` grow on desktop only, where the 13px body text read too small.
+     * Edit one value here to retune one step — no component changes.
+     */
+    --fs-xs: 0.8125rem;
+    --fs-sm: 0.875rem;
+    --fs-base: 1rem;
+    --fs-lg: 1.125rem;
+    /* Display sizes: list-page title and the metric/stat readouts. */
+    --fs-title: 1.125rem;
+    --fs-stat: 1.25rem;
+
     /* Header height including the standalone-PWA top safe-area inset (0px in a browser). */
     --header-h: calc(48px + env(safe-area-inset-top));
 
@@ -161,6 +179,14 @@
     --sidebar-accent-foreground: #f5f0e8;
     --sidebar-border: #2e2a24;
     --sidebar-ring: #d97706;
+}
+
+@media (min-width: 768px) {
+    :root {
+        --fs-xs: 0.875rem; /* 14px */
+        --fs-sm: 0.9375rem; /* 15px */
+        --fs-title: 1.375rem; /* 22px — condensed needs the extra size to hold rank */
+    }
 }
 
 /*
@@ -246,13 +272,6 @@
 
     html {
         @apply font-sans;
-        font-size: 16px;
-    }
-
-    @media (min-width: 1440px) {
-        html {
-            font-size: 17px;
-        }
     }
 }
 

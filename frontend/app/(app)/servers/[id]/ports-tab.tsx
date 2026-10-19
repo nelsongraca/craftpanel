@@ -207,7 +207,7 @@ export function PortsTab({
                 {!editingPrimary ? (
                     <div className="grid grid-cols-1 gap-4 pt-2 font-mono text-xs md:grid-cols-3">
                         <div className="rounded border border-border bg-surface-high p-3">
-                            <span className="mb-1 block font-heading text-[10px] tracking-wider text-text-muted uppercase">
+                            <span className="mb-1 block font-heading text-[0.625rem] tracking-wider text-text-muted uppercase">
                                 Host Port
                             </span>
                             <span className="text-base font-bold text-text-primary">
@@ -215,7 +215,7 @@ export function PortsTab({
                             </span>
                         </div>
                         <div className="rounded border border-border bg-surface-high p-3">
-                            <span className="mb-1 block font-heading text-[10px] tracking-wider text-text-muted uppercase">
+                            <span className="mb-1 block font-heading text-[0.625rem] tracking-wider text-text-muted uppercase">
                                 Container Internal Port
                             </span>
                             <span className="text-base font-bold text-text-primary">
@@ -223,7 +223,7 @@ export function PortsTab({
                             </span>
                         </div>
                         <div className="rounded border border-border bg-surface-high p-3">
-                            <span className="mb-1 block font-heading text-[10px] tracking-wider text-text-muted uppercase">
+                            <span className="mb-1 block font-heading text-[0.625rem] tracking-wider text-text-muted uppercase">
                                 Protocol
                             </span>
                             <span className="text-base font-bold text-accent">{primaryPort?.protocol ?? "TCP"}</span>
@@ -251,7 +251,7 @@ export function PortsTab({
                                     min={1}
                                     max={65535}
                                 />
-                                <p className="mt-1 text-[11px] text-text-muted">Leave empty for default.</p>
+                                <p className="mt-1 text-[0.6875rem] text-text-muted">Leave empty for default.</p>
                             </div>
                             <div>
                                 <label className="mb-1 block font-heading text-xs tracking-wider text-text-dim uppercase">
@@ -316,7 +316,7 @@ export function PortsTab({
                 ) : (
                     <div className="overflow-x-auto rounded border border-border">
                         <table className="w-full text-left font-mono text-xs">
-                            <thead className="border-b border-border bg-surface-high font-heading text-[10px] tracking-wider text-text-muted uppercase">
+                            <thead className="border-b border-border bg-surface-high font-heading text-[0.625rem] tracking-wider text-text-muted uppercase">
                                 <tr>
                                     <th className="px-4 py-2.5">Name</th>
                                     <th className="px-4 py-2.5">Container Port</th>
@@ -334,7 +334,7 @@ export function PortsTab({
                                         <td className="px-4 py-3">{port.container_port}</td>
                                         <td className="px-4 py-3 font-bold text-accent">{port.host_port}</td>
                                         <td className="px-4 py-3">
-                                            <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                                            <Badge variant="outline" className="px-1.5 py-0 text-[0.625rem]">
                                                 {port.protocol}
                                             </Badge>
                                         </td>
@@ -414,7 +414,7 @@ export function PortsTab({
                                 </select>
                             </div>
 
-                            <p className="text-[11px] text-text-muted">
+                            <p className="text-[0.6875rem] text-text-muted">
                                 A free host port will be automatically allocated from node port range.
                             </p>
 
