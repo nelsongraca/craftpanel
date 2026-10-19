@@ -464,7 +464,7 @@ node-key minting/hashing. Replaces `grpc/NodeRegistrar`, which had regressed to 
   old inline query did) — the service replicates the `revoked ||
   expiresAt <= now` gate on the returned row before proceeding.
 - `revokeAllRefreshTokens` confirmed soft-delete (`UPDATE SET revoked=true`),
-  matching the CLAUDE.md constraint. `rotateRefreshToken` confirmed atomic.
+  matching the `AGENTS.md` constraint. `rotateRefreshToken` confirmed atomic.
 - `RefreshTokenService` is NOT a pure pass-through (`rotate` keeps the
   expiry/revoked/isActive gate + token generation) — kept, not deleted.
 
@@ -549,7 +549,7 @@ as a 3-4x inflated JSON integer array under `application/json`.
   limitation (confirmed by regenerating and reading the emitted client), not a
   workaround — a future single-content-type binary operation would get `File` for
   free from the same `binaryFileBody()` doc block.
-- See `CLAUDE.md`'s corrected note on the system-test client's binary-body NPE — the
+- See `AGENTS.md`'s corrected note on the system-test client's binary-body NPE — the
   NPE case is specifically an unscoped `application/octet-stream` alongside typed DTOs
   with no schema discriminator; a clean `format: binary` schema does not hit it.
 

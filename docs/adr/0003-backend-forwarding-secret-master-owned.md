@@ -27,7 +27,7 @@ reverses ADR-0002's "untouched" clause: the image no longer owns the secret.
 key lives **outside the DB** — a config file, mounted secret, or env var. It must
 never be a DB column; a key stored beside its ciphertext is theater.
 
-CLAUDE.md says "no deployment secrets in the database." The user explicitly
+`AGENTS.md` says "no deployment secrets in the database." The user explicitly
 accepted encrypted-in-DB with a master-held key as the exception, because the
 alternatives (re-reading an image-generated secret back off the proxy container
 after first start) impose a hard ordering trap — the proxy must be started before

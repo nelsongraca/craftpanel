@@ -6,7 +6,9 @@ Self-hosted multi-user multi-node Minecraft server management platform.
 
 ALWAYS context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask. When finishing a task always run get_file_problems from
 intellij/idea to find possible issues and fix them before submitting the code. If there are any warnings or errors that cannot be fixed, list them explicitly in the final answer. Before committing any
-code always use reformat_code from intellij/idea to reformat the files. If a method or class is deprecated avoid using it.
+code always run `./gradlew spotlessApply` to reformat the files. When a commit fixes a GitHub issue, include an auto-close keyword referencing it in the commit message (e.g. `Fixes #45`, `Closes #45`,
+`Resolves #45`). GitHub only auto-closes the issue once that commit lands on the default branch (`master`) — i.e. on push — so the keyword must be in the commit, not just mentioned elsewhere. If a
+method or class is deprecated avoid using it.
 
 Before starting any task, assess complexity:
 
@@ -14,7 +16,15 @@ Before starting any task, assess complexity:
   proceed directly with Haiku
 - Ambiguous architecture, cross-module coordination, new proto changes, state machine logic: pause and flag for advisor review before proceeding
 
-**ALL individual advisor calls require user confirmation.** Before calling `advisor()`, ALWAYS ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
+**ALL individual advisor calls require explicit user confirmation. This has been violated before — treat it as a hard gate, not a formality.**
+
+- Before calling `advisor()`, ask the user the literal question: "Call advisor for [reason]?" — nothing else. A generic "want me to proceed?" or "should I continue?" does NOT count, even if the next
+  step would involve advisor — it is not a valid confirmation and must not be treated as one.
+- Wait for an explicit yes to that exact question before calling. A "y"/"yes" to any other question (e.g. "should I implement the plan?") must NOT be interpreted as advisor approval.
+- If an advisor call starts without this exact confirmation having just been given — whether triggered by your own tool call or by any other routing — stop, do not treat it as authorized, and surface
+  it to the user immediately instead of proceeding.
+- If the user says "don't call advisor" / "work autonomously" / similar, that instruction overrides everything above for the rest of the session: no advisor calls, confirmed or not, until they lift
+  it.
 
 ## Subagent Delegation (Free Tier)
 
@@ -30,7 +40,9 @@ opencode run "<task>" --dangerously-skip-permissions
 - Generating boilerplate, stubs, or mechanical refactors
 - Any task where the first step is "understand the current state of X"
 
-Always delegate the exploration phase before making changes. Review output before applying. Max 3 concurrent opencode subagent delegations at any time.
+Always delegate the exploration phase before making changes. Review output before applying. Max 3 concurrent opencode subagent delegations at any time. Instruct opencode delegations to write their
+final report to a file (e.g. `.scratch/<feature>/RESULT.md`, kept short) rather than streaming the full report to stdout — reading the whole verbose run back into context burns tokens. Read the report
+file, not the streamed log. Once validated, commit and push.
 
 ## Module Structure
 
@@ -44,21 +56,21 @@ craftpanel/
 ├── system-tests/  # End-to-end Kotest + Testcontainers tests
 ├── docs/          # MkDocs documentation
 ├── plans/         # Development roadmap and per-phase implementation plans
-└── CLAUDE.md
+└── AGENTS.md      # Canonical agent instructions (read by all agents)
 ```
 
 ## Key Versions
 
 ```toml
-kotlin = "2.4.0"
-ktor = "3.5.0"
-exposed = "1.3.0"          # NOTE: 1.0+ uses org.jetbrains.exposed.v1.* imports
-grpc = "1.82.0"
+kotlin = "2.4.10"
+ktor = "3.5.1"
+exposed = "1.3.1"          # NOTE: 1.0+ uses org.jetbrains.exposed.v1.* imports
+grpc = "1.83.0"
 grpc-kotlin = "1.5.0"
-protobuf = "4.35.0"
+protobuf = "4.35.1"
 coroutines = "1.11.0"
-hikari = "7.0.2"
-postgresql = "42.7.11"
+hikari = "7.1.0"
+postgresql = "42.7.13"
 jdk = "25"
 node = "22.14.0"
 next = "16"
@@ -109,12 +121,16 @@ registered via `registerAppRoutes()` in `AppRoutes.kt` — add new routes there 
 ### Aggregation tasks
 
 ```bash
-./gradlew test             # runs :master:test + :agent:test + :frontend:testFrontend (registered task, not built-in)
-./gradlew dockerBuildAll               # builds all three images, loads into local daemon
-./gradlew dockerPushAll -Ppush=true    # builds and pushes all three images (push=true required)
+./gradlew test                                         # runs :master:test + :agent:test + :frontend:testFrontend (registered task, not built-in)
+./gradlew test -PsystemTest                            # also includes :system-tests:test (requires Docker daemon)
+./gradlew koverFullReport -PwithCoverage               # unit + frontend tests, per-module Kover HTML/XML reports
+./gradlew koverFullReport -PwithCoverage -PsystemTest  # also runs system-tests + merged coverage report
+./gradlew dockerBuildAll                               # builds all three images, loads into local daemon
+./gradlew dockerPushAll -Ppush=true                     # builds and pushes all three images (push=true required)
 ```
 
 - Root project has no built-in `test` task — `tasks.named("test")` fails; a registered aggregate task exists instead
+- System-tests are excluded from root `test` and `koverFullReport` by default (slower, needs Docker) — include them with `-PsystemTest`, or invoke `:system-tests:test` directly
 
 ### Image naming
 
@@ -124,14 +140,29 @@ registered via `registerAppRoutes()` in `AppRoutes.kt` — add new routes there 
 
 ## CI
 
-GitHub Actions builds images and pushes to GHCR (`ghcr.io/nelsongraca`). Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties. Push is opt-in via `-Ppush=true`
-(default off — `dockerBuildAll` only loads into the local Docker daemon via `com.flowkode.buildx`'s `buildxBuild` task; `dockerPushAll` requires `-Ppush=true`). CI config not yet written.
+Workflows in `.github/workflows/`:
+
+- **ci.yml** — lint, typecheck, unit tests (master/agent/frontend), triggers on push/PR to `master`/`develop`
+- **system.yml** — sharded system-tests (Testcontainers), triggers on push/PR to `master`/`develop`
+- **publish.yml** — builds and pushes images to GHCR on semver tags (no `v` prefix) and `develop` (tagged `dev`); gated on ci.yml + system.yml passing
+- **docs.yml** — builds and deploys MkDocs site
+
+Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties (`ghcr.io/nelsongraca`). Push is opt-in via `-Ppush=true` (default off — `dockerBuildAll` only loads into the
+local Docker daemon via `com.flowkode.buildx`'s `buildxBuild` task; `dockerPushAll` requires `-Ppush=true`).
 
 ### Releasing
 
 A call for a release or a hotfix always means **cut from the latest `master`** — `git pull` first. There is no maintenance branch: hotfix/patch versions are force-tagged on
 `master` rather than branched from an old tag, and the changelog covers everything since the last tag. Cut with `./gradlew release` (minor bump auto-derived from Conventional
 Commits) or `./gradlew release -PreleaseVersion=<x.y.z>` to force a version. The tag push triggers `publish.yml` (images + GitHub Release).
+
+## Local dev compose
+
+`docker-compose.yml` / `docker-compose.dev.yml` at repo root.
+
+- Agent reads `APP_PROFILE` (not `CRAFTPANEL_PROFILE`) — mismatched var name silently breaks node-key validation in dev
+- Master/frontend/agent healthchecks are baked into the Dockerfiles (not compose) — dev compose seed service uses `depends_on: condition: service_healthy`
+- Agent liveness is a heartbeat file touched on stream connect + each metrics tick, not `pgrep`
 
 ## gRPC
 
@@ -186,18 +217,19 @@ Any uncaught exception inside `requests.collect { }` in `ControlServiceImpl.cont
 
 - `DesiredStateStore` — in-memory per-server `DesiredState` (desired, spec, appliedSpec, budget, restart counters, one-shot flags). Master re-pushes on reconnect/boot, so nothing is persisted.
 - `ConvergenceMachine` — pure next-state function (no I/O, explicit `nowMillis`); table-tested. Decides `NoOp`/`EnsureRunning(recreate)`/`EnsureStopped`/`ForceKill`/`ConditionalRestart(recreate)`/`CrashLooped`. Recreate = `spec != appliedSpec` (or container absent/unknown applied spec ⇒ start existing, never destroy).
-- `ConvergenceLoop` — per-connection orchestrator; per-server `Mutex`, all entry points return a `Job`. Entry points: `applyDesired(env)`, `onContainerDie(serverId)`, `onServerRemoved(serverId)`.
+- `ConvergenceLoop` — per-connection orchestrator; per-server `Mutex`, all entry points return a `Job`. Entry points: `applyDesired(env)`, `onContainerDie(serverId)`, `onServerRemoved(serverId)`. A force-stop preempts an in-flight graceful stop with an out-of-band SIGKILL.
 - `ContainerOperator` — all Docker mechanics (create/recreate/pull/mount/symlink/start/stop/kill). `ensureRunning(spec, recreate)`.
 - `no_restart=true` (in the envelope) suppresses autonomous crash-restart while desired stays `RUNNING` (used by live migration). `force_restart` = user restart (never budget-capped). `force` = SIGKILL.
 
 **StartContainerCommand is the spec carrier** inside `ServerDesiredState.spec`; it is no longer a top-level `MasterMessage` payload (legacy start/stop/restart oneof fields are `reserved`).
 
-**`AgentOutbound`** wraps `Channel<AgentMessage>` + `nodeId`. Use:
+**`AgentOutbound`** wraps the two outbound lanes (`realtime` + `telemetry`, both `Channel<AgentMessage>`) plus `nodeId`. Use:
 
-- `out.send { ... }` — suspend send with nodeId pre-filled
-- `out.trySend { ... }` — non-blocking send
+- `out.send { ... }` — suspend send with nodeId pre-filled (realtime lane)
+- `out.trySend { ... }` — non-blocking send (realtime lane)
+- `out.sendTelemetry { ... }` — best-effort metrics/telemetry; never suspends (the lane drops its oldest sample when saturated)
 - `out.tryConsoleOutput(reqId) { ... }` — non-blocking console frame
-- `out.serverStatus(...)` / `out.tryServerStatus(...)` — server status updates
+- `out.tryServerStatus(...)` / `out.withStatus(...)` — server status updates
 
 **Two-layer error handling in agent handlers (load-bearing):**
 
@@ -299,7 +331,28 @@ Always hits DB. Cache may be added later.
 - Package manager: **pnpm** with `node-linker=hoisted` in `.npmrc` (required for Next.js standalone tracing)
 - Styling: Tailwind CSS v4 + shadcn/ui (base-nova style, uses `@base-ui/react`)
 - Fonts: Barlow (body, `--font-sans`), Barlow Condensed (headings, `--font-condensed`), JetBrains Mono (data values, `--font-mono`)
-- Dark-only — no light theme, `dark` class hardcoded on `<html>`
+- Theming: `dark | light | system`, **default `system`**. The preference is `localStorage` only (key `craftpanel:theme`) — no backend field, column, cookie or API endpoint, and never read or written server-side.
+  `<html>` always carries a resolved `data-theme="dark" | "light"`.
+
+### Theming rules
+
+- Theme code is split by boundary. `lib/theme.ts` holds the model, the store and the colour constants, and is **deliberately React-free so Server Components can import it** — `app/layout.tsx` and
+  `app/manifest.ts` both need its colours for the metadata they render. Do not add hooks to it; the React bindings (`useThemeMode`, `useResolvedTheme`, `useThemeSync`) live in
+  `lib/hooks/useTheme.ts`, per the `lib/hooks/` convention.
+- Resolution is mirrored in an inline script in `app/layout.tsx` that runs before first paint, so the theme never flashes. `lib/theme.ts` is the source of truth — keep the two in sync;
+  `lib/__tests__/theme.test.ts` pins the behaviour.
+- Colour tokens are the **only** way to reference a colour. `@theme inline` in `globals.css` maps every token with `var(--…)` — never put a literal hex there, it would bake that value into the
+  generated utility and silently kill the light overrides.
+- `dark:` is a **class-style variant driven by `[data-theme="dark"]`**, declared via `@custom-variant dark`. It is not `prefers-color-scheme`. Because `data-theme` is always resolved to a concrete
+  value, `dark:` and `[data-theme="light"]` can never disagree — keep it that way.
+- Light values live in the `[data-theme="light"]` block in `globals.css` and must cover the **full** shadcn semantic set (`--card`, `--popover`, `--primary`, `--muted`, `--input`, `--ring`,
+  `--destructive`, `--sidebar*`, `--chart-*`), not just the CraftPanel tokens. A partial palette breaks dialogs, tabs and form controls.
+- Status hues are darkened in light mode so text clears 4.5:1 on the light surfaces. `--accent` drops to `#b45309` for the same reason (`#d97706` on white is only ~3.1:1).
+- Text/icons on an amber fill use **`text-on-accent`** (`--on-accent`), never `text-bg` — that combination renders white-on-amber in light mode.
+- Widgets that snapshot colours at init (xterm terminals, CodeMirror) must subscribe to `useResolvedTheme()` and re-read on change.
+- Browser/PWA chrome follows the theme, in two layers. `viewport.themeColor` renders **two OS-scoped `<meta name="theme-color">` tags** (so the chrome is right before hydration and with JS off); `lib/theme.ts` then normalises every tag to the resolved value, dropping `media` so an explicit `light`/`dark` pick outranks the OS. The manifest's `background_color`/`theme_color` are OS-derived via the `Sec-CH-Prefers-Color-Scheme` client hint (opted into with `Accept-CH` in `next.config.ts`) — a splash is painted before any page JS, so it can never see the stored preference; `dark` is the fallback because the hint is Chromium-only and absent on a session's first request.
+- `THEME_CHROME_COLORS` / `THEME_SPLASH_COLORS` are the **only** colour literals outside `globals.css`, because a `<meta content>` and the manifest cannot resolve CSS variables. They mirror `--surface` and `--bg`; `lib/__tests__/theme.test.ts` fails if they drift.
+- `appleWebApp.statusBarStyle` is the one exception that **cannot** follow the theme: iOS reads it at launch, there is no client-side API to change it, and Safari does not implement the client hint. It stays `black-translucent` (white text), which suits the default dark palette. Deliberate, not forgotten.
 
 ### API client
 
@@ -314,23 +367,30 @@ Always hits DB. Cache may be added later.
 
 ## CraftPanel Colour Tokens
 
+Each token has a dark (default, on `:root`) and a light value (on `[data-theme="light"]`):
+
 ```css
---bg: #0e0d0c /* page background */
---surface: #1c1917 /* card/sidebar background */
---surface-high: #27241f
---surface-higher: #312d27
---border: #2e2a24
---accent: #d97706 /* amber — primary action colour */
---accent-bright: #f59e0b
---text-primary: #f5f0e8
---text-dim: #a89880
---text-muted: #665e52
---healthy: #4ade80
---error: #f87171
---warning: #fbbf24
+/*                      dark          light */
+--bg:                   #0e0d0c       #faf8f5   /* page background */
+--surface:              #1c1917       #ffffff   /* card/sidebar background */
+--surface-high:         #27241f       #f4f1ec
+--surface-higher:       #312d27       #ebe6de
+--border:               #2e2a24       #e3ddd3
+--border-high:          #3d3830       #cfc7b9
+--accent:               #d97706       #b45309   /* amber — primary action colour */
+--accent-bright:        #f59e0b       #d97706
+--on-accent:            #0e0d0c       #ffffff   /* text/icons ON an accent fill */
+--text-primary:         #f5f0e8       #1c1917
+--text-dim:             #a89880       #57534e
+--text-muted:           #665e52       #8a8175
+--healthy:              #4ade80       #15803d
+--error:                #f87171       #dc2626
+--warning:              #fbbf24       #a16207
 ```
 
-Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg-bg` for backgrounds. Never use raw hex in components — always use token classes.
+Plus per-theme tints (`--accent-subtle`, `--accent-glow`, `--terminal-selection`, `--*-bg`, `--*-border`), the full shadcn set, `--chart-*` and `--sidebar*` — all in `globals.css`.
+
+Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg-bg` for backgrounds. Use `text-on-accent` on amber fills. Never use raw hex in components — always use token classes.
 
 ## Testing (frontend)
 
@@ -339,9 +399,10 @@ Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg
 Stack: **Vitest** + **React Testing Library** + **jsdom**. Config at `frontend/vitest.config.ts`, global setup at `frontend/vitest.setup.ts`.
 
 ```bash
-cd frontend && .node/bin/pnpm test       # run all tests (use .node/bin/pnpm, not system pnpm)
-./gradlew :frontend:testFrontend         # run via Gradle
-./gradlew :frontend:check                # lint + test
+cd frontend && .node/bin/pnpm test               # run all tests (use .node/bin/pnpm, not system pnpm)
+./gradlew :frontend:testFrontend                 # run via Gradle
+./gradlew :frontend:testFrontend -PwithCoverage  # runs `pnpm test:coverage` instead of `pnpm test`
+./gradlew :frontend:check                        # lint + test
 ```
 
 - `next/navigation` is mocked globally in `vitest.setup.ts` — no per-file mock needed
@@ -391,7 +452,10 @@ WS tests use `page.routeWebSocket()` directly — NOT MSW `ws()` handlers. See f
 
 ## Testing (master)
 
-Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Coverage via Kover: `./gradlew :master:koverHtmlReport`.
+Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`.
+
+Coverage: `./gradlew :master:test -PwithCoverage` (also works for `:agent:test`) instruments the run and auto-generates HTML+XML Kover reports (`finalizedBy koverHtmlReport, koverXmlReport`) — without
+the flag, instrumentation is disabled for the `test` task entirely (avoids bytecode-instrumentation overhead on normal runs).
 
 ### TestDatabase (`io.craftpanel.master.TestDatabase`)
 
@@ -472,6 +536,8 @@ PostgreSQL via Exposed ORM 1.0 and HikariCP. Use `org.jetbrains.exposed.v1.*` im
 - Don't launch long runs (system-test suites, full builds) with `nohup … &` or a bare `&` — that detaches the process outside the harness, so it gets no background-shell UI entry and fires no
   completion callback. Use the Bash tool's `run_in_background: true` instead (harness-tracked, notifies on exit). If a `timeout` wrapper is needed, put it inside the backgrounded command, not around a
   detached `&`.
+- Don't pipe a backgrounded long-running gradle command through `| tail -N` — if the outer timeout kills the process, `tail` never flushes its buffer and the log ends up empty ("Terminated" only).
+  Redirect stdout straight to a file (`> log 2>&1`) and `tail`/`grep` the file afterward instead.
 - Don't assume `grep` is GNU grep — on this host it's aliased to `ugrep` (different regex/flag behavior, warns on missing files). Prefer the Grep tool, or `command grep`/`rg` when the shell `grep`
   misbehaves.
 - Don't add a Makefile
@@ -479,7 +545,7 @@ PostgreSQL via Exposed ORM 1.0 and HikariCP. Use `org.jetbrains.exposed.v1.*` im
 - Don't put build logic inside Docker
 - Don't hardcode image registry or version values
 - Don't use `org.jetbrains.exposed.*` imports — use `org.jetbrains.exposed.v1.*`
-- Don't add a light theme
+- Don't hardcode a theme in markup — no `dark` class on `<html>`, no `bg-black/60`-style scrims tuned to one palette where a token exists, no literal hex in `@theme inline`
 - Don't use raw hex codes or `rgba(...)` literals in component `style` props or Tailwind arbitrary value brackets — use the corresponding CSS variable token (`var(--token)`) or Tailwind token class
   instead. Raw values are only permitted in `globals.css` and `tailwind.config.js` where the tokens are defined
 - Don't put permission nodes in the JWT
@@ -503,8 +569,12 @@ PostgreSQL via Exposed ORM 1.0 and HikariCP. Use `org.jetbrains.exposed.v1.*` im
   avoid forward-reference compile errors
 - Don't use `afterEvaluate {}` closures that capture script-level objects — fail config cache serialization; use plain `tasks.named(...).configure {}` blocks instead
 - Don't use `respondBytesWriter` before verifying file existence — it commits HTTP 200 immediately; call `proxy.downloadFile` (throws on 404) before opening the writer
-- Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) —
-  return JSON `List<Int>` for byte arrays instead, or a typed DTO
+- The generated system-test client's `body.bytes() as? T` NPEs only when `T` is a typed DTO with no matching schema branch — that happens if `application/octet-stream` is mixed into a response that
+  *also* declares typed JSON bodies on other status codes without a single-content-type-per-status schema. Declaring the response as
+  `body(Schema<Any>().apply { type = "string"; format = "binary" }) { mediaTypes = listOf(ContentType.Application.OctetStream) }` (see `ResponseConfig.binaryFileBody()` in `routes/Common.kt`)
+  generates a clean binary schema; the openapi-generator kotlin/jvm-okhttp4 client falls back to `kotlin.Any` for it (not `java.io.File`, since the operation still has JSON error-response bodies on
+  other codes) and the cast to `Any` never fails — callers must `as ByteArray` the result. Use `call.respondBinaryFlow(flow)` (same file) to stream the response instead of buffering — avoids
+  materializing large files into memory and avoids ever emitting binary data as a JSON `List<Int>`.
 - Don't conflate `itzgImageTag` (Docker image tag e.g. `"1.21.5"`) with `mcVersion` (the `VERSION` env var passed to `itzg/minecraft-server`) — they are separate fields with separate meanings
 - Don't use `java.util.UUID` — use `kotlin.uuid.Uuid` (`Uuid.random()`, `Uuid.parse()`, no `.toJavaUuid()`/`.toKotlinUuid()` conversions; Exposed 1.3.0 `uuid()` columns return `Uuid` natively)
 - Don't use `kotlin.io.encoding.Base64.encode()` for WS ticket tokens — produces standard base64 with `+`/`/`/`=` that are URL-unsafe in `?ticket=` query params; use

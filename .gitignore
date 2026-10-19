@@ -16,6 +16,11 @@ openapi.json
 .serena
 .playwright-mcp
 
+# One agent-instruction doc only: AGENTS.md. Claude Code reads AGENTS.md natively (v2.1.277+),
+# and Next only seeds a CLAUDE.md when no AGENTS.md exists — so a stray CLAUDE.md would
+# silently fork the docs again.
+CLAUDE.md
+
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 graft/
 
