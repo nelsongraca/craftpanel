@@ -16,20 +16,14 @@ test("Migrate button opens modal with target node", async ({page}) => {
     await page.getByRole("button", {name: /Migrate/i}).click();
 
     // Modal is open and Start Migration button is visible
-    await expect(
-        page.getByRole("button", {name: "Start Migration"})
-    ).toBeVisible();
+    await expect(page.getByRole("button", {name: "Start Migration"})).toBeVisible();
     // node-2 appears as an option in the target node select
     await page.getByRole("combobox").click();
-    await expect(
-        page.getByRole("option", {name: /Secondary Node/})
-    ).toBeVisible();
+    await expect(page.getByRole("option", {name: /Secondary Node/})).toBeVisible();
     await page.keyboard.press("Escape");
 });
 
-test("start migration triggers WS events and updates step tracker", async ({
-                                                                               page,
-                                                                           }) => {
+test("start migration triggers WS events and updates step tracker", async ({page}) => {
     await page.routeWebSocket(/\/api\/migrations\/.*\/events/, (ws) => {
         ws.send(JSON.stringify({type: "status", status: "SYNCING"}));
         setTimeout(() => {
@@ -38,7 +32,7 @@ test("start migration triggers WS events and updates step tracker", async ({
                     type: "step.started",
                     step: 1,
                     description: "Syncing world data",
-                })
+                }),
             );
         }, 80);
         setTimeout(() => {
@@ -47,7 +41,7 @@ test("start migration triggers WS events and updates step tracker", async ({
                     type: "rsync.progress",
                     step: 1,
                     percent: 45,
-                })
+                }),
             );
         }, 160);
     });
@@ -56,23 +50,19 @@ test("start migration triggers WS events and updates step tracker", async ({
     await page.getByRole("tab", {name: "Migration"}).click();
     await page.getByRole("button", {name: /Migrate/i}).click();
 
-    await expect(
-        page.getByRole("button", {name: "Start Migration"})
-    ).toBeVisible();
+    await expect(page.getByRole("button", {name: "Start Migration"})).toBeVisible();
     await page.getByRole("button", {name: "Start Migration"}).click();
 
-    // Status updates to SYNCING
-    await expect(page.getByText("SYNCING")).toBeVisible({timeout: 5000});
+    // Status updates to SYNCING. `exact` matters: getByText is a case-insensitive substring
+    // match, so the "Syncing world data" step row below would also match and trip strict mode
+    // once it arrives.
+    await expect(page.getByText("SYNCING", {exact: true})).toBeVisible({timeout: 5000});
 
     // Step row appears
-    await expect(
-        page.getByText("Syncing world data")
-    ).toBeVisible({timeout: 3000});
+    await expect(page.getByText("Syncing world data")).toBeVisible({timeout: 3000});
 
     // Rsync progress bar at 45%
-    await expect(
-        page.locator('[style*="width: 45%"]')
-    ).toBeVisible({timeout: 3000});
+    await expect(page.locator('[style*="width: 45%"]')).toBeVisible({timeout: 3000});
 });
 
 test("migration completed event updates status", async ({page}) => {
