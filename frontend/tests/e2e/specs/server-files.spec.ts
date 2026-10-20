@@ -178,10 +178,15 @@ test("upload here targets the selected folder", async ({page, network}) => {
             if (path !== "/") return HttpResponse.json({entries: []});
             return HttpResponse.json({entries: rootEntries});
         }),
-        http.post("/api/servers/srv-1/files/upload", async ({request}) => {
+        http.post("/api/servers/srv-1/files/upload-batch", async ({request}) => {
+            const directory = new URL(request.url).searchParams.get("path") ?? "/";
             const form = await request.formData();
-            uploadedPath = String(form.get("path"));
-            return HttpResponse.json({path: uploadedPath, size_bytes: 1}, {status: 201});
+            const file = form.get("files") as File;
+            uploadedPath = `${directory === "/" ? "" : directory}/${file.name}`;
+            return HttpResponse.json(
+                {uploaded: 1, failed: 0, files: [{path: uploadedPath, success: true, size_bytes: 1}]},
+                {status: 201},
+            );
         }),
     );
 
@@ -202,6 +207,46 @@ test("upload here targets the selected folder", async ({page, network}) => {
     });
 
     await expect.poll(() => uploadedPath).toBe("/world/level.dat");
+    await expect(page.getByTestId("upload-dialog")).toContainText("1 uploaded · 0 failed");
+});
+
+test("uploads multiple files from the header in one batch", async ({page, network}) => {
+    let uploadedNames: string[] = [];
+    network.use(
+        http.get("/api/servers/srv-1/files", ({request}) => {
+            const path = new URL(request.url).searchParams.get("path") ?? "/";
+            if (path !== "/") return HttpResponse.json({entries: []});
+            return HttpResponse.json({entries: rootEntries});
+        }),
+        http.post("/api/servers/srv-1/files/upload-batch", async ({request}) => {
+            const form = await request.formData();
+            uploadedNames = form.getAll("files").map((entry) => (entry as File).name);
+            return HttpResponse.json(
+                {
+                    uploaded: uploadedNames.length,
+                    failed: 0,
+                    files: uploadedNames.map((name) => ({path: `/${name}`, success: true, size_bytes: 1})),
+                },
+                {status: 201},
+            );
+        }),
+    );
+
+    await page.goto("/servers/srv-1");
+    await page.getByRole("tab", {name: "Files"}).click();
+
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByTitle("Upload files").click();
+    await (
+        await chooser
+    ).setFiles([
+        {name: "one.txt", mimeType: "text/plain", buffer: Buffer.from("1")},
+        {name: "two.txt", mimeType: "text/plain", buffer: Buffer.from("2")},
+    ]);
+
+    // Multi-select always asks first.
+    await page.getByRole("button", {name: "Upload", exact: true}).click();
+    await expect.poll(() => uploadedNames).toEqual(["one.txt", "two.txt"]);
 });
 
 test("long text file is scrollable in the editor", async ({page, network}) => {

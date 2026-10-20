@@ -44,6 +44,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     copyServerFile: vi.fn(),
     writeServerFile: vi.fn(),
     uploadServerFile: vi.fn(),
+    uploadServerFiles: vi.fn(),
     downloadServerFile: vi.fn(),
 }));
 
@@ -55,7 +56,7 @@ import {
     moveServerFile,
     copyServerFile,
     writeServerFile,
-    uploadServerFile,
+    uploadServerFiles,
     downloadServerFile,
 } from "@/lib/generated/sdk.gen";
 
@@ -266,7 +267,7 @@ describe("FilesTab", () => {
         await waitFor(() => expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument());
 
         const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
-        fireEvent.click(screen.getByTitle("Upload file"));
+        fireEvent.click(screen.getByTitle("Upload files"));
         expect(clickSpy).toHaveBeenCalled();
         clickSpy.mockRestore();
     });
@@ -833,12 +834,11 @@ describe("FilesTab", () => {
     });
 
     describe("upload", () => {
-        it("shows error banner when upload fails", async () => {
-            const user = userEvent.setup();
+        it("shows the transport error inside the upload dialog", async () => {
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: {entries: []},
             } as never);
-            vi.mocked(uploadServerFile).mockResolvedValue({
+            vi.mocked(uploadServerFiles).mockResolvedValue({
                 error: {message: "Upload failed"},
             } as never);
             const {container} = render(<FilesTab serverId="s1" />);
@@ -849,20 +849,17 @@ describe("FilesTab", () => {
                 target: {files: [new File(["data"], "upload.txt")]},
             });
 
-            const picker = await screen.findByTestId("directory-picker");
-            expect(within(picker).getByLabelText("Name")).toHaveValue("upload.txt");
-            await user.click(within(picker).getByRole("button", {name: "Upload"}));
-
-            await waitFor(() => {
-                expect(screen.getByText("Upload failed")).toBeInTheDocument();
-            });
+            const dialog = await screen.findByTestId("upload-dialog");
+            expect(await within(dialog).findByTestId("upload-error")).toHaveTextContent("Upload failed");
         });
 
-        it("uploads directly into a folder via Upload here, without prompting", async () => {
+        it("uploads a single file into a folder via Upload here without prompting", async () => {
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: {entries: [dirEntry("plugins")]},
             } as never);
-            vi.mocked(uploadServerFile).mockResolvedValue({data: {}} as never);
+            vi.mocked(uploadServerFiles).mockResolvedValue({
+                data: {uploaded: 1, failed: 0, files: [{path: "/plugins/plugin.jar", success: true, size_bytes: 1}]},
+            } as never);
             const {container} = render(<FilesTab serverId="s1" />);
             await waitFor(() => expect(screen.getByText("plugins")).toBeInTheDocument());
 
@@ -873,21 +870,48 @@ describe("FilesTab", () => {
             });
 
             await waitFor(() => {
-                expect(uploadServerFile).toHaveBeenCalledWith(
+                expect(uploadServerFiles).toHaveBeenCalledWith(
                     expect.objectContaining({
                         path: {id: "s1"},
-                        body: expect.objectContaining({path: "/plugins/plugin.jar"}),
+                        query: {path: "/plugins"},
+                        body: {files: [expect.objectContaining({name: "plugin.jar"})]},
                     }),
                 );
             });
-            expect(screen.queryByText("Upload File")).not.toBeInTheDocument();
+            expect(screen.queryByTestId("upload-conflicts")).not.toBeInTheDocument();
         });
 
-        it("prefills the upload destination with the last clicked folder", async () => {
-            const user = userEvent.setup();
+        it("asks before overwriting an existing file", async () => {
+            vi.mocked(listServerFiles).mockResolvedValue({
+                data: {entries: [fileEntry("upload.txt")]},
+            } as never);
+            vi.mocked(uploadServerFiles).mockResolvedValue({
+                data: {uploaded: 1, failed: 0, files: [{path: "/upload.txt", success: true, size_bytes: 4}]},
+            } as never);
+            const {container} = render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("upload.txt")).toBeInTheDocument());
+
+            const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+            fireEvent.change(fileInput, {
+                target: {files: [new File(["data"], "upload.txt")]},
+            });
+
+            const dialog = await screen.findByTestId("upload-dialog");
+            expect(await within(dialog).findByTestId("upload-conflicts")).toHaveTextContent("/upload.txt");
+            expect(uploadServerFiles).not.toHaveBeenCalled();
+
+            fireEvent.click(within(dialog).getByRole("button", {name: /overwrite and upload/i}));
+            await waitFor(() => expect(uploadServerFiles).toHaveBeenCalledTimes(1));
+        });
+
+        it("uploads into the current directory after navigating into a folder", async () => {
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: {entries: [dirEntry("plugins")]},
             } as never);
+            vi.mocked(uploadServerFiles).mockResolvedValue({
+                data: {uploaded: 1, failed: 0, files: [{path: "/plugins/upload.txt", success: true, size_bytes: 4}]},
+            } as never);
+            const user = userEvent.setup();
             const {container} = render(<FilesTab serverId="s1" />);
             await waitFor(() => expect(screen.getByText("plugins")).toBeInTheDocument());
 
@@ -898,11 +922,9 @@ describe("FilesTab", () => {
                 target: {files: [new File(["x"], "upload.txt")]},
             });
 
-            const picker = await screen.findByTestId("directory-picker");
             await waitFor(() => {
-                expect(within(picker).getByTestId("picker-breadcrumb")).toHaveTextContent("plugins");
+                expect(uploadServerFiles).toHaveBeenCalledWith(expect.objectContaining({query: {path: "/plugins"}}));
             });
-            expect(within(picker).getByLabelText("Name")).toHaveValue("upload.txt");
         });
     });
 

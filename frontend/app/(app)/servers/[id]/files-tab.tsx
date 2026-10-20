@@ -13,7 +13,6 @@ import {
     mkdirServerFile,
     moveServerFile,
     readServerFile,
-    uploadServerFile,
     writeServerFile,
 } from "@/lib/generated/sdk.gen";
 import {
@@ -26,6 +25,7 @@ import {
     File,
     Folder,
     FolderPlus,
+    FolderUp,
     Maximize2,
     Minimize2,
     MoreVertical,
@@ -39,6 +39,8 @@ import {
 } from "lucide-react";
 import {FileCodeEditor} from "@/components/servers/file-code-editor";
 import {DirectoryPickerDialog} from "@/components/servers/directory-picker-dialog";
+import {UploadDialog} from "@/components/servers/upload-dialog";
+import {collectDroppedItems, itemsFromFileList, type UploadItem} from "@/lib/upload-drop";
 import {cn} from "@/lib/utils";
 import {LANGUAGE_IDS, LANGUAGE_LABELS, languageIdFromPath, type LanguageId} from "@/lib/file-language";
 import {
@@ -85,6 +87,15 @@ function parentDir(path: string): string {
     return path.substring(0, path.lastIndexOf("/")) || "/";
 }
 
+function isFileDrag(event: React.DragEvent): boolean {
+    return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+}
+
+function isSameTarget(event: React.DragEvent): boolean {
+    const related = event.relatedTarget;
+    return related instanceof Node && event.currentTarget.contains(related);
+}
+
 interface PickerState {
     title: string;
     description: string;
@@ -121,8 +132,17 @@ export function FilesTab({serverId, active = true}: Props) {
     const [renameValue, setRenameValue] = useState("");
     const [picker, setPicker] = useState<PickerState | null>(null);
     const [currentDir, setCurrentDir] = useState("/");
-    const uploadRef = useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const folderInputRef = useRef<HTMLInputElement>(null);
     const pendingUploadDirRef = useRef<string | null>(null);
+    const [preparingUpload, setPreparingUpload] = useState(false);
+    const [dragTarget, setDragTarget] = useState<string | null>(null);
+    const [upload, setUpload] = useState<{
+        items: UploadItem[];
+        destDir: string;
+        conflicts: string[];
+        requiresConfirmation: boolean;
+    } | null>(null);
 
     const loadDir = useCallback(
         async (path: string): Promise<TreeNode[]> => {
@@ -377,47 +397,93 @@ export function FilesTab({serverId, active = true}: Props) {
         URL.revokeObjectURL(url);
     }
 
-    async function uploadFile(file: File, destPath: string) {
-        const {error: err} = await uploadServerFile({
-            path: {id: serverId},
-            body: {path: destPath, file: file as unknown as number[]},
-        });
-        if (err) {
-            setError("Upload failed");
-            return;
+    // React has no typed `webkitdirectory` prop; set it imperatively on the hidden input.
+    useEffect(() => {
+        folderInputRef.current?.setAttribute("webkitdirectory", "");
+    }, []);
+
+    async function findConflicts(items: UploadItem[], destDir: string): Promise<string[]> {
+        const byDirectory = new Map<string, UploadItem[]>();
+        for (const item of items) {
+            const directory = parentDir(buildPath(destDir, item.relativePath));
+            const bucket = byDirectory.get(directory);
+            if (bucket) bucket.push(item);
+            else byDirectory.set(directory, [item]);
         }
-        setRoots(await loadDir("/"));
+
+        const conflicts = new Set<string>();
+        const directories = [...byDirectory.keys()];
+        let next = 0;
+
+        async function checkNext() {
+            while (next < directories.length) {
+                const directory = directories[next++];
+                const {data} = await listServerFiles({path: {id: serverId}, query: {path: directory}});
+                if (!data) continue; // A missing destination directory has nothing to overwrite.
+                const existing = new Set((data.entries ?? []).map((entry) => entry.name));
+                for (const item of byDirectory.get(directory) ?? []) {
+                    if (existing.has(item.file.name)) {
+                        conflicts.add(buildPath(destDir, item.relativePath));
+                    }
+                }
+            }
+        }
+
+        // Listing directories is independent; a handful in flight keeps large folder uploads quick.
+        await Promise.all(Array.from({length: Math.min(4, directories.length)}, () => checkNext()));
+        return [...conflicts];
+    }
+
+    async function beginUpload(items: UploadItem[], destDir: string) {
+        if (items.length === 0) return;
+        setError(null);
+        setPreparingUpload(true);
+        let conflicts: string[] = [];
+        try {
+            conflicts = await findConflicts(items, destDir);
+        } catch {
+            // A failed pre-check must not block the upload; the agent still validates every path.
+        } finally {
+            setPreparingUpload(false);
+        }
+        setUpload({
+            items,
+            destDir,
+            conflicts,
+            // A single new file goes straight up; folders, multi-select and overwrites ask first.
+            requiresConfirmation:
+                conflicts.length > 0 || items.length > 1 || items.some((item) => item.relativePath.includes("/")),
+        });
+    }
+
+    function handleUploadSelection(e: React.ChangeEvent<HTMLInputElement>) {
+        const items = itemsFromFileList(e.target.files ?? []);
+        const destination = pendingUploadDirRef.current ?? currentDir;
+        pendingUploadDirRef.current = null;
+        if (e.target) e.target.value = "";
+        void beginUpload(items, destination);
     }
 
     function uploadHere(dirPath: string) {
         pendingUploadDirRef.current = dirPath;
-        uploadRef.current?.click();
+        fileInputRef.current?.click();
     }
 
-    function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        const pendingDir = pendingUploadDirRef.current;
-        pendingUploadDirRef.current = null;
-        if (e.target) e.target.value = "";
-        if (!file) return;
-        if (pendingDir !== null) {
-            void uploadFile(file, buildPath(pendingDir, file.name));
-            return;
-        }
-        setPicker({
-            title: "Upload to…",
-            description: file.name,
-            confirmLabel: "Upload",
-            initialDir: currentDir,
-            initialName: file.name,
-            onConfirm: (destPath) => void uploadFile(file, destPath),
-        });
+    async function handleDrop(e: React.DragEvent, destDir: string) {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragTarget(null);
+        // webkitGetAsEntry must be read synchronously from the drop handler; collectDroppedItems
+        // captures the entries before its first await.
+        const items = await collectDroppedItems(e.dataTransfer);
+        await beginUpload(items, destDir);
     }
 
     function renderTree(nodes: TreeNode[], depth = 0): React.ReactNode {
         return nodes.map((node) => {
             const isSelected = selectedPath === node.path;
             const isCurrent = node.isDirectory && currentDir === node.path;
+            const dropDir = node.isDirectory ? node.path : parentDir(node.path);
             return (
                 <div key={node.path}>
                     <div
@@ -428,11 +494,26 @@ export function FilesTab({serverId, active = true}: Props) {
                                 : isCurrent
                                   ? "bg-surface-high text-accent"
                                   : "text-text-dim hover:bg-surface-high hover:text-text-primary",
+                            dragTarget === dropDir && "bg-accent/10 text-text-primary ring-2 ring-accent ring-inset",
                         ].join(" ")}
                         style={{paddingLeft: `${12 + depth * 16}px`}}
                         onClick={() => {
                             if (node.isDirectory) void toggleDir(node);
                             else void openFile(node);
+                        }}
+                        onDragOver={(e) => {
+                            if (!isFileDrag(e)) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.dataTransfer.dropEffect = "copy";
+                            setDragTarget(dropDir);
+                        }}
+                        onDragLeave={(e) => {
+                            if (isFileDrag(e) && !isSameTarget(e)) setDragTarget(null);
+                        }}
+                        onDrop={(e) => {
+                            if (!isFileDrag(e)) return;
+                            void handleDrop(e, dropDir);
                         }}
                     >
                         {node.isDirectory ? (
@@ -601,8 +682,28 @@ export function FilesTab({serverId, active = true}: Props) {
                 {/* ── Tree ── On mobile it is a full-screen list until a file is picked; on md+ it
                         is the fixed side pane and is always shown. */}
                 <div
-                    className={`${selectedPath ? "hidden md:flex" : "flex"} w-full shrink-0 flex-col overflow-hidden rounded-md border border-border bg-surface md:w-64`}
+                    className={`${selectedPath ? "hidden md:flex" : "flex"} relative w-full shrink-0 flex-col overflow-hidden rounded-md border border-border bg-surface md:w-64`}
+                    onDragOver={(e) => {
+                        if (!isFileDrag(e)) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "copy";
+                        setDragTarget(currentDir);
+                    }}
+                    onDragLeave={(e) => {
+                        if (isFileDrag(e) && !isSameTarget(e)) setDragTarget(null);
+                    }}
+                    onDrop={(e) => {
+                        if (!isFileDrag(e)) return;
+                        void handleDrop(e, currentDir);
+                    }}
                 >
+                    {dragTarget !== null && (
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border-2 border-dashed border-accent bg-accent/10 p-3">
+                            <span className="rounded bg-surface px-2 py-1 text-center font-mono text-xs text-accent">
+                                Drop to upload to {dragTarget}
+                            </span>
+                        </div>
+                    )}
                     <div className="flex items-center gap-1 border-b border-border px-3 py-2">
                         <span className="flex-1 font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
                             Files
@@ -616,13 +717,38 @@ export function FilesTab({serverId, active = true}: Props) {
                         >
                             {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                         </button>
-                        <button
-                            title="Upload file"
-                            className="p-1 text-text-muted hover:text-accent"
-                            onClick={() => uploadRef.current?.click()}
-                        >
-                            <Upload size={16} />
-                        </button>
+                        {preparingUpload ? (
+                            <span
+                                title="Preparing upload"
+                                aria-label="Preparing upload"
+                                className="my-0.5 h-4 w-4 animate-spin rounded-full border border-text-muted border-t-accent"
+                            />
+                        ) : (
+                            <>
+                                <button
+                                    title="Upload files"
+                                    aria-label="Upload files"
+                                    className="p-1 text-text-muted hover:text-accent"
+                                    onClick={() => {
+                                        pendingUploadDirRef.current = null;
+                                        fileInputRef.current?.click();
+                                    }}
+                                >
+                                    <Upload size={16} />
+                                </button>
+                                <button
+                                    title="Upload folder"
+                                    aria-label="Upload folder"
+                                    className="p-1 text-text-muted hover:text-accent"
+                                    onClick={() => {
+                                        pendingUploadDirRef.current = null;
+                                        folderInputRef.current?.click();
+                                    }}
+                                >
+                                    <FolderUp size={16} />
+                                </button>
+                            </>
+                        )}
                         <button
                             title="New folder"
                             className="p-1 text-text-muted hover:text-accent"
@@ -630,7 +756,20 @@ export function FilesTab({serverId, active = true}: Props) {
                         >
                             <FolderPlus size={16} />
                         </button>
-                        <input ref={uploadRef} type="file" className="hidden" onChange={handleUpload} />
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={handleUploadSelection}
+                        />
+                        <input
+                            ref={folderInputRef}
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={handleUploadSelection}
+                        />
                     </div>
                     <div className="flex-1 overflow-y-auto py-1">
                         {rootLoading ? (
@@ -780,6 +919,22 @@ export function FilesTab({serverId, active = true}: Props) {
                     loadDir={loadDir}
                     validate={picker.validate}
                     onConfirm={picker.onConfirm}
+                />
+            )}
+            {upload && (
+                <UploadDialog
+                    open
+                    onOpenChange={(open) => {
+                        if (!open) setUpload(null);
+                    }}
+                    serverId={serverId}
+                    destination={upload.destDir}
+                    items={upload.items}
+                    conflicts={upload.conflicts}
+                    requiresConfirmation={upload.requiresConfirmation}
+                    onFinished={() => {
+                        void loadDir("/").then(setRoots);
+                    }}
                 />
             )}
         </>
