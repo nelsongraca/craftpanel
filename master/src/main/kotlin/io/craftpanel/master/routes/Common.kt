@@ -40,3 +40,23 @@ fun ResponseConfig.binaryFileBody() {
         mediaTypes = listOf(ContentType.Application.OctetStream)
     }
 }
+
+/**
+ * OpenAPI schema for a multipart part carrying a single binary file.
+ * Using an explicit schema (instead of `ByteArray`) stops the generator from describing
+ * the part as an array of integers, so clients see `Blob | File`.
+ */
+fun binaryFileSchema(): Schema<Any> = Schema<Any>().apply {
+    type = "string"
+    // The spec is OpenAPI 3.1, whose serializer ignores the singular `type` field and
+    // writes `types` instead. Set both so readers of either field agree.
+    types = setOf("string")
+    format = "binary"
+}
+
+/** OpenAPI schema for a multipart part carrying any number of binary files (`files[]`). */
+fun binaryFileArraySchema(): Schema<Any> = Schema<Any>().apply {
+    type = "array"
+    types = setOf("array")
+    items = binaryFileSchema()
+}

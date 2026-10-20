@@ -76,6 +76,18 @@ internal fun serverDataRoot(dataBasePath: String, serverId: String): Path {
     return resolved
 }
 
+/**
+ * Resolves [relativePath] under [root], rejecting any path that escapes the root.
+ * Shared by [FileHandler] and the batch-upload receiver in `BulkDataClient`.
+ */
+internal fun safeResolve(root: Path, relativePath: String): Path {
+    val clean = relativePath.trimStart('/')
+    val resolved = root.resolve(clean)
+        .normalize()
+    if (!resolved.startsWith(root)) error("Path traversal detected")
+    return resolved
+}
+
 /** Recursively deletes a file or directory tree, shared by [FileHandler] and [ContainerHandler]. */
 internal fun deleteRecursively(path: Path) {
     Files.walkFileTree(

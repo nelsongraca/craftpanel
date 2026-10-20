@@ -6,12 +6,20 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.grpc.FileUploadResult
+import io.craftpanel.master.grpc.UploadFrame
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.*
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
+import io.mockk.coEvery
+import io.mockk.mockk
+import kotlinx.coroutines.flow.Flow
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -148,6 +156,148 @@ class FilesRoutesTest :
                 val serverId = createServer(nodeId)
                 val res = client.get("/api/servers/$serverId/files/content?path=/test.txt") { header("Authorization", "Bearer $token") }
                 res.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        // ── Batch upload ──────────────────────────────────────────────────────────
+
+        test("batch upload returns 401 without token") {
+            testApplication {
+                testApp { _ -> configureFilesTest() }
+                val client = jsonClient()
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val res = client.post("/api/servers/$serverId/files/upload-batch?path=/uploads")
+                res.status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("batch upload returns 403 without server_files permission") {
+            testApplication {
+                testApp { _ -> configureFilesTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Viewer")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val res = client.post("/api/servers/$serverId/files/upload-batch?path=/uploads") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("batch upload requires a destination path") {
+            testApplication {
+                testApp { _ -> configureFilesTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val res = client.post("/api/servers/$serverId/files/upload-batch") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.BadRequest
+            }
+        }
+
+        test("batch upload frames every part and returns per-file results") {
+            testApplication {
+                val proxy = mockk<DataServiceProxy>()
+                val frames = mutableListOf<UploadFrame>()
+                coEvery { proxy.uploadFiles(any(), any(), any()) } coAnswers {
+                    arg<Flow<UploadFrame>>(1)
+                        .collect { frames += it }
+                    listOf(
+                        FileUploadResult("/uploads/a.txt", success = true, sizeBytes = 5),
+                        FileUploadResult("/uploads/nested/b.txt", success = false, sizeBytes = 0, errorMessage = "denied")
+                    )
+                }
+                testApp { _ -> filesRoutes(proxy) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val res = client.post("/api/servers/$serverId/files/upload-batch?path=/uploads") {
+                    header("Authorization", "Bearer $token")
+                    setBody(
+                        MultiPartFormDataContent(
+                            formData {
+                                append(
+                                    "files",
+                                    "hello".toByteArray(),
+                                    Headers.build { append(HttpHeaders.ContentDisposition, "filename=\"a.txt\"") }
+                                )
+                                append(
+                                    "files",
+                                    "world!".toByteArray(),
+                                    Headers.build { append(HttpHeaders.ContentDisposition, "filename=\"nested/b.txt\"") }
+                                )
+                            }
+                        )
+                    )
+                }
+
+                res.status shouldBe HttpStatusCode.Created
+                val body = res.bodyAsText()
+                body shouldContain "\"uploaded\":1"
+                body shouldContain "\"failed\":1"
+                body shouldContain "\"error\":\"denied\""
+                frames.map {
+                    when (it) {
+                        is UploadFrame.FileStart -> "start:${it.path}"
+                        is UploadFrame.Data -> "data:${it.bytes.decodeToString()}"
+                        UploadFrame.FileEnd -> "end"
+                    }
+                } shouldBe listOf(
+                    "start:/uploads/a.txt",
+                    "data:hello",
+                    "end",
+                    "start:/uploads/nested/b.txt",
+                    "data:world!",
+                    "end"
+                )
+            }
+        }
+
+        test("batch upload rejects a traversal filename before writing") {
+            testApplication {
+                val proxy = mockk<DataServiceProxy>()
+                coEvery { proxy.uploadFiles(any(), any(), any()) } coAnswers {
+                    arg<Flow<UploadFrame>>(1)
+                        .collect { }
+                    emptyList()
+                }
+                testApp { _ -> filesRoutes(proxy) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val res = client.post("/api/servers/$serverId/files/upload-batch?path=/uploads") {
+                    header("Authorization", "Bearer $token")
+                    setBody(
+                        MultiPartFormDataContent(
+                            formData {
+                                append(
+                                    "files",
+                                    "evil".toByteArray(),
+                                    Headers.build { append(HttpHeaders.ContentDisposition, "filename=\"../escape.txt\"") }
+                                )
+                            }
+                        )
+                    )
+                }
+
+                res.status shouldBe HttpStatusCode.BadRequest
             }
         }
     })

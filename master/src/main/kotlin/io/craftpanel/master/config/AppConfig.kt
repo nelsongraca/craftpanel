@@ -38,8 +38,8 @@ data class ImagesConfig(val minecraftImage: String, val proxyImage: String, val 
     fun deriveImage(serverType: ServerType, tag: String): String {
         val base = when {
             serverType.isPicolimbo -> picolimboImage
-            serverType.isProxy     -> proxyImage
-            else                   -> minecraftImage
+            serverType.isProxy -> proxyImage
+            else -> minecraftImage
         }
         return if (':' in base) base else "$base:$tag"
     }
@@ -49,8 +49,8 @@ data class ImagesConfig(val minecraftImage: String, val proxyImage: String, val 
     // PicoLimbo's WORKDIR is /usr/src/app — config (server.toml) lives there.
     fun dataContainerPath(serverType: ServerType): String = when {
         serverType.isPicolimbo -> "/usr/src/app"
-        serverType.isProxy     -> "/server"
-        else                   -> "/data"
+        serverType.isProxy -> "/server"
+        else -> "/data"
     }
 
     // Internal port the server process binds inside the container. itzg/minecraft-server
@@ -67,6 +67,13 @@ data class AdminSeedConfig(val email: String, val password: String, val username
 data class DockerConfig(val endpoint: String = "")
 
 data class ForwardingConfig(val key: String)
+
+data class UploadConfig(
+    /** Hard cap for one batch transfer, including any time spent waiting for the agent. */
+    val transferTimeoutMs: Long = 30 * 60 * 1000L,
+    /** Abuse guard; the UI caps earlier. Files already streamed before the limit is hit are kept. */
+    val maxFilesPerBatch: Int = 500
+)
 
 class AppConfig(config: ApplicationConfig) {
 
@@ -155,6 +162,14 @@ class AppConfig(config: ApplicationConfig) {
             ?.getString()
             ?.toIntOrNull() ?: 10
     )
+    val upload = UploadConfig(
+        transferTimeoutMs = config.propertyOrNull("upload.transferTimeoutMs")
+            ?.getString()
+            ?.toLongOrNull() ?: 30 * 60 * 1000L,
+        maxFilesPerBatch = config.propertyOrNull("upload.maxFilesPerBatch")
+            ?.getString()
+            ?.toIntOrNull() ?: 500
+    )
     val adminSeed = AdminSeedConfig(
         email = config.propertyOrNull("adminSeed.email")
             ?.getString() ?: "",
@@ -194,10 +209,12 @@ class AppConfig(config: ApplicationConfig) {
         check(forwarding.key != defaultForwardingKey) {
             "FORWARDING_KEY must be set to a non-default value"
         }
-        check(runCatching {
-            java.util.Base64.getDecoder()
-                .decode(forwarding.key)
-        }.getOrNull()?.size == 32) {
+        check(
+            runCatching {
+                java.util.Base64.getDecoder()
+                    .decode(forwarding.key)
+            }.getOrNull()?.size == 32
+        ) {
             "FORWARDING_KEY must be set to Base64 of 32 raw bytes (AES-256 key)"
         }
         // TLS is always enforced: either via explicit cert paths or auto-generated certs.

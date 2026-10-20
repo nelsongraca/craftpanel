@@ -3,6 +3,8 @@ package io.craftpanel.agent.grpc.handlers
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.agent.grpc.BulkDataClient
+import io.craftpanel.agent.grpc.FileUploadResult
+import io.craftpanel.agent.grpc.ReceiveFilesResult
 import io.craftpanel.proto.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -276,18 +278,22 @@ class FileHandlerTest :
             response.errorMessage shouldContain "File not found: missing.txt"
         }
 
-        test("handleUploadFile reports failure envelope when the bulk transfer fails") {
+        test("handleUploadFiles reports one result per received file") {
             val handler = FileHandler(config(), "node-key")
             val (out, channel) = newOutbound()
             val bulkClient = mockk<BulkDataClient>()
-            coEvery { bulkClient.receiveFromMaster(any(), any(), any()) } throws IOException("transfer failed")
+            coEvery { bulkClient.receiveFilesFromMaster(any(), any(), any()) } returns ReceiveFilesResult(
+                listOf(
+                    FileUploadResult("/dest.txt", success = true, sizeBytes = 5),
+                    FileUploadResult("/bad.txt", success = false, sizeBytes = 0, errorMessage = "Path traversal detected", errorCode = ErrorCode.INTERNAL)
+                )
+            )
 
             runBlocking {
-                handler.handleUploadFile(
-                    uploadFileCommand {
+                handler.handleUploadFiles(
+                    uploadFilesCommand {
                         requestId = "r1"
                         serverId = "srv-1"
-                        path = "dest.txt"
                         transferId = "t1"
                     },
                     bulkClient,
@@ -297,10 +303,41 @@ class FileHandlerTest :
 
             val response = channel.tryReceive()
                 .getOrThrow()
-                .uploadFileResponse
-            response.success shouldBe false
-            response.errorCode shouldBe ErrorCode.INTERNAL
-            response.errorMessage shouldBe "transfer failed"
+                .uploadFilesResponse
+            response.requestId shouldBe "r1"
+            response.filesCount shouldBe 2
+            response.filesList[0].path shouldBe "/dest.txt"
+            response.filesList[0].success shouldBe true
+            response.filesList[0].sizeBytes shouldBe 5
+            response.filesList[1].success shouldBe false
+            response.filesList[1].errorMessage shouldBe "Path traversal detected"
+            response.transferError shouldBe ""
+        }
+
+        test("handleUploadFiles surfaces a transfer-level failure") {
+            val handler = FileHandler(config(), "node-key")
+            val (out, channel) = newOutbound()
+            val bulkClient = mockk<BulkDataClient>()
+            coEvery { bulkClient.receiveFilesFromMaster(any(), any(), any()) } throws IOException("transfer failed")
+
+            runBlocking {
+                handler.handleUploadFiles(
+                    uploadFilesCommand {
+                        requestId = "r1"
+                        serverId = "srv-1"
+                        transferId = "t1"
+                    },
+                    bulkClient,
+                    out
+                )
+            }
+
+            val response = channel.tryReceive()
+                .getOrThrow()
+                .uploadFilesResponse
+            response.requestId shouldBe "r1"
+            response.filesCount shouldBe 0
+            response.transferError shouldBe "transfer failed"
         }
 
         test("handleDownloadBackup reports INTERNAL when the backup id is invalid") {

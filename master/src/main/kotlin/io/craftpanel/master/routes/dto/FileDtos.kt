@@ -25,6 +25,12 @@ data class ConsoleLogsResponse(val lines: List<String>)
 data class UploadResponse(val path: String, @SerialName("size_bytes") val sizeBytes: Long)
 
 @Serializable
+data class UploadedFileResultResponse(val path: String, val success: Boolean, @SerialName("size_bytes") val sizeBytes: Long, val error: String? = null)
+
+@Serializable
+data class BatchUploadResponse(val uploaded: Int, val failed: Int, val files: List<UploadedFileResultResponse>)
+
+@Serializable
 data class MoveRequest(@SerialName("source_path") val sourcePath: String, @SerialName("destination_path") val destinationPath: String)
 
 @Serializable

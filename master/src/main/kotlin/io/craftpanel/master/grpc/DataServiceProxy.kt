@@ -8,9 +8,17 @@ import io.craftpanel.master.routes.dto.ReadFileResponse
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.proto.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.ClosedSendChannelException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import java.time.Instant
 import kotlin.uuid.Uuid
+
+/** Outcome of one file in a batch upload, decoupled from the proto type. */
+data class FileUploadResult(val path: String, val success: Boolean, val sizeBytes: Long, val errorMessage: String = "", val errorCode: ErrorCode = ErrorCode.ERROR_CODE_UNSPECIFIED)
 
 /**
  * Routes file and console operations from REST/WebSocket routes to the connected agent
@@ -18,7 +26,12 @@ import kotlin.uuid.Uuid
  *
  * Master never dials agents — all connections are agent-initiated.
  */
-class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkService: BulkDataServiceImpl, private val serverRepository: ServerRepository) {
+class DataServiceProxy(
+    private val agentDataOps: AgentDataOps,
+    private val bulkService: BulkDataServiceImpl,
+    private val serverRepository: ServerRepository,
+    private val uploadTimeoutMs: Long = DEFAULT_UPLOAD_TIMEOUT_MS
+) {
 
     private data class ServerLookup(val nodeId: String, val status: String)
 
@@ -215,45 +228,96 @@ class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkS
     // ── Bulk transfers ────────────────────────────────────────────────────────
 
     /**
-     * Upload [content] to the agent at [path].
-     * Returns the number of bytes written.
+     * Upload one or more files to the agent over a single bulk transfer.
+     *
+     * [source] is pumped into a bounded channel while the agent drains it, so master never
+     * holds more than a few chunks in memory regardless of total upload size. Per-file
+     * failures are returned in the result list; a failed transfer throws.
      */
-    suspend fun uploadFile(serverId: Uuid, path: String, content: ByteArray): Long {
+    suspend fun uploadFiles(serverId: Uuid, source: Flow<UploadFrame>, timeoutMs: Long = uploadTimeoutMs): List<FileUploadResult> {
         val nodeId = lookupServer(serverId).nodeId
         val transferId = Uuid.random()
             .toString()
         val reqId = Uuid.random()
             .toString()
 
-        // Pre-fill the upload channel before signalling the agent so it's ready when agent connects.
         val uploadChannel = bulkService.registerUpload(transferId)
-        val chunkSize = 65536
-        var offset = 0
-        while (offset < content.size) {
-            val end = minOf(offset + chunkSize, content.size)
-            uploadChannel.send(content.copyOfRange(offset, end))
-            offset = end
-        }
-        uploadChannel.close()
-
-        // Signal agent to open BulkDataService ReceiveFromMaster connection.
-        val response = agentDataOps.sendAndAwait(
-            nodeId,
-            reqId,
-            masterMessage {
-                uploadFile = uploadFileCommand {
-                    requestId = reqId
-                    this.serverId = serverId.toString()
-                    this.path = path
-                    this.transferId = transferId
+        try {
+            return coroutineScope {
+                val response = async {
+                    agentDataOps.sendAndAwait(
+                        nodeId,
+                        reqId,
+                        masterMessage {
+                            uploadFiles = uploadFilesCommand {
+                                requestId = reqId
+                                this.serverId = serverId.toString()
+                                this.transferId = transferId
+                            }
+                        },
+                        timeoutMs = timeoutMs
+                    )
                 }
-            },
-            timeoutMs = 120_000
-        )
 
-        val r = response.uploadFileResponse
-        if (!r.success) throw agentErrorToException(r.errorCode, r.errorMessage.ifBlank { "Upload failed" })
-        return r.sizeBytes
+                val pump = launch {
+                    try {
+                        source.collect { uploadChannel.send(it) }
+                        uploadChannel.close()
+                    } catch (_: ClosedSendChannelException) {
+                        // The agent ended the transfer (failure or abort); the response decides
+                        // the outcome. Never mask the agent's error with a channel exception.
+                        uploadChannel.close()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        uploadChannel.close(e)
+                        throw e
+                    }
+                }
+
+                try {
+                    val batch = response.await()
+                        .uploadFilesResponse
+                    if (batch.transferError.isNotBlank()) throw BadGatewayException(batch.transferError)
+                    batch.filesList.map { f ->
+                        FileUploadResult(
+                            path = f.path,
+                            success = f.success,
+                            sizeBytes = f.sizeBytes,
+                            errorMessage = f.errorMessage,
+                            errorCode = f.errorCode
+                        )
+                    }
+                } finally {
+                    pump.cancel()
+                }
+            }
+        } finally {
+            bulkService.cancelUpload(transferId)
+        }
+    }
+
+    /**
+     * Upload [content] to the agent at [path].
+     * Returns the number of bytes written.
+     */
+    suspend fun uploadFile(serverId: Uuid, path: String, content: ByteArray): Long {
+        val frames = flow {
+            emit(UploadFrame.FileStart(path))
+            val chunkSize = 65536
+            var offset = 0
+            while (offset < content.size) {
+                val end = minOf(offset + chunkSize, content.size)
+                emit(UploadFrame.Data(content.copyOfRange(offset, end)))
+                offset = end
+            }
+            emit(UploadFrame.FileEnd)
+        }
+        val result = uploadFiles(serverId, frames)
+            .singleOrNull()
+            ?: throw BadGatewayException("Upload failed")
+        if (!result.success) throw agentErrorToException(result.errorCode, result.errorMessage.ifBlank { "Upload failed" })
+        return result.sizeBytes
     }
 
     /**
@@ -308,5 +372,10 @@ class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkS
         }
 
         return downloadFlow
+    }
+
+    private companion object {
+        /** Fallback used by tests and by construction paths that do not pass config. */
+        const val DEFAULT_UPLOAD_TIMEOUT_MS = 30 * 60 * 1000L
     }
 }

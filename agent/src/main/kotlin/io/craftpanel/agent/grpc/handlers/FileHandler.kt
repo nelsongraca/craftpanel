@@ -5,7 +5,9 @@ import com.google.protobuf.timestamp
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.agent.grpc.BulkDataClient
+import io.craftpanel.agent.grpc.ReceiveFilesResult
 import io.craftpanel.proto.*
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -225,17 +227,29 @@ class FileHandler(private val config: AgentConfig, private val nodeKey: String) 
         }
     }
 
-    suspend fun handleUploadFile(cmd: UploadFileCommand, bulkClient: BulkDataClient, out: AgentOutbound) {
-        val result = runCatching {
-            val root = serverDataRoot(cmd.serverId)
-            val destPath = safeResolve(root, cmd.path)
-            bulkClient.receiveFromMaster(nodeKey, cmd.transferId, destPath)
+    suspend fun handleUploadFiles(cmd: UploadFilesCommand, bulkClient: BulkDataClient, out: AgentOutbound) {
+        val received = try {
+            bulkClient.receiveFilesFromMaster(nodeKey, cmd.transferId, serverDataRoot(cmd.serverId))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            ReceiveFilesResult(emptyList(), e.message ?: "Upload transfer failed")
         }
         out.send {
-            uploadFileResponse = uploadFileResponse {
+            uploadFilesResponse = uploadFilesResponse {
                 requestId = cmd.requestId
-                success = result.isSuccess
-                result.fillFailure({ errorMessage = it }, { errorCode = it })
+                received.files.forEach { file ->
+                    files.add(
+                        uploadedFileResult {
+                            path = file.path
+                            success = file.success
+                            sizeBytes = file.sizeBytes
+                            errorMessage = file.errorMessage
+                            errorCode = file.errorCode
+                        }
+                    )
+                }
+                transferError = received.transferError ?: ""
             }
         }
     }
@@ -269,16 +283,6 @@ class FileHandler(private val config: AgentConfig, private val nodeKey: String) 
     // ─── Path helpers ─────────────────────────────────────────────────────────
 
     private fun serverDataRoot(serverId: String): Path = serverDataRoot(config.dataBasePath, serverId)
-
-    private fun safeResolve(root: Path, relativePath: String): Path {
-        log.debug("safeResolve root={} relativePath={}", root, relativePath)
-        val clean = relativePath.trimStart('/')
-        val resolved = root.resolve(clean)
-            .normalize()
-        log.debug("safeResolve resolved={} startsWithRoot={}", resolved, resolved.startsWith(root))
-        if (!resolved.startsWith(root)) error("Path traversal detected")
-        return resolved
-    }
 
     private fun copyRecursively(src: Path, dst: Path) {
         if (Files.isDirectory(src)) {

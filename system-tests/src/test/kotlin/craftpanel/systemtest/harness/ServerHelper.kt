@@ -3,6 +3,7 @@ package craftpanel.systemtest.harness
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Frame
+import com.google.gson.Gson
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.*
 import kotlinx.coroutines.*
@@ -10,6 +11,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.openapitools.client.infrastructure.ClientException
+import java.net.URLEncoder
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -35,6 +37,31 @@ class ServerHelper(private val api: DefaultApi) {
                 if (!it.isSuccessful) error("Upload failed: ${it.code} ${it.body.string()}")
             }
         }
+    }
+
+    /**
+     * Uploads [files] (relative path → bytes) in one batch request. The relative path is sent as
+     * the multipart filename, which is how the master learns the destination of each file.
+     */
+    suspend fun uploadFiles(serverId: String, directory: String, files: Map<String, ByteArray>, token: String): BatchUploadResponse = withContext(Dispatchers.IO) {
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+        files.forEach { (relativePath, content) ->
+            body.addFormDataPart("files", relativePath, content.toRequestBody("application/octet-stream".toMediaType()))
+        }
+        val encodedDirectory = URLEncoder.encode(directory, "UTF-8")
+        val request = Request.Builder()
+            .url("${SharedStack.masterApiUrl}/api/servers/$serverId/files/upload-batch?path=$encodedDirectory")
+            .addHeader("Authorization", "Bearer $token")
+            .post(body.build())
+            .build()
+        httpClient.newCall(request)
+            .execute()
+            .use { response ->
+                val responseBody = response.body.string()
+                if (!response.isSuccessful) error("Batch upload failed: ${response.code} $responseBody")
+                Gson().fromJson(responseBody, BatchUploadResponse::class.java)
+            }
     }
 
     suspend fun createTestServer(

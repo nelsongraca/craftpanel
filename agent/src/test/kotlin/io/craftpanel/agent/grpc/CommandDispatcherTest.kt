@@ -121,12 +121,12 @@ class CommandDispatcherTest :
         test("routes bulk file commands with bulk client") {
             runTest {
                 dispatcher.dispatch(masterMessage { downloadFile = downloadFileCommand { requestId = "r" } }, out, this)
-                dispatcher.dispatch(masterMessage { uploadFile = uploadFileCommand { requestId = "r" } }, out, this)
+                dispatcher.dispatch(masterMessage { uploadFiles = uploadFilesCommand { requestId = "r" } }, out, this)
                 dispatcher.dispatch(masterMessage { downloadBackup = downloadBackupCommand { requestId = "r" } }, out, this)
                 advanceUntilIdle()
 
                 coVerify { file.handleDownloadFile(any(), bulkClient, out) }
-                coVerify { file.handleUploadFile(any(), bulkClient, out) }
+                coVerify { file.handleUploadFiles(any(), bulkClient, out) }
                 coVerify { file.handleDownloadBackup(any(), bulkClient, out) }
             }
         }

@@ -164,10 +164,17 @@ message BulkChunk {
   // Required in the first message of StreamToMaster; empty in subsequent chunks.
   string node_key = 2;
   bytes  data = 3;
-  // Set true on the final chunk.
+  // Set true on the final chunk of the transfer.
   bool   is_last = 4;
   // Non-empty signals an error; master/agent closes the transfer on receipt.
   string error_message = 5;
+
+  // ── Upload direction only (ReceiveFromMaster) ────────────────────────────
+  // Non-empty marks the first chunk of a new file entry. The path is relative
+  // to the server data root (e.g. "/world/level.dat").
+  string file_path = 6;
+  // Set on the final chunk of the current file entry.
+  bool   file_end = 7;
 }
 
 message BulkTransferAck {
@@ -190,6 +197,11 @@ message MasterMessage {
   // lifecycle is now expressed declaratively via `server_desired_state`.
   reserved 3, 4, 5;
   reserved "start_container", "stop_container", "restart_container";
+
+  // Field 25 was the single-file UploadFileCommand; replaced by the framed
+  // multi-file `upload_files` command below.
+  reserved 25;
+  reserved "upload_file";
 
   oneof payload {
     RemoveContainerCommand  remove_container = 6;
@@ -224,7 +236,6 @@ message MasterMessage {
 
     // Bulk transfer triggers — agent dials BulkDataService on receipt
     DownloadFileCommand   download_file = 24;
-    UploadFileCommand     upload_file = 25;
     DownloadBackupCommand download_backup = 26;
 
     // Console — fetch static container logs (tail, no follow) for crash diagnosis
@@ -246,12 +257,21 @@ message MasterMessage {
     // Explicit operator action from the node page: recreate the mc-router container now, at a
     // chosen downtime window, so a pre-pulled newer image takes effect. Never sent automatically.
     RecreateRouterCommand recreate_router = 31;
+
+    // Batch file upload: agent opens one ReceiveFromMaster transfer and receives all
+    // files framed by BulkChunk.file_path / file_end.
+    UploadFilesCommand upload_files = 32;
   }
 }
 
 // Wrapper for all messages sent from agent to master on the control stream.
 message AgentMessage {
   string node_id = 1;
+
+  // Field 22 was the single-file UploadFileResponse; replaced by the framed
+  // multi-file `upload_files_response` below.
+  reserved 22;
+  reserved "upload_file_response";
 
   oneof payload {
     // Sent as the first message after IdentifyNode or RegisterNode succeeds.
@@ -290,7 +310,6 @@ message AgentMessage {
 
     // Bulk transfer responses (sent after agent completes BulkDataService transfer)
     DownloadFileResponse download_file_response = 21;
-    UploadFileResponse   upload_file_response = 22;
 
     // Console — static container logs response (tail, no follow)
     FetchContainerLogsResponse fetch_container_logs_response = 23;
@@ -298,6 +317,10 @@ message AgentMessage {
     // mc-router liveness + "a newer router image is available" signal. Sent on connect and
     // whenever either value changes, so master can surface a planned-downtime badge on the node.
     RouterStatusUpdate router_status = 24;
+
+    // Batch upload outcome — one result per file received, plus a transfer-level error
+    // if the stream itself failed.
+    UploadFilesResponse upload_files_response = 25;
   }
 }
 
@@ -774,14 +797,13 @@ message DownloadFileCommand {
   string transfer_id = 4;
 }
 
-// Master → Agent: command agent to open a BulkDataService ReceiveFromMaster connection
-// to receive an uploaded file and write it to the given path.
-message UploadFileCommand {
+// Master → Agent: command agent to open one BulkDataService ReceiveFromMaster
+// connection and receive one or more files framed by BulkChunk.file_path / file_end.
+message UploadFilesCommand {
   string request_id = 1;
   string server_id = 2;
-  string path = 3;
   // UUID master uses to correlate the incoming BulkDataService connection.
-  string transfer_id = 4;
+  string transfer_id = 3;
 }
 
 // Master → Agent: command agent to open a BulkDataService UploadToMaster connection
@@ -801,13 +823,22 @@ message DownloadFileResponse {
   ErrorCode error_code = 4;
 }
 
-// Agent → Master: result of a BulkDataService upload transfer.
-message UploadFileResponse {
-  string request_id = 1;
-  bool   success = 2;
-  int64  size_bytes = 3;
-  string error_message = 4;
+// Agent → Master: outcome for one file in a batch upload transfer.
+message UploadedFileResult {
+  string    path = 1;
+  bool      success = 2;
+  int64     size_bytes = 3;
+  string    error_message = 4;
   ErrorCode error_code = 5;
+}
+
+// Agent → Master: result of a BulkDataService batch upload transfer.
+message UploadFilesResponse {
+  string request_id = 1;
+  repeated UploadedFileResult files = 2;
+  // Non-empty when the transfer itself failed. Any files completed before the
+  // failure are still reported in `files`.
+  string transfer_error = 3;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

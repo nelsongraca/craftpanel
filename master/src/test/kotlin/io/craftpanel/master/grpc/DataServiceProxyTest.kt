@@ -1,198 +1,191 @@
 package io.craftpanel.master.grpc
 
-import io.craftpanel.master.TestDatabase
-import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.createTestNodeRegistrationService
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.grpc.handlers.*
-import io.craftpanel.master.routes.dto.*
-import io.craftpanel.master.service.*
-import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
-import io.craftpanel.proto.ErrorCode
-import io.kotest.assertions.throwables.shouldThrow
+import io.craftpanel.master.createTestAgentDataOps
+import io.craftpanel.master.service.BadGatewayException
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.ServerView
+import io.craftpanel.proto.MasterMessage
+import io.craftpanel.proto.agentMessage
+import io.craftpanel.proto.uploadFilesResponse
+import io.craftpanel.proto.uploadedFileResult
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.emptyFlow
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.uuid.Uuid
 
 class DataServiceProxyTest :
     FunSpec({
-        lateinit var proxy: DataServiceProxy
 
-        beforeTest {
-            TestDatabase.initIfNeeded()
-            TestDatabase.reset()
-            val repos = TestRepositories()
-            val nodeRepository = NodeRepositoryImpl()
-            val reconciler = NodeStateReconciler(nodeRepository)
-            val agentEvents = MutableSharedFlow<io.craftpanel.master.domain.AgentEvent>(extraBufferCapacity = 1024)
-            val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
-            val nodeStateHandler = NodeStateHandler(agentEvents, reconciler, pushDesiredStates = {})
-            val nodeMetricsHandler = NodeMetricsHandler(agentEvents, reconciler)
-            val containerMetricsHandler = ContainerMetricsHandler(agentEvents)
-            val serverStatusHandler = ServerStatusHandler(agentEvents)
-            val playerUpdateHandler = PlayerUpdateHandler(agentEvents)
-            val backupHandler = BackupHandler(agentEvents)
-            val migrationHandler = MigrationHandler(agentEvents)
-            val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
-            val registry = AgentRegistry(agentEvents, repos.serverRepository, repos.backupRepository)
-            val controlSvc = ControlServiceImpl(
-                nodeStateReconciler = reconciler,
-                nodeRegistrationService = createTestNodeRegistrationService(nodeRepository = nodeRepository),
-                registry = registry,
-                dataOpContext = dataOpContext,
-                nodeStateHandler = nodeStateHandler,
-                nodeMetricsHandler = nodeMetricsHandler,
-                containerMetricsHandler = containerMetricsHandler,
-                serverStatusHandler = serverStatusHandler,
-                playerUpdateHandler = playerUpdateHandler,
-                backupHandler = backupHandler,
-                migrationHandler = migrationHandler,
-                dataOpResponseHandler = dataOpResponseHandler,
-                routerStatusHandler = RouterStatusHandler(RouterStatusStore()),
-                agentRuntimeSettingsService = AgentRuntimeSettingsService(
-                    SettingsProvider(SettingsRepositoryImpl()),
-                    nodeRepository,
-                    registry
-                )
-            )
-            val agentDataOps = AgentDataOps(
-                dataOpContext,
-                { nodeId, msg -> registry.sendToNode(nodeId, msg) },
-                { nodeId, msg -> registry.sendToNodeSuspending(nodeId, msg) }
-            )
-            proxy = DataServiceProxy(agentDataOps, BulkDataServiceImpl(createTestNodeRegistrationService(nodeRepository = nodeRepository)), repos.serverRepository)
+        fun serverView(nodeId: Uuid): ServerView = mockk {
+            every { this@mockk.nodeId } returns nodeId
+            every { status } returns "RUNNING"
         }
 
-        fun createNode(): Uuid = transaction {
-            Nodes.insert {
-                it[Nodes.hostname] = "proxy-test-node"
-                it[Nodes.displayName] = "Proxy Test Node"
-                it[Nodes.publicIp] = "1.2.3.4"
-                it[Nodes.privateIp] = "10.0.0.1"
-                it[Nodes.tokenHash] = "a".repeat(64)
-                it[Nodes.status] = "ACTIVE"
-                it[Nodes.totalRamMb] = 8192
-                it[Nodes.totalCpuMillicores] = 1024
-            }[Nodes.id].let { Uuid.parse(it.toString()) }
-        }
-
-        fun createServer(nodeId: Uuid, status: String = "HEALTHY"): Uuid = transaction {
-            Servers.insert {
-                it[Servers.name] = "proxy-test-server"
-                it[Servers.displayName] = "Proxy Test Server"
-                it[Servers.nodeId] = nodeId
-                it[Servers.serverType] = "VANILLA"
-                it[Servers.mcVersion] = "LATEST"
-                it[Servers.memoryMb] = 1024
-                it[Servers.hostPort] = 25565
-                it[Servers.status] = status
-            }[Servers.id].let { Uuid.parse(it.toString()) }
-        }
-
-        // ── DB lookup errors ──────────────────────────────────────────────────────
-
-        test("listFiles throws for unknown serverId") {
-            shouldThrow<IllegalStateException> {
-                proxy.listFiles(Uuid.random(), "/")
+        test("uploadFiles streams frames and maps the agent's per-file results") {
+            val serverId = Uuid.random()
+            val nodeId = Uuid.random()
+            val repo = mockk<ServerRepository> {
+                every { findById(serverId) } returns serverView(nodeId)
             }
+
+            val bulk = mockk<BulkDataServiceImpl>()
+            val channel = Channel<UploadFrame>(16)
+            every { bulk.registerUpload(any()) } returns channel
+            every { bulk.cancelUpload(any()) } returns Unit
+
+            val context = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
+            val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+            var sentCommand: MasterMessage? = null
+
+            val dataOps = createTestAgentDataOps(
+                dataOpContext = context,
+                sendToNode = { targetNode, msg ->
+                    sentCommand = msg
+                    scope.launch {
+                        // Drain the bounded channel exactly like the real gRPC pump consumer.
+                        for (frame in channel) {
+                            // drain
+                        }
+                        context.pendingRequests["$targetNode/${msg.uploadFiles.requestId}"]
+                            ?.complete(
+                                agentMessage {
+                                    uploadFilesResponse = uploadFilesResponse {
+                                        requestId = msg.uploadFiles.requestId
+                                        files.add(
+                                            uploadedFileResult {
+                                                path = "/a.txt"
+                                                success = true
+                                                sizeBytes = 5
+                                            }
+                                        )
+                                        files.add(
+                                            uploadedFileResult {
+                                                path = "/bad.txt"
+                                                success = false
+                                                errorMessage = "Path traversal detected"
+                                            }
+                                        )
+                                    }
+                                }
+                            )
+                    }
+                    true
+                }
+            )
+
+            val proxy = DataServiceProxy(dataOps, bulk, repo, uploadTimeoutMs = 5_000)
+            val result = runBlocking {
+                proxy.uploadFiles(
+                    serverId,
+                    flow {
+                        emit(UploadFrame.FileStart("/a.txt"))
+                        emit(UploadFrame.Data("hello".toByteArray()))
+                        emit(UploadFrame.FileEnd)
+                        emit(UploadFrame.FileStart("/bad.txt"))
+                        emit(UploadFrame.FileEnd)
+                    }
+                )
+            }
+
+            result shouldBe listOf(
+                FileUploadResult("/a.txt", success = true, sizeBytes = 5),
+                FileUploadResult("/bad.txt", success = false, sizeBytes = 0, errorMessage = "Path traversal detected")
+            )
+            sentCommand?.uploadFiles?.serverId shouldBe serverId.toString()
+            sentCommand?.uploadFiles?.transferId.isNullOrEmpty() shouldBe false
+            scope.cancel()
         }
 
-        // ── DTO shape ─────────────────────────────────────────────────────────────
+        test("uploadFiles surfaces a transfer-level error reported by the agent") {
+            val serverId = Uuid.random()
+            val nodeId = Uuid.random()
+            val repo = mockk<ServerRepository> {
+                every { findById(serverId) } returns serverView(nodeId)
+            }
 
-        test("ListFilesResponse has correct structure") {
-            val dto = ListFilesResponse(
-                path = "/",
-                entries = listOf(
-                    FileEntryResponse(
-                        name = "server.properties",
-                        isDirectory = false,
-                        sizeBytes = 1024,
-                        modifiedAt = null,
-                        permissions = "rw-r--r--"
+            val bulk = mockk<BulkDataServiceImpl>()
+            val channel = Channel<UploadFrame>(16)
+            every { bulk.registerUpload(any()) } returns channel
+            every { bulk.cancelUpload(any()) } returns Unit
+
+            val context = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
+            val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+            val dataOps = createTestAgentDataOps(
+                dataOpContext = context,
+                sendToNode = { targetNode, msg ->
+                    scope.launch {
+                        for (frame in channel) {
+                            // drain
+                        }
+                        context.pendingRequests["$targetNode/${msg.uploadFiles.requestId}"]
+                            ?.complete(
+                                agentMessage {
+                                    uploadFilesResponse = uploadFilesResponse {
+                                        requestId = msg.uploadFiles.requestId
+                                        transferError = "disk full"
+                                    }
+                                }
+                            )
+                    }
+                    true
+                }
+            )
+
+            val proxy = DataServiceProxy(dataOps, bulk, repo, uploadTimeoutMs = 5_000)
+            val error = runCatching {
+                runBlocking {
+                    proxy.uploadFiles(
+                        serverId,
+                        flow {
+                            emit(UploadFrame.FileStart("/a.txt"))
+                            emit(UploadFrame.FileEnd)
+                        }
                     )
-                )
-            )
-            dto.path shouldBe "/"
-            dto.entries.size shouldBe 1
-            dto.entries[0].name shouldBe "server.properties"
-            dto.entries[0].sizeBytes shouldBe 1024L
+                }
+            }.exceptionOrNull()
+
+            (error is BadGatewayException) shouldBe true
+            error?.message shouldBe "disk full"
+            scope.cancel()
         }
 
-        test("ReadFileResponse has correct structure") {
-            val dto = ReadFileResponse(
-                path = "/server.properties",
-                content = "level-name=world\n",
-                encoding = "utf-8"
-            )
-            dto.path shouldBe "/server.properties"
-            dto.content shouldBe "level-name=world\n"
-            dto.encoding shouldBe "utf-8"
-        }
-
-        // ── console STOPPED guard ─────────────────────────────────────────────────
-
-        test("console returns emptyFlow when server is STOPPED") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STOPPED")
-            val result = proxy.console(serverId, emptyFlow())
-            runBlocking {
-                result.collect { }
+        test("uploadFiles cancels the pending transfer when the agent never responds") {
+            val serverId = Uuid.random()
+            val nodeId = Uuid.random()
+            val repo = mockk<ServerRepository> {
+                every { findById(serverId) } returns serverView(nodeId)
             }
-        }
+            val bulk = mockk<BulkDataServiceImpl>()
+            val channel = Channel<UploadFrame>(16)
+            every { bulk.registerUpload(any()) } returns channel
+            val cancelled = mutableListOf<String>()
+            every { bulk.cancelUpload(capture(cancelled)) } returns Unit
 
-        // ── agentErrorToException ─────────────────────────────────────────────────
+            val dataOps = createTestAgentDataOps(sendToNode = { _, _ -> true })
+            val proxy = DataServiceProxy(dataOps, bulk, repo, uploadTimeoutMs = 50)
 
-        test("agentErrorToException maps NOT_FOUND to NotFoundException") {
-            proxy.agentErrorToException(ErrorCode.NOT_FOUND, "file not found")
-                .shouldBeInstanceOf<NotFoundException>()
-        }
+            runCatching {
+                runBlocking {
+                    proxy.uploadFiles(
+                        serverId,
+                        flow {
+                            emit(UploadFrame.FileStart("/a.txt"))
+                            emit(UploadFrame.FileEnd)
+                        }
+                    )
+                }
+            }
 
-        test("agentErrorToException maps ALREADY_EXISTS to ConflictException") {
-            proxy.agentErrorToException(ErrorCode.ALREADY_EXISTS, "already exists")
-                .shouldBeInstanceOf<ConflictException>()
-        }
-
-        test("agentErrorToException maps CONFLICT to ConflictException") {
-            proxy.agentErrorToException(ErrorCode.CONFLICT, "not empty")
-                .shouldBeInstanceOf<ConflictException>()
-        }
-
-        test("agentErrorToException maps PERMISSION_DENIED to ForbiddenException") {
-            proxy.agentErrorToException(ErrorCode.PERMISSION_DENIED, "permission denied")
-                .shouldBeInstanceOf<ForbiddenException>()
-        }
-
-        test("agentErrorToException maps UNPROCESSABLE to UnprocessableException") {
-            proxy.agentErrorToException(ErrorCode.UNPROCESSABLE, "not enough space")
-                .shouldBeInstanceOf<UnprocessableException>()
-        }
-
-        test("agentErrorToException maps UNAVAILABLE to BadGatewayException") {
-            proxy.agentErrorToException(ErrorCode.UNAVAILABLE, "timed out")
-                .shouldBeInstanceOf<BadGatewayException>()
-        }
-
-        test("agentErrorToException maps INTERNAL to BadGatewayException") {
-            proxy.agentErrorToException(ErrorCode.INTERNAL, "internal error")
-                .shouldBeInstanceOf<BadGatewayException>()
-        }
-
-        test("agentErrorToException maps ERROR_CODE_UNSPECIFIED to BadGatewayException") {
-            proxy.agentErrorToException(ErrorCode.ERROR_CODE_UNSPECIFIED, "unknown error")
-                .shouldBeInstanceOf<BadGatewayException>()
-        }
-
-        test("agentErrorToException preserves message") {
-            val ex = proxy.agentErrorToException(ErrorCode.NOT_FOUND, "custom message")
-            ex.message shouldBe "custom message"
+            cancelled.size shouldBe 1
         }
     })

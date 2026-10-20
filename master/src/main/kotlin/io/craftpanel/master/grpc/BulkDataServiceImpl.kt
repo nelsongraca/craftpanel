@@ -11,6 +11,19 @@ import kotlinx.coroutines.flow.flow
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * One frame of a master → agent upload transfer. [FileStart] and [FileEnd] delimit
+ * file entries; [Data] carries the bytes in between. `BulkDataServiceImpl` translates
+ * these into `BulkChunk.file_path` / `file_end` markers.
+ */
+sealed interface UploadFrame {
+    data class FileStart(val path: String) : UploadFrame
+
+    data class Data(val bytes: ByteArray) : UploadFrame
+
+    data object FileEnd : UploadFrame
+}
+
 class BulkDataServiceImpl(private val nodeRegistrationService: NodeRegistrationService) : BulkDataServiceGrpcKt.BulkDataServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(BulkDataServiceImpl::class.java)
@@ -18,8 +31,8 @@ class BulkDataServiceImpl(private val nodeRegistrationService: NodeRegistrationS
     // Download: agent → master. Master resolves these channels and pipes bytes to HTTP response.
     private val pendingDownloads = ConcurrentHashMap<String, Channel<ByteArray>>()
 
-    // Upload: master → agent. Master pre-fills these channels; agent drains them.
-    private val pendingUploads = ConcurrentHashMap<String, Channel<ByteArray>>()
+    // Upload: master → agent. Master pumps frames into these bounded channels; agent drains them.
+    private val pendingUploads = ConcurrentHashMap<String, Channel<UploadFrame>>()
 
     /**
      * Register a pending download before sending DownloadFileCommand to the agent.
@@ -45,14 +58,26 @@ class BulkDataServiceImpl(private val nodeRegistrationService: NodeRegistrationS
     }
 
     /**
-     * Register a pending upload before sending UploadFileCommand to the agent.
-     * The caller fills the returned channel with content chunks and closes it when done.
+     * Register a pending upload before sending UploadFilesCommand to the agent.
+     * The caller pumps frames into the returned bounded channel and closes it when done.
+     *
+     * Bounded on purpose: a slow (or stalled) agent applies backpressure to the HTTP
+     * body reader instead of letting master buffer the whole upload in memory.
      */
-    fun registerUpload(transferId: String): Channel<ByteArray> {
-        val channel = Channel<ByteArray>(Channel.UNLIMITED)
+    fun registerUpload(transferId: String): Channel<UploadFrame> {
+        val channel = Channel<UploadFrame>(UPLOAD_CHANNEL_CAPACITY)
         pendingUploads[transferId] = channel
         return channel
     }
+
+    /** Cancel a pending upload and unblock a pump waiting on the bounded channel. */
+    fun cancelUpload(transferId: String) {
+        pendingUploads.remove(transferId)
+            ?.close()
+    }
+
+    /** Test seam: the pending upload channel for [transferId], if any. */
+    internal fun pendingUpload(transferId: String): Channel<UploadFrame>? = pendingUploads[transferId]
 
     // ── gRPC: agent → master (file download from user perspective) ────────────
 
@@ -119,11 +144,25 @@ class BulkDataServiceImpl(private val nodeRegistrationService: NodeRegistrationS
 
         log.info("BulkData: upload transfer {} starting", request.transferId)
         try {
-            for (bytes in channel) {
+            for (frame in channel) {
                 emit(
-                    bulkChunk {
-                        data = ByteString.copyFrom(bytes)
-                        isLast = false
+                    when (frame) {
+                        is UploadFrame.FileStart -> bulkChunk {
+                            filePath = frame.path
+                            data = ByteString.EMPTY
+                            isLast = false
+                        }
+
+                        is UploadFrame.Data -> bulkChunk {
+                            data = ByteString.copyFrom(frame.bytes)
+                            isLast = false
+                        }
+
+                        UploadFrame.FileEnd -> bulkChunk {
+                            data = ByteString.EMPTY
+                            fileEnd = true
+                            isLast = false
+                        }
                     }
                 )
             }
@@ -135,7 +174,15 @@ class BulkDataServiceImpl(private val nodeRegistrationService: NodeRegistrationS
             )
             log.info("BulkData: upload transfer {} complete", request.transferId)
         } finally {
+            // Closing is load-bearing: a failed/aborted transfer must unblock the pump
+            // waiting on the bounded channel instead of leaking it forever.
             pendingUploads.remove(request.transferId)
+                ?.close()
         }
+    }
+
+    private companion object {
+        /** Frames buffered ahead of the agent (64 KiB each → ~1 MiB of in-flight data). */
+        const val UPLOAD_CHANNEL_CAPACITY = 16
     }
 }

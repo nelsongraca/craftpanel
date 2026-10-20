@@ -115,7 +115,7 @@ val appModule = module {
         )
     }
     single { BulkDataServiceImpl(get()) }
-    single { DataServiceProxy(get<AgentDataOps>(), get(), get<ServerRepository>()) }
+    single { DataServiceProxy(get<AgentDataOps>(), get(), get<ServerRepository>(), get<AppConfig>().upload.transferTimeoutMs) }
     single {
         val settingsProvider = get<SettingsProvider>()
         ProxyConfigPatchService(get(), get()) { settingsProvider.images() }

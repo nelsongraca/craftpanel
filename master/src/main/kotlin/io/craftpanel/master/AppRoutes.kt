@@ -21,7 +21,7 @@ fun Route.registerAppRoutes() {
     assignmentsRoutes(get())
     systemRoutes(get(), get())
     consoleRoutes(get(), get(), get())
-    filesRoutes(get())
+    filesRoutes(get(), cfg.upload.maxFilesPerBatch)
     backupsRoutes(get())
     scheduledJobsRoutes(get())
     configRoutes(get(), get(), get())

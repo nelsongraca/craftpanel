@@ -8,10 +8,13 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 
 class BulkDataServiceImplTest :
     FunSpec({
@@ -119,13 +122,18 @@ class BulkDataServiceImplTest :
 
         // ── upload path (master → agent) ──────────────────────────────────────
 
-        test("receiveFromMaster emits registered upload chunks and final isLast chunk") {
+        test("receiveFromMaster emits framed upload chunks and a final isLast chunk") {
             val svc = service()
             val transferId = "ul-001"
             val channel = svc.registerUpload(transferId)
 
-            channel.send("chunk1".toByteArray())
-            channel.send("chunk2".toByteArray())
+            channel.send(UploadFrame.FileStart("/a.txt"))
+            channel.send(UploadFrame.Data("hello ".toByteArray()))
+            channel.send(UploadFrame.Data("world".toByteArray()))
+            channel.send(UploadFrame.FileEnd)
+            channel.send(UploadFrame.FileStart("/nested/b.txt"))
+            channel.send(UploadFrame.Data("second".toByteArray()))
+            channel.send(UploadFrame.FileEnd)
             channel.close()
 
             val init = bulkTransferInit {
@@ -136,11 +144,54 @@ class BulkDataServiceImplTest :
             runTest {
                 val chunks = svc.receiveFromMaster(init)
                     .toList()
-                chunks.size shouldBe 3 // 2 data + 1 final
-                String(chunks[0].data.toByteArray()) shouldBe "chunk1"
-                String(chunks[1].data.toByteArray()) shouldBe "chunk2"
-                chunks[2].isLast shouldBe true
+                chunks.size shouldBe 8 // 3 + 3 framed chunks + final isLast
+
+                chunks[0].filePath shouldBe "/a.txt"
+                String(chunks[1].data.toByteArray()) shouldBe "hello "
+                String(chunks[2].data.toByteArray()) shouldBe "world"
+                chunks[3].fileEnd shouldBe true
+
+                chunks[4].filePath shouldBe "/nested/b.txt"
+                String(chunks[5].data.toByteArray()) shouldBe "second"
+                chunks[6].fileEnd shouldBe true
+
+                chunks[7].isLast shouldBe true
+                chunks.dropLast(1).none { it.isLast } shouldBe true
             }
+        }
+
+        test("cancelUpload closes the pending channel and unblocks a waiting pump") {
+            val svc = service()
+            val transferId = "ul-cancel"
+            val channel = svc.registerUpload(transferId)
+
+            // Fill the bounded channel so the next send would suspend.
+            repeat(16) { channel.trySend(UploadFrame.Data(ByteArray(1))).isSuccess shouldBe true }
+
+            runTest {
+                val job = launch { runCatching { channel.send(UploadFrame.Data(ByteArray(1))) } }
+                svc.cancelUpload(transferId)
+                channel.isClosedForSend shouldBe true
+                job.join()
+            }
+        }
+
+        test("receiveFromMaster closes the upload channel when the collector is cancelled") {
+            val svc = service()
+            val transferId = "ul-abort"
+            val channel = svc.registerUpload(transferId)
+            val init = bulkTransferInit {
+                this.transferId = transferId
+                nodeKey = "valid-key"
+            }
+
+            runTest {
+                val job = launch { svc.receiveFromMaster(init).collect { } }
+                yield() // let the collector enter the flow body before cancelling
+                job.cancelAndJoin()
+            }
+
+            channel.isClosedForSend shouldBe true
         }
 
         test("receiveFromMaster with invalid node key throws StatusException") {

@@ -1,5 +1,6 @@
 package io.craftpanel.agent.grpc
 
+import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ConsoleHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
@@ -7,7 +8,6 @@ import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
 import io.craftpanel.agent.grpc.handlers.FileHandler
 import io.craftpanel.agent.grpc.handlers.MigrationHandler
 import io.craftpanel.agent.grpc.handlers.RuntimeSettingsHandler
-import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.proto.MasterMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -93,7 +93,7 @@ class CommandDispatcher private constructor(private val entries: Map<PayloadCase
                 put(PayloadCase.COPY_FILE, entry(Mode.CONCURRENT) { msg, out -> file.handleCopyFile(msg.copyFile, out) })
 
                 put(PayloadCase.DOWNLOAD_FILE, entry(Mode.CONCURRENT) { msg, out -> file.handleDownloadFile(msg.downloadFile, bulkClient, out) })
-                put(PayloadCase.UPLOAD_FILE, entry(Mode.CONCURRENT) { msg, out -> file.handleUploadFile(msg.uploadFile, bulkClient, out) })
+                put(PayloadCase.UPLOAD_FILES, entry(Mode.CONCURRENT) { msg, out -> file.handleUploadFiles(msg.uploadFiles, bulkClient, out) })
                 put(PayloadCase.DOWNLOAD_BACKUP, entry(Mode.CONCURRENT) { msg, out -> file.handleDownloadBackup(msg.downloadBackup, bulkClient, out) })
 
                 put(
