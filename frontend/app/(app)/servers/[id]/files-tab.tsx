@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useEffect, useRef, useState} from "react";
+import {memo, useCallback, useEffect, useRef, useState} from "react";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
 import {FULLSCREEN_PANE_CLASS, useFullscreenPane} from "@/lib/hooks/useFullscreenPane";
@@ -113,7 +113,12 @@ function copyDefaultName(node: TreeNode): string {
     return `${stem}-copy${ext}`;
 }
 
-export function FilesTab({serverId, active = true}: Props) {
+/**
+ * Memoised so the parent's live-metrics WebSocket ticks (every few seconds while a server runs)
+ * do not re-render the whole file manager — and, more importantly, do not re-render the editor
+ * subtree, which reconfigures CodeMirror underneath the find panel.
+ */
+export const FilesTab = memo(function FilesTab({serverId, active = true}: Props) {
     const {fullscreen, toggle: toggleFullscreen} = useFullscreenPane(active);
     const [roots, setRoots] = useState<TreeNode[]>([]);
     const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -939,4 +944,4 @@ export function FilesTab({serverId, active = true}: Props) {
             )}
         </>
     );
-}
+});
