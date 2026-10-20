@@ -55,3 +55,5 @@ You can change an existing server's software without recreating it. The picker (
 - Type-exclusive settings (custom jar, listen port, config mode, stop command, proxy settings) are
   reset to the new type's defaults; the data directory is **not** moved, so existing world files
   may need manual cleanup to suit the new software.
+- For `CUSTOM`, the same form shows the current custom jar plus the **Disable healthcheck** and
+  **Force redownload on start** toggles, and requires a jar when the target type is `CUSTOM`.

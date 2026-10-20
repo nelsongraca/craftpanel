@@ -104,6 +104,8 @@ stop command are user-configurable.
 
 `container_listen_port` becomes `SERVER_PORT` (falling back to `25565` when unset), and `container_protocol = UDP` exposes the host port mapping as UDP and skips mc-router labels (TCP-only).
 
+The custom jar, `disable_healthcheck`, and `force_redownload` are visible in **Overview → Server Type** and editable there. Because that form also changes the server type, the server must be stopped to edit them.
+
 ---
 
 ## Managed Mode: UI Fields
