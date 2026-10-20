@@ -1,3 +1,19 @@
+## [1.3.1] - 2026-10-20
+
+### Features
+
+- view and edit custom server settings (339c2eba82f806f)
+- upload multiple files, folders and drops in one batch (2cd8a33d485c9d3)
+- stream batch uploads through one bulk transfer (da9cab1d0eebc04)
+
+### Bug Fixes
+
+- use Barlow for UI chrome, keep condensed for display (6766dc517d9a569)
+
+### Documentation
+
+- document the batch file upload endpoint (3c09ab67ff75b2b)
+
 ## [1.3.0] - 2026-10-19
 
 ### Features
