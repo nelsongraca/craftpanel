@@ -10,6 +10,7 @@ All file paths are relative to the server's data directory and passed as a `path
 | GET    | `/servers/{id}/files/content`  | `server.files` | Read a file                |
 | PUT    | `/servers/{id}/files/content`  | `server.files` | Write a file               |
 | POST   | `/servers/{id}/files/upload`   | `server.files` | Upload a file (multipart)  |
+| POST   | `/servers/{id}/files/upload-batch` | `server.files` | Upload many files at once |
 | GET    | `/servers/{id}/files/download` | `server.files` | Download a file            |
 | DELETE | `/servers/{id}/files`          | `server.files` | Delete a file or directory |
 | POST   | `/servers/{id}/files/move`     | `server.files` | Move or rename a file      |
@@ -92,7 +93,7 @@ All file paths are relative to the server's data directory and passed as a `path
 
 ## `POST /servers/{id}/files/upload`
 
-Multipart file upload.
+Multipart file upload. Streams the file through to the agent; it is never buffered whole in master memory.
 
 **Request:** `Content-Type: multipart/form-data`
 
@@ -109,6 +110,51 @@ Multipart file upload.
   "size_bytes": 2097152
 }
 ```
+
+---
+
+## `POST /servers/{id}/files/upload-batch`
+
+Uploads many files in a single request and a single transfer to the agent. Each part's
+filename is treated as a path relative to the destination directory, so folder structure is
+preserved without client-side loops.
+
+**Query parameters:**
+
+| Param  | Required | Description                                    |
+|--------|----------|------------------------------------------------|
+| `path` | Yes      | Destination directory (created if missing)     |
+
+**Request:** `Content-Type: multipart/form-data`, with one `files` part per file:
+
+```text
+files: filename="server.properties"
+files: filename="plugins/MyPlugin/config.yml"
+```
+
+The destination of each part is `path` + the filename's relative segments. Absolute paths and
+`..` segments are rejected with `400`. At most 500 files may be sent per request.
+
+**Response `201`:**
+
+```json
+{
+  "uploaded": 2,
+  "failed": 1,
+  "files": [
+    { "path": "/upload/server.properties", "success": true, "size_bytes": 420 },
+    { "path": "/upload/plugins/MyPlugin/config.yml", "success": true, "size_bytes": 97 },
+    { "path": "/upload/locked/file.txt", "success": false, "size_bytes": 0, "error": "permission denied" }
+  ]
+}
+```
+
+A `201` only means the batch was delivered to the agent. Individual entries can still fail —
+check each `files[].success`. A transport-level failure (agent disconnected, transfer aborted)
+returns `502`; files completed before the failure stay on disk.
+
+**Errors:** `400` if `path` is missing, a filename is absolute or contains `..`, or the batch
+exceeds the per-request file limit. `502` if the transfer to the agent fails.
 
 ---
 
