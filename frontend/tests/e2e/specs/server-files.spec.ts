@@ -277,6 +277,36 @@ test("long text file is scrollable in the editor", async ({page, network}) => {
     expect(overflowY).toBe("auto");
 });
 
+test("opens the find panel on Ctrl+F", async ({page, network}) => {
+    network.use(
+        http.get("/api/servers/srv-1/files/content", () =>
+            HttpResponse.json({encoding: "utf-8", content: "motd=hello\nmotd=world\n"}),
+        ),
+    );
+
+    await page.goto("/servers/srv-1");
+    await page.getByRole("tab", {name: "Files"}).click();
+    await page.getByText("server.properties").click();
+
+    const content = page.locator(".cm-content");
+    await expect(content).toBeVisible();
+    await content.click();
+    await page.keyboard.press("ControlOrMeta+f");
+
+    // Regression: a second copy of @codemirror/view makes the search keybinding run (and swallow
+    // the browser shortcut) while the editor never mounts the panel it registered.
+    const panel = page.locator(".cm-search");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator('input[name="search"]')).toBeVisible();
+
+    await page.keyboard.type("motd");
+    await expect(page.locator(".cm-searchMatch")).not.toHaveCount(0);
+
+    // The panel survives an editor reconfigure (the wrap toggle rebuilds the extension set).
+    await page.getByTitle(/word wrap/).click();
+    await expect(panel).toBeVisible();
+});
+
 test.describe("mobile master/detail (375px)", () => {
     test.use({viewport: {width: 375, height: 800}});
 

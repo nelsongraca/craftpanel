@@ -22,9 +22,12 @@ function openFind(content: HTMLElement) {
 
 describe("FileCodeEditor find panel", () => {
     it("opens the search panel on Ctrl+F", () => {
-        const {view, content} = mount();
+        const {view, content, container} = mount();
         openFind(content);
         expect(searchPanelOpen(view.state)).toBe(true);
+        // The panel must actually mount: a second copy of @codemirror/view makes
+        // `openSearchPanel` succeed while the editor never sees its `showPanel` facet.
+        expect(container.querySelector(".cm-search")).toBeTruthy();
     });
 
     it("keeps the search panel open when the parent re-renders", () => {
