@@ -102,7 +102,8 @@ stop command are user-configurable.
 | `DISABLE_HEALTHCHECK` | `disable_healthcheck`   | Set to `true` when the checkbox is enabled; omits itzg's health check (e.g. non-MC jars)   |
 | `FORCE_REDOWNLOAD`    | `force_redownload`      | Set to `true` when the checkbox is enabled; re-downloads the jar on every start            |
 
-`container_listen_port` becomes `SERVER_PORT` (falling back to `25565` when unset), and `container_protocol = UDP` exposes the host port mapping as UDP and skips mc-router labels (TCP-only).
+`container_listen_port` becomes `SERVER_PORT` (falling back to `25565` when unset). `container_protocol = UDP` exposes the host port mapping as UDP only and skips mc-router labels (TCP-only);
+`container_protocol = BOTH` publishes the same host port on both transports and keeps mc-router routing on its TCP half.
 
 The custom jar, `disable_healthcheck`, and `force_redownload` are visible in **Overview → Server Type** and editable there. Because that form also changes the server type, the server must be stopped to edit them.
 

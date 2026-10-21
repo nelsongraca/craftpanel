@@ -136,7 +136,7 @@ The agent uses this value directly — it does not re-derive the network name. I
 
 ### `StartContainerCommand` — port protocol field
 
-`StartContainerCommand` also carries `container_protocol` (`TCP` or `UDP`), mirrored from the server's `container_protocol` column (default `TCP`). The agent uses it to bind the host-port mapping with `ExposedPort.udp()` / `.tcp()`. For `UDP` servers the mc-router labels (`mc-router.host` / `.port` / `.network`) are omitted — mc-router routes TCP traffic only. `TCP` servers are unaffected.
+`StartContainerCommand` also carries `container_protocol` (`TCP`, `UDP`, or `BOTH`), mirrored from the server's `container_protocol` column (default `TCP`). The agent uses it to bind the host-port mapping with `ExposedPort.udp()` / `.tcp()`; `BOTH` binds the same host port on both transports. For `UDP`-only servers the mc-router labels (`mc-router.host` / `.port` / `.network`) are omitted — mc-router routes TCP traffic only. `BOTH` servers keep the labels, since their TCP half is routable. `TCP` servers are unaffected.
 
 ### Graceful stop
 

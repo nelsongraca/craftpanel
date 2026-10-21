@@ -371,9 +371,11 @@ export default function NewServerPage() {
                                             >
                                                 <option value="TCP">TCP</option>
                                                 <option value="UDP">UDP</option>
+                                                <option value="BOTH">TCP + UDP</option>
                                             </FieldSelect>
                                             <p className="mt-1 text-xs text-text-muted">
-                                                UDP servers cannot be routed by mc-router.
+                                                UDP-only servers cannot be routed by mc-router. TCP + UDP publishes both
+                                                transports on the same host port.
                                             </p>
                                         </div>
                                     </div>

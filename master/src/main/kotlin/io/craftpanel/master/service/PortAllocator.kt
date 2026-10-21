@@ -14,10 +14,14 @@ class PortAllocator(private val nodeRepository: NodeRepository, private val port
     /**
      * Returns [preferred] when it is free, else the first free port in the node's range, else throws
      * [PortExhaustedException].
+     *
+     * [reserved] are ports that are not registered on [nodeId] yet but will be claimed by the same
+     * caller immediately afterwards (migration re-registers a server's extra ports on the target).
+     * Treating them as used keeps the primary port from landing on one of them.
      */
-    fun allocate(nodeId: Uuid, preferred: Int? = null): Int {
+    fun allocate(nodeId: Uuid, preferred: Int? = null, reserved: Set<Int> = emptySet()): Int {
         val node = nodeRepository.findById(nodeId) ?: throw NotFoundException("Node not found")
-        val usedPorts = portRepository.findUsedPortsOnNode(nodeId).toSet()
+        val usedPorts = portRepository.findUsedPortsOnNode(nodeId).toSet() + reserved
         if (preferred != null && preferred !in usedPorts) return preferred
         return pickFreePort(node.portRangeStart, node.portRangeEnd, usedPorts)
             ?: throw PortExhaustedException(

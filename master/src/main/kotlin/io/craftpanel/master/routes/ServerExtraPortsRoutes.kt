@@ -1,5 +1,6 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.common.PortProtocols
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.routes.dto.*
 import io.craftpanel.master.service.NotFoundException
@@ -64,10 +65,8 @@ fun Route.serverExtraPortsRoutes(serverRepository: ServerRepository, extraPortRe
                 val req = call.receive<CreateServerExtraPortRequest>()
                 if (req.name.isBlank()) throw UnprocessableException("Port name cannot be blank")
                 if (req.containerPort <= 0 || req.containerPort > 65535) throw UnprocessableException("Invalid container port")
-                val protocol = (req.protocol ?: "TCP").uppercase()
-                if (protocol != "TCP" && protocol != "UDP") {
-                    throw UnprocessableException("Invalid protocol: ${req.protocol}")
-                }
+                val protocol = PortProtocols.normalize(req.protocol ?: PortProtocols.TCP)
+                    ?: throw UnprocessableException("Invalid protocol: ${req.protocol}")
 
                 val created = specSync.reconcile(authorized.serverId) {
                     extraPortRepository.createExtraPort(

@@ -146,6 +146,42 @@ class ServerExtraPortsRoutesTest :
             }
         }
 
+        test("POST /api/servers/{id}/ports creates a TCP+UDP extra port and reserves both transports") {
+            testApplication {
+                testApp { _ -> configurePortsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val response = client.post("/api/servers/$serverId/ports") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        CreateServerExtraPortRequest(
+                            name = "Voice",
+                            containerPort = 24454,
+                            hostPort = 24454,
+                            protocol = "BOTH"
+                        )
+                    )
+                }
+
+                response.status shouldBe HttpStatusCode.Created
+                response.body<ServerExtraPortResponse>().protocol shouldBe "BOTH"
+
+                val protocols = transaction {
+                    PortRegistry.selectAll()
+                        .where { PortRegistry.serverId eq serverId }
+                        .map { it[PortRegistry.protocol] }
+                        .toSet()
+                }
+                protocols shouldBe setOf("TCP", "UDP")
+            }
+        }
+
         test("DELETE /api/servers/{id}/ports/{portId} deletes extra port") {
             testApplication {
                 testApp { _ -> configurePortsTest() }
@@ -173,6 +209,38 @@ class ServerExtraPortsRoutesTest :
 
                 val listResponse = repos.extraPortRepository.findByServerId(serverId)
                 listResponse.size shouldBe 0
+            }
+        }
+
+        test("DELETE /api/servers/{id}/ports/{portId} removes both registry rows for a TCP+UDP port") {
+            testApplication {
+                testApp { _ -> configurePortsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val created = repos.extraPortRepository.createExtraPort(
+                    serverId = serverId,
+                    nodeId = nodeId,
+                    name = "Voice",
+                    containerPort = 24454,
+                    hostPort = 24454,
+                    protocol = "BOTH"
+                )
+
+                val response = client.delete("/api/servers/$serverId/ports/${created.id}") {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
+
+                response.status shouldBe HttpStatusCode.NoContent
+                transaction {
+                    PortRegistry.selectAll()
+                        .where { PortRegistry.serverId eq serverId }
+                        .count()
+                } shouldBe 0L
             }
         }
     })

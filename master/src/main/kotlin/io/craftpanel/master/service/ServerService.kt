@@ -72,9 +72,7 @@ class ServerService(
         if (containerPortProvidedOrInvalid(containerListenPort)) {
             throw UnprocessableException("container_listen_port must be between 1 and 65535")
         }
-        if (containerProtocol != null) {
-            validateContainerProtocol(containerProtocol)
-        }
+        val normalizedProtocol = containerProtocol?.let { validateContainerProtocol(it) }
 
         if (newNetworkId != null) {
             networkService?.requireSingleNodeForNetwork(newNetworkId, serverRow.nodeId, excludeServerId = id)
@@ -117,7 +115,15 @@ class ServerService(
                 if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
                 if (customServerJar != null) e.customServerJar = customServerJar.ifBlank { null }
                 if (containerListenPort != null) e.containerListenPort = containerListenPort
-                if (containerProtocol != null) e.containerProtocol = validateContainerProtocol(containerProtocol)
+                if (normalizedProtocol != null) {
+                    // The host port is stable across this update, so keep the registry's protocol
+                    // rows in step with the mapping: BOTH owns one row per transport, and dropping
+                    // back to a single protocol must release the other row.
+                    if (normalizedProtocol != serverRow.containerProtocol) {
+                        ServerPortRegistry.replace(serverRow.nodeId, id, serverRow.hostPort, normalizedProtocol)
+                    }
+                    e.containerProtocol = normalizedProtocol
+                }
                 if (disableHealthcheck != null) e.disableHealthcheck = disableHealthcheck
                 if (forceRedownload != null) e.forceRedownload = forceRedownload
                 if (jvmMetricsEnabled != null) e.jvmMetricsEnabled = jvmMetricsEnabled

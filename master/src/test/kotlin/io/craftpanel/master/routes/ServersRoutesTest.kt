@@ -550,6 +550,43 @@ class ServersRoutesTest :
             }
         }
 
+        test("POST servers creates a CUSTOM server with TCP+UDP protocol and reserves both transports") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode(totalRamMb = 8192)
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        """{
+                        "name":"custom-both",
+                        "node_id":"$nodeId",
+                        "server_type":"CUSTOM",
+                        "mc_version":"1.21.4",
+                        "memory_mb":1024,
+                        "custom_server_jar":"/data/my-server.jar",
+                        "container_listen_port":25566,
+                        "container_protocol":"BOTH"
+                    }"""
+                    )
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val body = resp.body<JsonObject>()
+                body["container_protocol"]!!.jsonPrimitive.content shouldBe "BOTH"
+
+                val protocols = transaction {
+                    PortRegistry.selectAll()
+                        .where { PortRegistry.serverId eq Uuid.parse(body["id"]!!.jsonPrimitive.content) }
+                        .map { it[PortRegistry.protocol] }
+                        .toSet()
+                }
+                protocols shouldBe setOf("TCP", "UDP")
+            }
+        }
+
         test("POST servers returns 422 for CUSTOM without custom_server_jar") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }
@@ -905,6 +942,57 @@ class ServersRoutesTest :
                         .first()
                 }
                 row[Servers.displayName] shouldBe "Patched Name"
+            }
+        }
+
+        test("PATCH server container_protocol syncs the primary port registry rows") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, port = 25599)
+                transaction {
+                    PortRegistry.insert {
+                        it[PortRegistry.nodeId] = nodeId
+                        it[PortRegistry.port] = 25599
+                        it[PortRegistry.protocol] = "TCP"
+                        it[PortRegistry.serverId] = EntityID(serverId, Servers)
+                    }
+                }
+
+                val toBoth = client.patch("/api/servers/$serverId") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"container_protocol":"BOTH"}""")
+                }
+                toBoth.status shouldBe HttpStatusCode.NoContent
+                transaction {
+                    PortRegistry.selectAll()
+                        .where { PortRegistry.serverId eq serverId }
+                        .map { it[PortRegistry.protocol] }
+                        .toSet()
+                } shouldBe setOf("TCP", "UDP")
+
+                val toUdp = client.patch("/api/servers/$serverId") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"container_protocol":"UDP"}""")
+                }
+                toUdp.status shouldBe HttpStatusCode.NoContent
+                transaction {
+                    PortRegistry.selectAll()
+                        .where { PortRegistry.serverId eq serverId }
+                        .map { it[PortRegistry.protocol] }
+                        .toSet()
+                } shouldBe setOf("UDP")
+                // The host port is stable across protocol changes.
+                transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()[Servers.hostPort]
+                } shouldBe 25599
             }
         }
 

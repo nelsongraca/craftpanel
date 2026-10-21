@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.repo.impl
 
+import io.craftpanel.common.PortProtocols
 import io.craftpanel.master.database.entity.ServerExtraPort
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
@@ -7,14 +8,12 @@ import io.craftpanel.master.database.schema.ServerExtraPorts
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.ConflictException
 import io.craftpanel.master.service.PortAllocator
+import io.craftpanel.master.service.ServerPortRegistry
 import io.craftpanel.master.service.repo.ServerExtraPortRepository
 import io.craftpanel.master.service.repo.ServerExtraPortRow
 import io.craftpanel.master.util.toUtcString
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -27,7 +26,8 @@ class ServerExtraPortRepositoryImpl(private val portAllocator: PortAllocator) : 
     }
 
     override fun createExtraPort(serverId: Uuid, nodeId: Uuid, name: String, containerPort: Int, hostPort: Int?, protocol: String): ServerExtraPortRow = transaction {
-        val protoUpper = protocol.uppercase().let { if (it == "UDP") "UDP" else "TCP" }
+        // The route validates the value; the fallback keeps older callers (and pre-BOTH rows) on TCP.
+        val protoUpper = PortProtocols.normalize(protocol) ?: PortProtocols.TCP
 
         val allocatedHostPort = if (hostPort != null && hostPort > 0) {
             val usedPorts = PortRegistry.selectAll()
@@ -51,25 +51,15 @@ class ServerExtraPortRepositoryImpl(private val portAllocator: PortAllocator) : 
             this.protocol = protoUpper
         }
 
-        PortRegistry.insert {
-            it[PortRegistry.nodeId] = EntityID(nodeId, Nodes)
-            it[PortRegistry.port] = allocatedHostPort
-            it[PortRegistry.protocol] = protoUpper
-            it[PortRegistry.serverId] = EntityID(serverId, Servers)
-        }
+        ServerPortRegistry.register(nodeId, serverId, allocatedHostPort, protoUpper)
 
         entity.toRow()
     }
 
     override fun deleteExtraPort(portId: Uuid): Boolean = transaction {
         val entity = ServerExtraPort.findById(portId) ?: return@transaction false
-        val nId = entity.nodeId.value
-        val hPort = entity.hostPort
-        val proto = entity.protocol
-
-        PortRegistry.deleteWhere {
-            (PortRegistry.nodeId eq nId) and (PortRegistry.port eq hPort) and (PortRegistry.protocol eq proto)
-        }
+        // Drop every protocol row for this mapping — a BOTH mapping owns two.
+        ServerPortRegistry.unregister(entity.serverId.value, entity.hostPort)
 
         entity.delete()
 

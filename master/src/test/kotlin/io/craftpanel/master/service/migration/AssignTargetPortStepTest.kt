@@ -11,7 +11,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -118,7 +120,7 @@ class AssignTargetPortStepTest :
                     serverIntent = ServerIntent(repos.serverRepository),
                     envVarsRepository = repos.envVarsRepository,
                     extraPortRepository = repos.extraPortRepository,
-                    serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
+                    serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository)
                 ),
                 serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
                 scope = TestScope(),
@@ -148,6 +150,77 @@ class AssignTargetPortStepTest :
                 val result = AssignTargetPortStep().execute(plan, coord)
                 result.shouldBeInstanceOf<StepResult.Success>()
                 plan.assignedPort shouldBe 25566
+            }
+        }
+
+        test("primary allocation avoids the server's own extra ports on the target") {
+            runTest {
+                transaction {
+                    PortRegistry.insert {
+                        it[PortRegistry.nodeId] = targetNodeId
+                        it[PortRegistry.port] = 25565
+                        it[PortRegistry.protocol] = "TCP"
+                        it[PortRegistry.serverId] = null
+                    }
+                    ServerExtraPorts.insert {
+                        it[ServerExtraPorts.serverId] = serverId
+                        it[ServerExtraPorts.nodeId] = nodeId
+                        it[ServerExtraPorts.name] = "Dynmap"
+                        it[ServerExtraPorts.containerPort] = 8123
+                        it[ServerExtraPorts.hostPort] = 25566
+                        it[ServerExtraPorts.protocol] = "TCP"
+                    }
+                }
+
+                val result = AssignTargetPortStep().execute(plan, coord)
+                result.shouldBeInstanceOf<StepResult.Success>()
+                plan.assignedPort shouldBe 25567
+            }
+        }
+
+        test("re-registers BOTH transports and preserves extra ports on the target node") {
+            runTest {
+                plan = plan.copy(serverRow = plan.serverRow.copy(containerProtocol = "BOTH"))
+                transaction {
+                    listOf("TCP", "UDP").forEach { proto ->
+                        PortRegistry.insert {
+                            it[PortRegistry.nodeId] = nodeId
+                            it[PortRegistry.port] = 25565
+                            it[PortRegistry.protocol] = proto
+                            it[PortRegistry.serverId] = serverId
+                        }
+                        PortRegistry.insert {
+                            it[PortRegistry.nodeId] = nodeId
+                            it[PortRegistry.port] = 26000
+                            it[PortRegistry.protocol] = proto
+                            it[PortRegistry.serverId] = serverId
+                        }
+                    }
+                    ServerExtraPorts.insert {
+                        it[ServerExtraPorts.serverId] = serverId
+                        it[ServerExtraPorts.nodeId] = nodeId
+                        it[ServerExtraPorts.name] = "Dynmap"
+                        it[ServerExtraPorts.containerPort] = 8123
+                        it[ServerExtraPorts.hostPort] = 26000
+                        it[ServerExtraPorts.protocol] = "BOTH"
+                    }
+                }
+
+                val result = AssignTargetPortStep().execute(plan, coord)
+                result.shouldBeInstanceOf<StepResult.Success>()
+
+                val rows = transaction {
+                    PortRegistry.selectAll()
+                        .where { PortRegistry.serverId eq serverId }
+                        .map { Triple(it[PortRegistry.nodeId].value, it[PortRegistry.port], it[PortRegistry.protocol]) }
+                        .toSet()
+                }
+                rows shouldBe setOf(
+                    Triple(targetNodeId, 25565, "TCP"),
+                    Triple(targetNodeId, 25565, "UDP"),
+                    Triple(targetNodeId, 26000, "TCP"),
+                    Triple(targetNodeId, 26000, "UDP")
+                )
             }
         }
 

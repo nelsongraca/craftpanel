@@ -86,8 +86,8 @@ Returns only servers the caller has at least `server.view` permission on.
 ```
 
 For `CUSTOM` servers, `custom_server_jar` is **required** (a 422 is returned without it). `mc_version` is forced to `LATEST` (itzg `TYPE=CUSTOM` ignores it) and `config_mode` is always `MANUAL` — the
-config-mode toggle is rejected. `container_listen_port` accepts `1`–`65535`; `container_protocol` accepts `TCP` or `UDP` (default `TCP`, uppercased server-side). `container_protocol = UDP` exposes the
-container over UDP host port mappings only and skips mc-router routing.
+config-mode toggle is rejected. `container_listen_port` accepts `1`–`65535`; `container_protocol` accepts `TCP`, `UDP`, or `BOTH` (default `TCP`, uppercased server-side). `container_protocol = UDP`
+exposes the container over UDP host port mappings only and skips mc-router routing. `BOTH` publishes the same host port on both transports; mc-router still routes its TCP half.
 
 **Response `201`:** full server object (see `GET /servers/{id}`).
 

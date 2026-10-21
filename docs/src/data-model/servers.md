@@ -145,7 +145,7 @@ The UI combines both — showing the server's live status alongside a migration 
 | `itzg_image_tag`     | VARCHAR(100)         | itzg image tag, e.g. `latest` or a pinned digest                                                                                                                 |
 | `custom_server_jar`  | VARCHAR(512)         | Required for `CUSTOM` servers. URL of the server jar to download and run; maps to itzg `CUSTOM_SERVER`. `NULL` for all other types                                 |
 | `container_listen_port` | INT               | Port the server listens on **inside** the container; maps to itzg `SERVER_PORT`. `NULL` = derived from type (`25565` game / `25577` proxy)                        |
-| `container_protocol` | VARCHAR(4)           | `TCP` or `UDP`. `UDP` produces UDP host-port bindings only and skips mc-router labels (mc-router is TCP-only)                                                    |
+| `container_protocol` | VARCHAR(4)           | `TCP`, `UDP`, or `BOTH`. `UDP` produces UDP host-port bindings only and skips mc-router labels (mc-router is TCP-only); `BOTH` binds the same host port on both transports and is still routed over TCP |
 | `disable_healthcheck` | BOOLEAN             | When `true`, itzg runs with `DISABLE_HEALTHCHECK=true`; default `false`                                                                                           |
 | `force_redownload`   | BOOLEAN              | When `true`, itzg re-downloads the server jar on each start (`FORCE_REDOWNLOAD=true`); default `false`                                                           |
 | `jvm_metrics_enabled` | BOOLEAN             | Whether the agent samples this server's JVM heap via `jattach`; default `true`. Carried in the desired-state envelope (not the container spec), so toggling it never recreates the server |
@@ -233,7 +233,8 @@ See the note in [Nodes](nodes.md#node_metrics) — this table shares the same ti
 
 ## `port_registry`
 
-Tracks port assignments per node. Each server that needs a host-mapped port is assigned one from the node's configured range at creation time. Ports are reclaimed when the server is deleted.
+Tracks port assignments per node. Each server that needs a host-mapped port is assigned one from the node's configured range at creation time. Ports are reclaimed when the server is deleted. A
+`BOTH` mapping owns two rows for the same port — one per transport — so the reservation matches the two Docker sockets it publishes; the column itself only ever stores `TCP` or `UDP`.
 
 | Column      | Type        | Description                                                                   |
 |-------------|-------------|-------------------------------------------------------------------------------|

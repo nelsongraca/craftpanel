@@ -253,6 +253,39 @@ class ContainerManagerTest :
             }
         }
 
+        test("createContainer exposes and binds both transports for a BOTH mapping") {
+            val createCmd = stubCreate("c1")
+            val hostConfig = slot<HostConfig>()
+            every { createCmd.withHostConfig(capture(hostConfig)) } returns createCmd
+
+            manager.createContainer(
+                startContainerCommand {
+                    containerName = "craftpanel-custom"
+                    serverId = "srv-both"
+                    image = "itzg/minecraft-server:latest"
+                    hostPort = 25571
+                    publicHostname = "both.example.com"
+                    internalListenPort = 25566
+                    containerProtocol = "BOTH"
+                }
+            )
+
+            verify { createCmd.withExposedPorts(listOf(ExposedPort.tcp(25566), ExposedPort.udp(25566))) }
+            verify {
+                createCmd.withLabels(
+                    mapOf(
+                        "craftpanel.managed" to "true",
+                        "craftpanel.server.id" to "srv-both",
+                        "mc-router.host" to "both.example.com",
+                        "mc-router.port" to "25566"
+                    )
+                )
+            }
+            val bindings = hostConfig.captured.portBindings.bindings
+            bindings[ExposedPort.tcp(25566)]!!.single().hostPortSpec shouldBe "25571"
+            bindings[ExposedPort.udp(25566)]!!.single().hostPortSpec shouldBe "25571"
+        }
+
         test("createContainer sets server id label") {
             val createCmd = stubCreate("c1")
 

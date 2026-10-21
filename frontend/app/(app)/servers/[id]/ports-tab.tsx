@@ -10,6 +10,11 @@ import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/
 import {Empty, EmptyDescription, EmptyMedia} from "@/components/ui/empty";
 import {isProxyType} from "@/lib/server-types";
 
+/** `BOTH` is the API/database value; the UI shows the transports it publishes. */
+function protocolLabel(protocol: string): string {
+    return protocol === "BOTH" ? "TCP + UDP" : protocol;
+}
+
 export function PortsTab({
     serverId,
     serverType,
@@ -226,7 +231,9 @@ export function PortsTab({
                             <span className="mb-1 block font-heading text-[0.625rem] tracking-wider text-text-muted uppercase">
                                 Protocol
                             </span>
-                            <span className="text-base font-bold text-accent">{primaryPort?.protocol ?? "TCP"}</span>
+                            <span className="text-base font-bold text-accent">
+                                {protocolLabel(primaryPort?.protocol ?? "TCP")}
+                            </span>
                         </div>
                     </div>
                 ) : (
@@ -264,6 +271,7 @@ export function PortsTab({
                                 >
                                     <option value="TCP">TCP</option>
                                     <option value="UDP">UDP</option>
+                                    <option value="BOTH">TCP + UDP</option>
                                 </select>
                             </div>
                         </div>
@@ -335,7 +343,7 @@ export function PortsTab({
                                         <td className="px-4 py-3 font-bold text-accent">{port.host_port}</td>
                                         <td className="px-4 py-3">
                                             <Badge variant="outline" className="px-1.5 py-0 text-[0.625rem]">
-                                                {port.protocol}
+                                                {protocolLabel(port.protocol)}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3 text-right">
@@ -411,6 +419,7 @@ export function PortsTab({
                                 >
                                     <option value="TCP">TCP (Dynmap, BlueMap HTTP, Votifier)</option>
                                     <option value="UDP">UDP (Geyser Bedrock, Query)</option>
+                                    <option value="BOTH">TCP + UDP (both transports)</option>
                                 </select>
                             </div>
 

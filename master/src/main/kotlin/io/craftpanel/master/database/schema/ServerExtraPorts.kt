@@ -11,7 +11,7 @@ object ServerExtraPorts : UuidTable("server_extra_ports") {
     val name = varchar("name", 64)
     val containerPort = integer("container_port")
     val hostPort = integer("host_port")
-    val protocol = varchar("protocol", 4).default("TCP") // TCP | UDP
+    val protocol = varchar("protocol", 4).default("TCP") // TCP | UDP | BOTH
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val updatedAt = datetime("updated_at").defaultExpression(CurrentDateTime)
 }

@@ -51,7 +51,7 @@ object Servers : UuidTable("servers") {
     // Container-internal listen port. Null = derive from server_type (25565 game / 25577 proxy).
     val containerListenPort = integer("container_listen_port").nullable()
 
-    // Container-internal listen protocol: TCP | UDP.
+    // Container-internal listen protocol: TCP | UDP | BOTH (BOTH binds the same host port on both).
     val containerProtocol = varchar("container_protocol", 4).default("TCP")
 
     // Passed through to itzg as DISABLE_HEALTHCHECK=true / FORCE_REDOWNLOAD=true.

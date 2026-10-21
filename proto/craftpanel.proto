@@ -419,9 +419,10 @@ message StartContainerCommand {
   // per-server container_listen_port override for TYPE=CUSTOM) and passes it through
   // so the exposed port and mc-router label match the server's real listen port.
   int32 internal_listen_port = 14;
-  // Transport protocol the container-internal port uses: "TCP" or "UDP". Used to
-  // pick ExposedPort.tcp()/udp() when binding host_port. Non-TCP servers are not
-  // registered with mc-router (mc-router is TCP-only).
+  // Transport protocol the container-internal port uses: "TCP", "UDP", or "BOTH". "BOTH" publishes
+  // and binds the same host_port on both transports (two Docker port bindings). mc-router labels are
+  // written only when the mapping includes TCP — mc-router is TCP-only, so a UDP-only server is
+  // skipped.
   string container_protocol = 16;
   // Human-readable server name, used by the agent to maintain the
   // `servers-by-name/<name>` symlink overlay. Immutable server field — safe to snapshot here.
@@ -449,7 +450,7 @@ message StartContainerCommand {
 message ExtraPortBinding {
   int32 host_port = 1;
   int32 container_port = 2;
-  string protocol = 3; // "TCP" or "UDP"
+  string protocol = 3; // "TCP", "UDP", or "BOTH"
   string name = 4;
 }
 

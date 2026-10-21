@@ -1,12 +1,12 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.common.ContainerNames
+import io.craftpanel.common.PortProtocols
 import io.craftpanel.common.ServerNames
 import io.craftpanel.master.database.entity.EnvVar
 import io.craftpanel.master.database.entity.Mod
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
@@ -21,7 +21,6 @@ import io.craftpanel.master.util.parseUtcInstant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.uuid.Uuid
@@ -285,12 +284,7 @@ class ServerProvisioning(
                 this.jvmMetricsEnabled = spec.jvmMetricsEnabled ?: !st.isPicolimbo
             }
 
-            PortRegistry.insert {
-                it[PortRegistry.nodeId] = EntityID(nodeKotlinId, Nodes)
-                it[PortRegistry.port] = port
-                it[PortRegistry.protocol] = proto
-                it[PortRegistry.serverId] = EntityID(entity.id.value, Servers)
-            }
+            ServerPortRegistry.register(nodeKotlinId, entity.id.value, port, proto)
 
             spec.exposedExternally?.let { entity.exposedExternally = it }
             spec.customHostname?.let {
@@ -359,13 +353,7 @@ internal fun parseExpiresAt(raw: String?): kotlinx.datetime.LocalDateTime? = raw
 
 internal fun parseUuid(raw: String): Uuid? = runCatching { Uuid.parse(raw) }.getOrNull()
 
-internal fun validateContainerProtocol(raw: String): String {
-    val normalized = raw.uppercase()
-    if (normalized != "TCP" && normalized != "UDP") {
-        throw UnprocessableException("Invalid container_protocol: $raw")
-    }
-    return normalized
-}
+internal fun validateContainerProtocol(raw: String): String = PortProtocols.normalize(raw) ?: throw UnprocessableException("Invalid container_protocol: $raw")
 
 internal fun buildDefaultEnvVars(mcVersion: String, serverTypeDisplay: String, platformName: String) = mapOf(
     "MOTD" to "$mcVersion $serverTypeDisplay powered by $platformName",

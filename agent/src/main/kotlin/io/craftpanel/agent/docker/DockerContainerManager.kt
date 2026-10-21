@@ -8,6 +8,7 @@ import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
 import io.craftpanel.common.ContainerNames
 import io.craftpanel.common.DockerLabels
+import io.craftpanel.common.PortProtocols
 import io.craftpanel.proto.*
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -79,19 +80,25 @@ class DockerContainerManager(
         val exposedPortsList = mutableListOf<ExposedPort>()
         val portBindings = Ports()
 
-        val isUdp = cmd.containerProtocol.uppercase() == "UDP"
-        val minecraftPort = if (isUdp) ExposedPort.udp(cmd.internalListenPort) else ExposedPort.tcp(cmd.internalListenPort)
-        exposedPortsList.add(minecraftPort)
-        if (cmd.hostPort > 0) {
-            portBindings.bind(minecraftPort, Ports.Binding.bindPort(cmd.hostPort))
+        // A "BOTH" mapping publishes the same host port on two sockets; Docker keys bindings by
+        // transport, so tcp(p) and udp(p) coexist without a conflict.
+        val tcpListenPort = ExposedPort.tcp(cmd.internalListenPort).takeIf { PortProtocols.hasTcp(cmd.containerProtocol) }
+        val udpListenPort = ExposedPort.udp(cmd.internalListenPort).takeIf { PortProtocols.hasUdp(cmd.containerProtocol) }
+        listOfNotNull(tcpListenPort, udpListenPort).forEach { exposed ->
+            exposedPortsList.add(exposed)
+            if (cmd.hostPort > 0) {
+                portBindings.bind(exposed, Ports.Binding.bindPort(cmd.hostPort))
+            }
         }
 
         cmd.extraPortsList.forEach { extra ->
-            val isExtraUdp = extra.protocol.uppercase() == "UDP"
-            val extraPort = if (isExtraUdp) ExposedPort.udp(extra.containerPort) else ExposedPort.tcp(extra.containerPort)
-            exposedPortsList.add(extraPort)
-            if (extra.hostPort > 0) {
-                portBindings.bind(extraPort, Ports.Binding.bindPort(extra.hostPort))
+            val tcpPort = ExposedPort.tcp(extra.containerPort).takeIf { PortProtocols.hasTcp(extra.protocol) }
+            val udpPort = ExposedPort.udp(extra.containerPort).takeIf { PortProtocols.hasUdp(extra.protocol) }
+            listOfNotNull(tcpPort, udpPort).forEach { exposed ->
+                exposedPortsList.add(exposed)
+                if (extra.hostPort > 0) {
+                    portBindings.bind(exposed, Ports.Binding.bindPort(extra.hostPort))
+                }
             }
         }
 
@@ -126,13 +133,13 @@ class DockerContainerManager(
                 buildMap {
                     put(DockerLabels.MANAGED, DockerLabels.MANAGED_VALUE)
                     put("craftpanel.server.id", cmd.serverId)
-                    if (cmd.publicHostname.isNotEmpty() && !isUdp) {
+                    if (cmd.publicHostname.isNotEmpty() && PortProtocols.hasTcp(cmd.containerProtocol)) {
                         // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
                         // `mc-router.host` is the routing hostname; `mc-router.port` is the
                         // container-internal Minecraft port; `mc-router.network` tells mc-router
                         // which Docker network to dial the backend on (the container's own server
-                        // network, which mc-router is attached to). UDP backends cannot be proxied
-                        // by mc-router, so skip the labels.
+                        // network, which mc-router is attached to). mc-router is TCP-only, so a
+                        // UDP-only backend is skipped; a BOTH mapping is still routable over TCP.
                         put("mc-router.host", cmd.publicHostname)
                         put("mc-router.port", cmd.internalListenPort.toString())
                         if (cmd.dockerNetwork.isNotEmpty()) {

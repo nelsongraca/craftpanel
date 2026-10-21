@@ -23,7 +23,7 @@ class PortAllocatorTest :
             val result = PortAllocator.pickFreePort(
                 portRangeStart = 25570,
                 portRangeEnd = 25580,
-                usedPorts = setOf(25570, 25571, 25572),
+                usedPorts = setOf(25570, 25571, 25572)
             )
 
             result shouldBe 25573
@@ -33,7 +33,7 @@ class PortAllocatorTest :
             val result = PortAllocator.pickFreePort(
                 portRangeStart = 25570,
                 portRangeEnd = 25572,
-                usedPorts = setOf(25570, 25571, 25572),
+                usedPorts = setOf(25570, 25571, 25572)
             )
 
             result.shouldBeNull()
@@ -66,6 +66,18 @@ class PortAllocatorTest :
             val nodeId = Uuid.random()
 
             allocator(nodeId, setOf(25570, 25572)).allocate(nodeId, preferred = 25570) shouldBe 25571
+        }
+
+        test("allocate skips reserved ports") {
+            val nodeId = Uuid.random()
+
+            allocator(nodeId, emptySet()).allocate(nodeId, reserved = setOf(25570, 25571)) shouldBe 25572
+        }
+
+        test("allocate does not reuse a reserved preferred port") {
+            val nodeId = Uuid.random()
+
+            allocator(nodeId, emptySet()).allocate(nodeId, preferred = 25570, reserved = setOf(25570)) shouldBe 25571
         }
 
         test("allocate throws PortExhaustedException when the range is full") {

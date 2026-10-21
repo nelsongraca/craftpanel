@@ -153,6 +153,32 @@ describe("NewServerPage", () => {
         });
     });
 
+    it("submits TCP + UDP for a CUSTOM server's listen port", async () => {
+        vi.mocked(createServer).mockResolvedValue({
+            data: {id: "new-srv"} as ServerResponse,
+            error: undefined,
+        });
+
+        await renderWith({nodes: [node({id: "n1"})]});
+        const user = userEvent.setup();
+        await selectComboboxOption(user, screen.getByLabelText(/Server Type/), "CUSTOM");
+        await user.type(screen.getByPlaceholderText("survival-1"), "custom-srv");
+        await user.type(screen.getByLabelText(/Custom Server Jar/), "/data/server.jar");
+        await selectComboboxOption(user, screen.getByLabelText(/^Protocol$/), "TCP + UDP");
+        await user.click(screen.getByText("Create Server"));
+
+        await waitFor(() => {
+            expect(createServer).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: expect.objectContaining({
+                        server_type: "CUSTOM",
+                        container_protocol: "BOTH",
+                    }),
+                }),
+            );
+        });
+    });
+
     it("shows error from API", async () => {
         vi.mocked(createServer).mockResolvedValue({
             data: undefined,
