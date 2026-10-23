@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {
-    Check,
     ChevronRight,
     Copy,
     Download,
@@ -31,6 +30,7 @@ import {HeaderActionButton} from "@/components/servers/header-action-button";
 import {type ServerActionKind, useServerActions} from "@/components/servers/server-actions";
 import {OverviewTab} from "@/components/servers/overview-tab";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
 import {isCustomType, isModLoaderType, isPicolimboType, isProxyType} from "@/lib/server-types";
 
 type LiveMetrics = {
@@ -101,17 +101,6 @@ export default function ServerDetailPage() {
 
     // Bumped to force-open the General Settings edit form from another tab (e.g. Configuration).
     const [generalOpenSignal, setGeneralOpenSignal] = useState<number | undefined>(undefined);
-    const [idCopied, setIdCopied] = useState(false);
-
-    async function copyServerId(serverId: string) {
-        try {
-            await navigator.clipboard.writeText(serverId);
-            setIdCopied(true);
-            setTimeout(() => setIdCopied(false), 1500);
-        } catch {
-            // Clipboard unavailable (e.g. insecure context) — nothing to do.
-        }
-    }
 
     // Data fetching
 
@@ -322,10 +311,28 @@ export default function ServerDetailPage() {
     const serverPerms = scopedPermissions(permissions, user?.server_permissions ?? {}, server.id);
     const expired = serverExpired(server.expires_at);
 
+    // Tabs actually offered for this server type / permission set — shared by the desktop
+    // strip and the phone picker so the two can never drift.
+    const visibleTabs = TABS.filter(
+        (tab) =>
+            !(isProxy && tab === "Migration") &&
+            !((isCustom || isPicolimbo) && tab === "Mods") &&
+            !(tab === "Jobs" && !hasPermission(serverPerms, "server.cron")),
+    );
+    const tabLabel = (tab: Tab) => (tab === "Mods" && !isModServerType ? "Plugins" : tab);
+    // The active tab can outlive its own visibility (e.g. losing server.cron while on Jobs), so
+    // the picker falls back to the first tab instead of showing a label it no longer offers.
+    const pickerTab = visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0];
+
+    function selectTab(next: Tab) {
+        setActiveTab(next);
+        if (next === "Files") setFilesVisited(true);
+    }
+
     return (
         <div className="flex h-full min-h-0 flex-col">
             {/* Page header */}
-            <div className="shrink-0 border-b border-border px-4 pt-4 pb-3">
+            <div className="shrink-0 border-b border-border px-4 pt-4 pb-2 sm:pb-3">
                 {/* Breadcrumb */}
                 <div className="mb-4 flex items-center gap-1.5 font-heading text-xs font-bold tracking-wider text-text-muted uppercase">
                     <Link href="/servers" className="transition-colors hover:text-text-primary">
@@ -445,12 +452,15 @@ export default function ServerDetailPage() {
                     </div>
                 </div>
 
-                {/* Type / config badges */}
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="rounded border border-border bg-surface-high px-1.5 py-0.5 font-mono text-xs tracking-wider text-text-dim uppercase">
+                {/* Type / config badges — both values stay reachable in the Overview "Server Info"
+                    card, so they are hidden on phones to keep the header compact (and the row
+                    collapses to zero height there, closing the gap above the hostname). The
+                    migrating badge is live status and stays visible at every width. */}
+                <div className="mt-0 flex flex-wrap items-center gap-2 sm:mt-3">
+                    <span className="hidden rounded border border-border bg-surface-high px-1.5 py-0.5 font-mono text-xs tracking-wider text-text-dim uppercase sm:inline">
                         {server.server_type}
                     </span>
-                    <span className="rounded border border-border bg-surface-high px-1.5 py-0.5 font-mono text-xs tracking-wider text-text-dim uppercase">
+                    <span className="hidden rounded border border-border bg-surface-high px-1.5 py-0.5 font-mono text-xs tracking-wider text-text-dim uppercase sm:inline">
                         {server.config_mode}
                     </span>
                     {server.is_migrating && (
@@ -462,35 +472,8 @@ export default function ServerDetailPage() {
 
                 {/* Hostname */}
                 {server.canonical_hostname && (
-                    <p className="mt-2 font-mono text-xs text-text-muted">{server.canonical_hostname}</p>
+                    <p className="mt-1.5 font-mono text-xs text-text-muted sm:mt-2">{server.canonical_hostname}</p>
                 )}
-
-                {/* Node */}
-                {node && (
-                    <p className="mt-1 font-heading text-xs text-text-muted">
-                        Node:{" "}
-                        <Link
-                            href={`/nodes/${node.id}`}
-                            className="font-mono text-text-dim transition-colors hover:text-text-primary"
-                        >
-                            {node.display_name}
-                        </Link>
-                    </p>
-                )}
-
-                {/* Server ID (with copy) */}
-                <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-text-muted">
-                    ID <span className="text-text-dim">{server.id}</span>
-                    <button
-                        type="button"
-                        onClick={() => void copyServerId(server.id)}
-                        title={idCopied ? "Copied" : "Copy server ID"}
-                        aria-label="Copy server ID"
-                        className="text-text-muted transition-colors hover:text-text-primary"
-                    >
-                        {idCopied ? <Check size={11} strokeWidth={2.5} /> : <Copy size={11} strokeWidth={2.5} />}
-                    </button>
-                </p>
             </div>
 
             {/* Restart required banner */}
@@ -518,33 +501,43 @@ export default function ServerDetailPage() {
                 </div>
             )}
 
-            {/* Tab bar */}
+            {/* Tab bar — a full-width picker on phones (the 10-tab strip wraps to three rows
+                there), the classic strip from lg up, where it fits on one line. The strip stays
+                mounted (CSS-hidden) so base-ui's tab/panel wiring is identical at every width. */}
             <Tabs
                 value={activeTab}
-                onValueChange={(value) => {
-                    const next = value as Tab;
-                    setActiveTab(next);
-                    if (next === "Files") setFilesVisited(true);
-                }}
-                className="min-h-0 flex-1 overflow-hidden"
+                onValueChange={(value) => selectTab(value as Tab)}
+                className="min-h-0 flex-1 overflow-hidden max-lg:gap-0"
             >
-                <div className="shrink-0 border-b border-border bg-surface pb-[7px]">
+                <div className="shrink-0 border-b border-border bg-surface px-4 pt-2 pb-1.5 lg:px-0 lg:pt-0 lg:pb-[7px]">
+                    <Select value={pickerTab} onValueChange={(value) => selectTab(value as Tab)}>
+                        <SelectTrigger
+                            size="sm"
+                            aria-label="Server section"
+                            className="w-full border-border bg-surface-high font-heading text-xs font-bold tracking-widest text-text-dim uppercase lg:hidden"
+                        >
+                            <SelectValue>{tabLabel(pickerTab)}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent alignItemWithTrigger={false} className="border border-border bg-surface-higher">
+                            {visibleTabs.map((tab) => (
+                                <SelectItem key={tab} value={tab}>
+                                    {tabLabel(tab)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
                     <TabsList
                         variant="line"
-                        className="h-auto w-full flex-wrap justify-start rounded-none bg-transparent px-6 py-0 group-data-horizontal/tabs:h-auto"
+                        className="hidden h-auto w-full flex-wrap justify-start rounded-none bg-transparent px-6 py-0 group-data-horizontal/tabs:h-auto lg:flex"
                     >
-                        {TABS.filter(
-                            (tab) =>
-                                !(isProxy && tab === "Migration") &&
-                                !((isCustom || isPicolimbo) && tab === "Mods") &&
-                                !(tab === "Jobs" && !hasPermission(serverPerms, "server.cron")),
-                        ).map((tab) => (
+                        {visibleTabs.map((tab) => (
                             <TabsTrigger
                                 key={tab}
                                 value={tab}
                                 className="shrink-0 rounded-none border-none px-2 py-2 font-heading text-xs font-bold tracking-widest text-text-dim uppercase after:bottom-0 after:h-0.5 after:bg-accent hover:text-text-primary sm:px-4 sm:py-3 data-active:bg-transparent data-active:text-accent data-active:shadow-none"
                             >
-                                {tab === "Mods" && !isModServerType ? "Plugins" : tab}
+                                {tabLabel(tab)}
                             </TabsTrigger>
                         ))}
                     </TabsList>

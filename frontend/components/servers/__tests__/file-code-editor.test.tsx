@@ -1,7 +1,8 @@
 import {act, fireEvent, render} from "@testing-library/react";
+import {createRef} from "react";
 import {EditorView} from "@codemirror/view";
 import {searchPanelOpen} from "@codemirror/search";
-import {FileCodeEditor} from "../file-code-editor";
+import {FileCodeEditor, type FileCodeEditorHandle} from "../file-code-editor";
 
 function mount() {
     const result = render(
@@ -45,5 +46,26 @@ describe("FileCodeEditor find panel", () => {
         // @uiw/react-codemirror reconfigures the editor when a prop identity changes; that
         // reconfigure used to tear the search state added by `openSearchPanel` down with it.
         expect(searchPanelOpen(view.state)).toBe(true);
+    });
+
+    it("opens the search panel through the imperative handle (touch devices have no Ctrl+F)", () => {
+        const ref = createRef<FileCodeEditorHandle>();
+        const {container} = render(
+            <FileCodeEditor
+                ref={ref}
+                value="hello world"
+                onChange={() => {}}
+                onSave={() => {}}
+                path="server.properties"
+            />,
+        );
+        const editor = container.querySelector(".cm-editor") as HTMLElement;
+        const view = EditorView.findFromDOM(editor);
+        if (!view) throw new Error("CodeMirror view was not created");
+
+        act(() => ref.current?.openSearch());
+
+        expect(searchPanelOpen(view.state)).toBe(true);
+        expect(container.querySelector(".cm-search")).toBeTruthy();
     });
 });

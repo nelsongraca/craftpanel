@@ -316,7 +316,7 @@ describe("ServerDetailPage", () => {
     });
 
     describe("Server ID", () => {
-        it("copies the server id from the header", async () => {
+        it("copies the server id from the overview info card", async () => {
             await renderDetail({status: "STOPPED"});
 
             const user = userEvent.setup();

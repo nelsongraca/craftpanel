@@ -3,6 +3,7 @@ import path from "node:path";
 import {http, HttpResponse} from "msw";
 import type {Page} from "@playwright/test";
 import {expect, test} from "../fixture";
+import {selectServerTab, TAB_PICKER} from "../server-tabs";
 
 // One-off mobile usability screenshot sweep. Excluded from the default suite and CI via
 // testIgnore in playwright.config.ts — run explicitly, then review the PNGs under
@@ -75,7 +76,7 @@ for (const tab of SERVER_TABS) {
         name: `server-detail-${tab.toLowerCase()}`,
         route: `/servers/${SERVER_ID}`,
         act: async (page) => {
-            await page.getByRole("tab", {name: tab}).click();
+            await selectServerTab(page, tab);
             // Lazy tab chunks fetch their own data after the dynamic import resolves; wait out
             // the "Loading…" placeholder so the capture shows content, not a spinner.
             const loading = page.getByText("Loading…", {exact: true});
@@ -88,6 +89,41 @@ for (const tab of SERVER_TABS) {
         },
     });
 }
+
+// The phone tab picker, open. This is the surface that replaces the strip below lg, so capture it
+// with the option list showing (ten items must still fit a 360x800 screen).
+ROUTES.push({
+    name: "server-detail-tab-picker",
+    route: `/servers/${SERVER_ID}`,
+    act: async (page) => {
+        await page.getByRole("combobox", {name: TAB_PICKER}).click();
+        await expect(page.getByRole("listbox")).toBeVisible();
+    },
+});
+
+// Overview scrolled to the Server Info card — the node, type/config and ID all live there now that
+// the header no longer repeats them, so this is where the narrow-width layout has to hold up.
+ROUTES.push({
+    name: "server-detail-overview-info",
+    route: `/servers/${SERVER_ID}`,
+    act: async (page) => {
+        // Scroll to the ID row itself — it is the last line of the card, well below the fold.
+        await page.getByRole("button", {name: "Copy server ID"}).scrollIntoViewIfNeeded();
+    },
+});
+
+// File editor with the find panel open: the toolbar font, the search field and the editor all have
+// to share a 360px-wide screen, and on touch this button is the only way to search at all.
+ROUTES.push({
+    name: "server-detail-files-find",
+    route: `/servers/${SERVER_ID}`,
+    act: async (page) => {
+        await selectServerTab(page, "Files");
+        await page.getByText("server.properties").click();
+        await page.getByRole("button", {name: "Find in file"}).click();
+        await expect(page.locator(".cm-search")).toBeVisible();
+    },
+});
 
 ROUTES.push({name: "proxy-detail-overview", route: `/servers/${PROXY_ID}`});
 
@@ -259,7 +295,25 @@ test.describe("mobile screenshot sweep", () => {
                         }
                     }
 
-                    console.log(`[mobile-sweep] ${vp.name}/${shot.name}: ${vpBox} ${metrics}${dialogInfo}`);
+                    // Open select popup (e.g. the tab picker): same fit/scroll checks as dialogs.
+                    let popupInfo = "";
+                    const popup = page.getByRole("listbox");
+                    if (await popup.count()) {
+                        const box = await popup.first().boundingBox();
+                        if (box) {
+                            const overflowsVp = box.y + box.height > vp.height + 1 || box.y < -1;
+                            const canScroll = await popup.first().evaluate((n) => {
+                                const s = getComputedStyle(n);
+                                return n.scrollHeight > n.clientHeight + 1 && s.overflowY !== "visible";
+                            });
+                            popupInfo =
+                                ` listbox=${Math.round(box.width)}x${Math.round(box.height)}@y${Math.round(box.y)}` +
+                                (overflowsVp ? " listboxOVERFLOWS_VIEWPORT" : "") +
+                                (canScroll ? " listboxScrolls" : " listboxNO_SCROLL");
+                        }
+                    }
+
+                    console.log(`[mobile-sweep] ${vp.name}/${shot.name}: ${vpBox} ${metrics}${dialogInfo}${popupInfo}`);
 
                     // Viewport screenshot, NOT fullPage: the app is a fixed shell that scrolls
                     // <main> internally, so fullPage stitching renders inner scrollers blank.

@@ -1,12 +1,17 @@
 "use client";
 
-import {useMemo, useRef, useEffect, useCallback} from "react";
+import {useMemo, useRef, useEffect, useCallback, useImperativeHandle, type Ref} from "react";
 import CodeMirror, {EditorView, keymap, type BasicSetupOptions} from "@uiw/react-codemirror";
-import {search} from "@codemirror/search";
+import {openSearchPanel, search} from "@codemirror/search";
 import {darculaInit} from "@uiw/codemirror-theme-darcula";
 import {githubLightInit} from "@uiw/codemirror-theme-github";
 import {languageIdFromPath, languageExtension, type LanguageId} from "@/lib/file-language";
 import {useResolvedTheme} from "@/lib/hooks/useTheme";
+
+export interface FileCodeEditorHandle {
+    /** Opens the find panel — the only way in on touch devices, which have no Ctrl+F. */
+    openSearch: () => void;
+}
 
 interface Props {
     value: string;
@@ -16,6 +21,7 @@ interface Props {
     wrap?: boolean;
     /** User-pinned language; falls back to extension detection when unset. */
     languageOverride?: LanguageId;
+    ref?: Ref<FileCodeEditorHandle>;
 }
 
 /**
@@ -73,13 +79,27 @@ const editorChrome = EditorView.theme({
     },
 });
 
-export function FileCodeEditor({value, onChange, onSave, path, wrap = false, languageOverride}: Props) {
+export function FileCodeEditor({value, onChange, onSave, path, wrap = false, languageOverride, ref}: Props) {
     const saveRef = useRef(onSave);
     const changeRef = useRef(onChange);
     useEffect(() => {
         saveRef.current = onSave;
         changeRef.current = onChange;
     }, [onSave, onChange]);
+
+    const viewRef = useRef<EditorView | null>(null);
+    useImperativeHandle(
+        ref,
+        () => ({
+            openSearch: () => {
+                const view = viewRef.current;
+                if (!view) return;
+                // The panel focuses (and selects) its own input — do not steal focus back.
+                openSearchPanel(view);
+            },
+        }),
+        [],
+    );
 
     const langId = languageOverride ?? languageIdFromPath(path);
     const langExts = useMemo(() => languageExtension(langId), [langId]);
@@ -103,8 +123,9 @@ export function FileCodeEditor({value, onChange, onSave, path, wrap = false, lan
 
     const extensions = useMemo(
         // `search()` keeps the find panel's state field in the static config, so a legitimate
-        // reconfigure (wrap toggle, language switch) cannot drop it.
-        () => [search(), editorChrome, saveKeymap, ...(wrap ? [EditorView.lineWrapping] : []), ...langExts],
+        // reconfigure (wrap toggle, language switch) cannot drop it. `top: true` keeps the panel
+        // clear of the on-screen keyboard on phones, where it would otherwise sit under it.
+        () => [search({top: true}), editorChrome, saveKeymap, ...(wrap ? [EditorView.lineWrapping] : []), ...langExts],
         [wrap, saveKeymap, langExts],
     );
 
@@ -122,6 +143,9 @@ export function FileCodeEditor({value, onChange, onSave, path, wrap = false, lan
                 height="100%"
                 indentWithTab={false}
                 basicSetup={BASIC_SETUP}
+                onCreateEditor={(view) => {
+                    viewRef.current = view;
+                }}
             />
         </div>
     );

@@ -1,5 +1,7 @@
 "use client";
 
+import {useState} from "react";
+import {Check, Copy} from "lucide-react";
 import {InfoRow} from "@/components/edit/info-row";
 import {EditGeneral} from "./edit-general";
 import {EditServerType} from "./edit-server-type";
@@ -48,6 +50,18 @@ export function OverviewTab({
 }: OverviewTabProps) {
     const canConfigure = hasPermission(permissions, "server.configure");
     const canResources = hasPermission(permissions, "server.resources");
+    const [idCopied, setIdCopied] = useState(false);
+
+    async function copyId() {
+        try {
+            await navigator.clipboard.writeText(server.id);
+            setIdCopied(true);
+            setTimeout(() => setIdCopied(false), 1500);
+        } catch {
+            // Clipboard unavailable (e.g. insecure context) — nothing to do.
+        }
+    }
+
     // On lg+ the overview is a two-column body: forms left, live/info right. With neither
     // permission the left column is empty, so fall back to a single full-width column.
     const hasForms = canConfigure || canResources;
@@ -93,6 +107,27 @@ export function OverviewTab({
                 <InfoRow label="Hostname" value={server.canonical_hostname ?? "-"} />
                 <InfoRow label="Last seen" value={node?.last_seen_at ? timeAgo(node.last_seen_at) : "-"} />
                 <InfoRow label="Created" value={new Date(server.created_at).toLocaleDateString()} />
+                <InfoRow
+                    label="ID"
+                    value={
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                            <span className="break-all select-all">{server.id}</span>
+                            <button
+                                type="button"
+                                onClick={() => void copyId()}
+                                title={idCopied ? "Copied" : "Copy server ID"}
+                                aria-label="Copy server ID"
+                                className="shrink-0 text-text-muted transition-colors hover:text-text-primary"
+                            >
+                                {idCopied ? (
+                                    <Check size={11} strokeWidth={2.5} />
+                                ) : (
+                                    <Copy size={11} strokeWidth={2.5} />
+                                )}
+                            </button>
+                        </span>
+                    }
+                />
             </div>
 
             <PlayersPanel livePlayers={livePlayers} />
@@ -102,7 +137,7 @@ export function OverviewTab({
     );
 
     return (
-        <div className="space-y-6 px-4 py-6">
+        <div className="space-y-6 px-4 py-4 lg:py-6">
             <LiveMetricsStatCards liveMetrics={liveMetrics} livePlayers={livePlayers} server={server} node={node} />
 
             {hasForms ? (

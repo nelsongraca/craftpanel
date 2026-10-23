@@ -1,5 +1,6 @@
 import {describe, it, expect, vi} from "vitest";
 import {render, screen} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {OverviewTab} from "../overview-tab";
 import type {Server, Node, Network} from "@/lib/types";
 
@@ -86,6 +87,29 @@ describe("OverviewTab", () => {
             />,
         );
         expect(screen.getByText("play.example.com")).toBeInTheDocument();
+    });
+
+    it("renders the server id and copies it", async () => {
+        render(
+            <OverviewTab
+                server={makeServer()}
+                node={makeNode()}
+                network={makeNetwork()}
+                permissions={["server.view"]}
+                liveMetrics={null}
+                livePlayers={null}
+                onSaved={vi.fn()}
+            />,
+        );
+        expect(screen.getByText("s1")).toBeInTheDocument();
+
+        const user = userEvent.setup();
+        // userEvent.setup() installs its own clipboard stub, so override it afterwards.
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, "clipboard", {value: {writeText}, configurable: true});
+        await user.click(screen.getByRole("button", {name: "Copy server ID"}));
+
+        expect(writeText).toHaveBeenCalledWith("s1");
     });
 
     it("renders General Settings when has server.configure permission", () => {

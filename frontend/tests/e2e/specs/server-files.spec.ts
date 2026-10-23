@@ -1,5 +1,6 @@
 import {http, HttpResponse} from "msw";
 import {expect, test} from "../fixture";
+import {selectServerTab} from "../server-tabs";
 
 // NOTE: the text-file CodeMirror editor renders in these specs (the old Turbopack
 // "multiple instances of @codemirror/state" crash is fixed). See the scrollability
@@ -318,7 +319,7 @@ test.describe("mobile master/detail (375px)", () => {
         );
 
         await page.goto("/servers/srv-1");
-        await page.getByRole("tab", {name: "Files"}).click();
+        await selectServerTab(page, "Files");
 
         // No file selected: the tree owns the screen, the editor pane is hidden.
         await expect(page.getByText("server.properties")).toBeVisible();
@@ -352,7 +353,7 @@ test.describe("mobile master/detail (375px)", () => {
         );
 
         await page.goto("/servers/srv-1");
-        await page.getByRole("tab", {name: "Files"}).click();
+        await selectServerTab(page, "Files");
 
         // No hover — tap the row's ⋯ trigger and delete from the menu.
         const row = page.getByText("eula.txt").locator("..");
@@ -363,5 +364,23 @@ test.describe("mobile master/detail (375px)", () => {
         await page.getByRole("button", {name: "Confirm"}).click();
         await expect(page.getByRole("alertdialog")).toBeHidden();
         await expect(page.getByText("eula.txt")).not.toBeVisible();
+    });
+
+    test("the editor's find button opens the search panel without a keyboard", async ({page, network}) => {
+        network.use(
+            http.get("/api/servers/srv-1/files/content", () =>
+                HttpResponse.json({encoding: "utf-8", content: "motd=hello\n"}),
+            ),
+        );
+
+        await page.goto("/servers/srv-1");
+        await selectServerTab(page, "Files");
+        await page.getByText("server.properties").click();
+        await expect(page.locator(".cm-scroller")).toBeVisible();
+
+        // Ctrl+F does not exist on a touch device — the toolbar button is the only way in.
+        await page.getByRole("button", {name: "Find in file"}).click();
+        await expect(page.locator(".cm-search")).toBeVisible();
+        await expect(page.locator(".cm-search input[name=search]")).toBeFocused();
     });
 });

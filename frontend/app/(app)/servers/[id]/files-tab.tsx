@@ -32,12 +32,13 @@ import {
     Move,
     Pencil,
     Save,
+    Search,
     Trash2,
     Upload,
     X,
     WrapText,
 } from "lucide-react";
-import {FileCodeEditor} from "@/components/servers/file-code-editor";
+import {FileCodeEditor, type FileCodeEditorHandle} from "@/components/servers/file-code-editor";
 import {DirectoryPickerDialog} from "@/components/servers/directory-picker-dialog";
 import {UploadDialog} from "@/components/servers/upload-dialog";
 import {collectDroppedItems, itemsFromFileList, type UploadItem} from "@/lib/upload-drop";
@@ -130,6 +131,7 @@ export const FilesTab = memo(function FilesTab({serverId, active = true}: Props)
     const [rootLoading, setRootLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [wrap, setWrap] = useState(false);
+    const editorRef = useRef<FileCodeEditorHandle>(null);
     const [languageOverrides, setLanguageOverrides] = useState<LanguageOverrides>({});
     const {confirm, dialog} = useConfirmDialog();
     const {prompt, dialog: promptDialog} = usePromptDialog();
@@ -798,7 +800,7 @@ export const FilesTab = memo(function FilesTab({serverId, active = true}: Props)
 
                     {selectedPath ? (
                         <>
-                            <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+                            <div className="flex items-center gap-1 border-b border-border px-4 py-2 sm:gap-2">
                                 <button
                                     title="Back to files"
                                     className="-ml-1 p-1.5 text-text-dim hover:text-accent md:hidden"
@@ -855,7 +857,18 @@ export const FilesTab = memo(function FilesTab({serverId, active = true}: Props)
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                         <button
+                                            type="button"
+                                            title="Find in file"
+                                            aria-label="Find in file"
+                                            className="p-1.5 text-text-muted transition-colors hover:text-accent"
+                                            onClick={() => editorRef.current?.openSearch()}
+                                        >
+                                            <Search size={15} />
+                                        </button>
+                                        <button
+                                            type="button"
                                             title={wrap ? "Disable word wrap" : "Enable word wrap"}
+                                            aria-label={wrap ? "Disable word wrap" : "Enable word wrap"}
                                             className={`p-1.5 text-text-muted transition-colors hover:text-accent ${wrap ? "text-accent" : ""}`}
                                             onClick={() => setWrap((w) => !w)}
                                         >
@@ -890,6 +903,7 @@ export const FilesTab = memo(function FilesTab({serverId, active = true}: Props)
                                     </p>
                                 ) : (
                                     <FileCodeEditor
+                                        ref={editorRef}
                                         value={fileContent}
                                         onChange={(val) => {
                                             setFileContent(val);
