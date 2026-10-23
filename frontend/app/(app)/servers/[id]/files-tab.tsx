@@ -88,8 +88,35 @@ function parentDir(path: string): string {
     return path.substring(0, path.lastIndexOf("/")) || "/";
 }
 
+/**
+ * Custom MIME that marks a drag as a move within the tree. `getData` is empty during
+ * dragenter/dragover (browsers withhold the payload), so classification must go through `types`.
+ */
+const ENTRY_MIME = "application/x-craftpanel-entry";
+
 function isFileDrag(event: React.DragEvent): boolean {
     return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+}
+
+function isInternalDrag(event: React.DragEvent): boolean {
+    return Array.from(event.dataTransfer?.types ?? []).includes(ENTRY_MIME);
+}
+
+function readDraggedEntry(event: React.DragEvent): {path: string; isDirectory: boolean} | null {
+    const raw = event.dataTransfer.getData(ENTRY_MIME) || event.dataTransfer.getData("text/plain");
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw) as {path?: unknown; isDirectory?: unknown};
+        if (typeof parsed.path !== "string" || !parsed.path) return null;
+        return {path: parsed.path, isDirectory: parsed.isDirectory === true};
+    } catch {
+        // A plain-path fallback (or a foreign payload) is only usable as a move source if absolute.
+        return raw.startsWith("/") ? {path: raw, isDirectory: false} : null;
+    }
+}
+
+function baseName(path: string): string {
+    return path.substring(path.lastIndexOf("/") + 1);
 }
 
 function isSameTarget(event: React.DragEvent): boolean {
@@ -144,6 +171,8 @@ export const FilesTab = memo(function FilesTab({serverId, active = true}: Props)
     const pendingUploadDirRef = useRef<string | null>(null);
     const [preparingUpload, setPreparingUpload] = useState(false);
     const [dragTarget, setDragTarget] = useState<string | null>(null);
+    const [dragKind, setDragKind] = useState<"upload" | "move" | null>(null);
+    const [draggingPath, setDraggingPath] = useState<string | null>(null);
     const [upload, setUpload] = useState<{
         items: UploadItem[];
         destDir: string;
@@ -480,10 +509,83 @@ export const FilesTab = memo(function FilesTab({serverId, active = true}: Props)
         e.preventDefault();
         e.stopPropagation();
         setDragTarget(null);
+        setDragKind(null);
         // webkitGetAsEntry must be read synchronously from the drop handler; collectDroppedItems
         // captures the entries before its first await.
         const items = await collectDroppedItems(e.dataTransfer);
         await beginUpload(items, destDir);
+    }
+
+    function clearDragState() {
+        setDragTarget(null);
+        setDragKind(null);
+        setDraggingPath(null);
+    }
+
+    function handleDragOver(e: React.DragEvent, destDir: string) {
+        if (isInternalDrag(e)) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = "move";
+            setDragTarget(destDir);
+            setDragKind("move");
+            return;
+        }
+        if (!isFileDrag(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+        setDragTarget(destDir);
+        setDragKind("upload");
+    }
+
+    function handleDragLeave(e: React.DragEvent) {
+        if ((isInternalDrag(e) || isFileDrag(e)) && !isSameTarget(e)) {
+            setDragTarget(null);
+            setDragKind(null);
+        }
+    }
+
+    function beginEntryDrag(e: React.DragEvent, node: TreeNode) {
+        e.stopPropagation();
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData(ENTRY_MIME, JSON.stringify({path: node.path, isDirectory: node.isDirectory}));
+        // Firefox cancels a drag whose dataTransfer carries no payload at all; the plain path is the fallback.
+        e.dataTransfer.setData("text/plain", node.path);
+        setDraggingPath(node.path);
+    }
+
+    async function moveDropped(e: React.DragEvent, destDir: string) {
+        const entry = readDraggedEntry(e);
+        clearDragState();
+        if (!entry) return;
+        const destination = buildPath(destDir, baseName(entry.path));
+        // Dropping an entry back where it already lives is a no-op, not an error.
+        if (destination === entry.path || destDir === parentDir(entry.path)) return;
+        if (entry.isDirectory && destDir.startsWith(`${entry.path}/`)) {
+            setError("A folder cannot be moved into itself");
+            return;
+        }
+        setError(null);
+        const {error: err} = await moveServerFile({
+            path: {id: serverId},
+            body: {source_path: entry.path, destination_path: destination},
+        });
+        if (err) {
+            setError("Failed to move");
+            return;
+        }
+        setRoots(await loadDir("/"));
+    }
+
+    function handleEntryDrop(e: React.DragEvent, destDir: string) {
+        if (isInternalDrag(e)) {
+            e.preventDefault();
+            e.stopPropagation();
+            void moveDropped(e, destDir);
+            return;
+        }
+        if (isFileDrag(e)) void handleDrop(e, destDir);
     }
 
     function renderTree(nodes: TreeNode[], depth = 0): React.ReactNode {
@@ -501,27 +603,22 @@ export const FilesTab = memo(function FilesTab({serverId, active = true}: Props)
                                 : isCurrent
                                   ? "bg-surface-high text-accent"
                                   : "text-text-dim hover:bg-surface-high hover:text-text-primary",
-                            dragTarget === dropDir && "bg-accent/10 text-text-primary ring-2 ring-accent ring-inset",
+                            dragTarget === dropDir &&
+                                draggingPath !== node.path &&
+                                "bg-accent/10 text-text-primary ring-2 ring-accent ring-inset",
+                            draggingPath === node.path && "opacity-50",
                         ].join(" ")}
                         style={{paddingLeft: `${12 + depth * 16}px`}}
                         onClick={() => {
                             if (node.isDirectory) void toggleDir(node);
                             else void openFile(node);
                         }}
-                        onDragOver={(e) => {
-                            if (!isFileDrag(e)) return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            e.dataTransfer.dropEffect = "copy";
-                            setDragTarget(dropDir);
-                        }}
-                        onDragLeave={(e) => {
-                            if (isFileDrag(e) && !isSameTarget(e)) setDragTarget(null);
-                        }}
-                        onDrop={(e) => {
-                            if (!isFileDrag(e)) return;
-                            void handleDrop(e, dropDir);
-                        }}
+                        draggable={renameNode?.path !== node.path}
+                        onDragStart={(e) => beginEntryDrag(e, node)}
+                        onDragEnd={clearDragState}
+                        onDragOver={(e) => handleDragOver(e, dropDir)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleEntryDrop(e, dropDir)}
                     >
                         {node.isDirectory ? (
                             node.loading ? (
@@ -690,24 +787,14 @@ export const FilesTab = memo(function FilesTab({serverId, active = true}: Props)
                         is the fixed side pane and is always shown. */}
                 <div
                     className={`${selectedPath ? "hidden md:flex" : "flex"} relative w-full shrink-0 flex-col overflow-hidden rounded-md border border-border bg-surface md:w-64`}
-                    onDragOver={(e) => {
-                        if (!isFileDrag(e)) return;
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = "copy";
-                        setDragTarget(currentDir);
-                    }}
-                    onDragLeave={(e) => {
-                        if (isFileDrag(e) && !isSameTarget(e)) setDragTarget(null);
-                    }}
-                    onDrop={(e) => {
-                        if (!isFileDrag(e)) return;
-                        void handleDrop(e, currentDir);
-                    }}
+                    onDragOver={(e) => handleDragOver(e, currentDir)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleEntryDrop(e, currentDir)}
                 >
                     {dragTarget !== null && (
                         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border-2 border-dashed border-accent bg-accent/10 p-3">
                             <span className="rounded bg-surface px-2 py-1 text-center font-mono text-xs text-accent">
-                                Drop to upload to {dragTarget}
+                                {dragKind === "move" ? "Drop to move here" : `Drop to upload to ${dragTarget}`}
                             </span>
                         </div>
                     )}

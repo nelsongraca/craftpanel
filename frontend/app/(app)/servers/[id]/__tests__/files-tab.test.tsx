@@ -122,6 +122,33 @@ function dirEntry(name = "subdir") {
     };
 }
 
+/** jsdom has no DataTransfer; this stub mirrors the parts the tree reads and writes. */
+function dragData(initialTypes: string[] = []) {
+    const store = new Map<string, string>();
+    const types = [...initialTypes];
+    return {
+        types,
+        items: [] as unknown[],
+        files: [] as unknown[],
+        dropEffect: "none",
+        effectAllowed: "none",
+        setData(type: string, value: string) {
+            store.set(type, value);
+            if (!types.includes(type)) types.push(type);
+        },
+        getData(type: string) {
+            return store.get(type) ?? "";
+        },
+    };
+}
+
+/** Rows carry the tree's inline `paddingLeft` style; nothing else in the tree does. */
+function rowFor(name: string): HTMLElement {
+    const row = screen.getByText(name).closest<HTMLElement>("div[style]");
+    if (!row) throw new Error(`No tree row for ${name}`);
+    return row;
+}
+
 describe("FilesTab", () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -591,6 +618,133 @@ describe("FilesTab", () => {
             await waitFor(() => {
                 expect(screen.getByText("Failed to move")).toBeInTheDocument();
             });
+        });
+    });
+
+    describe("drag to move", () => {
+        async function setupDrag(entries = [fileEntry("notes.txt"), dirEntry("docs")], firstEntry = "notes.txt") {
+            vi.mocked(listServerFiles).mockResolvedValue({data: {entries}} as never);
+            vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText(firstEntry)).toBeInTheDocument());
+        }
+
+        function dragOnto(source: string, target: string) {
+            const transfer = dragData();
+            fireEvent.dragStart(rowFor(source), {dataTransfer: transfer});
+            fireEvent.dragOver(rowFor(target), {dataTransfer: transfer});
+            fireEvent.drop(rowFor(target), {dataTransfer: transfer});
+            return transfer;
+        }
+
+        it("moves a file onto a folder row", async () => {
+            await setupDrag();
+            dragOnto("notes.txt", "docs");
+
+            await waitFor(() => {
+                expect(moveServerFile).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: {id: "s1"},
+                        body: {source_path: "/notes.txt", destination_path: "/docs/notes.txt"},
+                    }),
+                );
+            });
+        });
+
+        it("moves a folder onto another folder", async () => {
+            await setupDrag([dirEntry("world"), dirEntry("archive")], "world");
+            dragOnto("world", "archive");
+
+            await waitFor(() => {
+                expect(moveServerFile).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        body: {source_path: "/world", destination_path: "/archive/world"},
+                    }),
+                );
+            });
+        });
+
+        it("moves onto a file row by targeting that file's parent folder", async () => {
+            vi.mocked(listServerFiles).mockImplementation((async (opts: {query?: {path?: string}}) => {
+                if (opts.query?.path === "/docs") return {data: {entries: [fileEntry("readme.md")]}} as never;
+                return {data: {entries: [fileEntry("notes.txt"), dirEntry("docs")]}} as never;
+            }) as never);
+            vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("notes.txt")).toBeInTheDocument());
+            fireEvent.click(screen.getByText("docs"));
+            await waitFor(() => expect(screen.getByText("readme.md")).toBeInTheDocument());
+
+            dragOnto("notes.txt", "readme.md");
+
+            await waitFor(() => {
+                expect(moveServerFile).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        body: {source_path: "/notes.txt", destination_path: "/docs/notes.txt"},
+                    }),
+                );
+            });
+        });
+
+        it("blocks dropping a folder into its own descendant", async () => {
+            vi.mocked(listServerFiles).mockImplementation((async (opts: {query?: {path?: string}}) => {
+                if (opts.query?.path === "/world") return {data: {entries: [dirEntry("sub")]}} as never;
+                return {data: {entries: [dirEntry("world")]}} as never;
+            }) as never);
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("world")).toBeInTheDocument());
+            fireEvent.click(screen.getByText("world"));
+            await waitFor(() => expect(screen.getByText("sub")).toBeInTheDocument());
+
+            dragOnto("world", "sub");
+
+            expect(moveServerFile).not.toHaveBeenCalled();
+            expect(screen.getByText("A folder cannot be moved into itself")).toBeInTheDocument();
+        });
+
+        it("silently ignores a drop back into the current parent", async () => {
+            await setupDrag();
+            dragOnto("notes.txt", "notes.txt");
+
+            expect(moveServerFile).not.toHaveBeenCalled();
+            expect(screen.queryByText("Failed to move")).not.toBeInTheDocument();
+        });
+
+        it("shows an error banner when the server rejects the move", async () => {
+            await setupDrag();
+            vi.mocked(moveServerFile).mockResolvedValue({error: {message: "Bad path"}} as never);
+            dragOnto("notes.txt", "docs");
+
+            await waitFor(() => {
+                expect(screen.getByText("Failed to move")).toBeInTheDocument();
+            });
+        });
+
+        it("carries both payload formats and dims the source row while dragging", async () => {
+            await setupDrag();
+            const transfer = dragData();
+            fireEvent.dragStart(rowFor("notes.txt"), {dataTransfer: transfer});
+
+            expect(JSON.parse(transfer.getData("application/x-craftpanel-entry"))).toEqual({
+                path: "/notes.txt",
+                isDirectory: false,
+            });
+            expect(transfer.getData("text/plain")).toBe("/notes.txt");
+            expect(transfer.effectAllowed).toBe("move");
+            expect(rowFor("notes.txt")).toHaveClass("opacity-50");
+
+            fireEvent.dragEnd(rowFor("notes.txt"), {dataTransfer: transfer});
+            expect(rowFor("notes.txt")).not.toHaveClass("opacity-50");
+        });
+
+        it("leaves OS file drops on the upload path", async () => {
+            await setupDrag();
+            const transfer = dragData(["Files"]);
+            fireEvent.dragOver(rowFor("docs"), {dataTransfer: transfer});
+            fireEvent.drop(rowFor("docs"), {dataTransfer: transfer});
+
+            expect(transfer.dropEffect).toBe("copy");
+            expect(moveServerFile).not.toHaveBeenCalled();
         });
     });
 

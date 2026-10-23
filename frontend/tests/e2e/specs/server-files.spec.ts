@@ -149,6 +149,31 @@ test("renames a file via the inline input", async ({page, network}) => {
     await expect(page.getByText("eula-renamed.txt")).toBeVisible();
 });
 
+test("moves a file by dragging it onto a folder row", async ({page, network}) => {
+    const moves: unknown[] = [];
+    network.use(
+        http.get("/api/servers/srv-1/files", ({request}) => {
+            const path = new URL(request.url).searchParams.get("path") ?? "/";
+            if (path !== "/") return HttpResponse.json({entries: []});
+            return HttpResponse.json({entries: rootEntries});
+        }),
+        http.post("/api/servers/srv-1/files/move", async ({request}) => {
+            moves.push(await request.json());
+            return new HttpResponse(null, {status: 204});
+        }),
+    );
+
+    await page.goto("/servers/srv-1");
+    await page.getByRole("tab", {name: "Files"}).click();
+
+    await page
+        .getByText("eula.txt")
+        .locator("..")
+        .dragTo(page.getByText("world", {exact: true}).locator(".."));
+
+    await expect.poll(() => moves).toContainEqual({source_path: "/eula.txt", destination_path: "/world/eula.txt"});
+});
+
 test("binary file shows download-only view", async ({page}) => {
     await page.goto("/servers/srv-1");
     await page.getByRole("tab", {name: "Files"}).click();
