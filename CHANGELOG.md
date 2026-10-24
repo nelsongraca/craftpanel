@@ -1,3 +1,16 @@
+## [1.4.0] - 2026-10-24
+
+### Features
+
+- move files and folders by dragging in the Files tab (52e10804f80808c)
+- compact mobile server view and add touch-friendly find (77de14ed5b53c59)
+- support TCP + UDP (BOTH) port mappings (00e4c9fc04a52aa)
+
+### Bug Fixes
+
+- dedupe CodeMirror packages so Ctrl+F opens the find panel (a0283dff6b30962)
+- keep the editor find panel open on Ctrl+F (c58861cb41a10dd)
+
 ## [1.3.1] - 2026-10-20
 
 ### Features
