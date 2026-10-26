@@ -28,7 +28,7 @@
 | `node_id`       | UUID                  | FK → `nodes` — denormalised; the node that holds the backup file. Retained even if the server later migrates to a different node |
 | `trigger`       | VARCHAR(10)          | How the backup was initiated: `MANUAL` or `SCHEDULED`                                                          |
 | `status`        | VARCHAR(15)          | Current or final state: `IN_PROGRESS`, `COMPLETED`, or `FAILED`                                                |
-| `file_path`     | TEXT                  | Absolute path on the node, e.g. `/data/craftpanel/backups/<server-id>/<backup-id>.tar.gz`                                        |
+| `file_path`     | TEXT                  | Absolute path on the node, e.g. `/data/craftpanel/backups/<backup-id>.tar.gz`. Populated when the agent reports completion                                         |
 | `size_bytes`    | BIGINT                | Archive size; `NULL` until status is `COMPLETED`                                                                                 |
 | `error_message` | TEXT                  | `NULL` unless status is `FAILED`                                                                                                 |
 | `created_at`    | TIMESTAMPTZ           | When the backup was triggered                                                                                                    |

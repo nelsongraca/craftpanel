@@ -35,7 +35,8 @@ class BackupHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
             success = msg.backupComplete.success,
             sizeBytes = msg.backupComplete.sizeBytes,
             errorMessage = if (!msg.backupComplete.success) msg.backupComplete.errorMessage else "",
-            completedAt = completedAt
+            completedAt = completedAt,
+            filePath = msg.backupComplete.filePath
         )
         agentEvents.emit(backupCompleteEvent)
     }

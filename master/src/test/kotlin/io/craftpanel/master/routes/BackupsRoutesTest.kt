@@ -6,6 +6,7 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.BackupService
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -43,8 +44,8 @@ class BackupsRoutesTest :
             TestDatabase.reset()
         }
 
-        fun Route.configureBackupsTest() {
-            backupsRoutes(BackupService(noopGateway, noopProxy, repos.serverRepository, repos.backupRepository))
+        fun Route.configureBackupsTest(gateway: AgentGateway = noopGateway) {
+            backupsRoutes(BackupService(gateway, noopProxy, repos.serverRepository, repos.backupRepository))
         }
 
         fun createUser(email: String = "admin@example.com"): Uuid = transaction {
@@ -369,6 +370,83 @@ class BackupsRoutesTest :
                     setBody("""{"backup_schedule":null}""")
                 }
                 res.status shouldBe HttpStatusCode.OK
+            }
+        }
+
+        test("delete backup without a recorded file path still asks the agent to purge it") {
+            testApplication {
+                testApp { _ -> configureBackupsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val now = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
+
+                // Legacy row shape: the path was never persisted, but the archive exists on the node.
+                val backupId = transaction {
+                    Backups.insert {
+                        it[Backups.serverId] = EntityID(serverId, Servers)
+                        it[Backups.nodeId] = nodeId
+                        it[Backups.trigger] = "MANUAL"
+                        it[Backups.status] = "COMPLETED"
+                        it[Backups.completedAt] = now
+                    }[Backups.id]
+                }
+
+                val res = client.delete("/api/servers/$serverId/backups/$backupId") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.NoContent
+
+                val sentDelete = noopGateway.sent.map { it.second }
+                    .filter { it.hasDeleteBackup() }
+                    .single { it.deleteBackup.backupId == backupId.toString() }
+                    .deleteBackup
+                sentDelete.filePath shouldBe ""
+                sentDelete.serverId shouldBe serverId.toString()
+                transaction {
+                    Backups.selectAll()
+                        .where { Backups.id eq backupId }
+                        .count() shouldBe 0
+                }
+            }
+        }
+
+        test("delete backup returns 502 and keeps the row when the agent is disconnected") {
+            testApplication {
+                testApp { _ -> configureBackupsTest(TestAgentGateway(sendResult = false)) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val now = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
+
+                val backupId = transaction {
+                    Backups.insert {
+                        it[Backups.serverId] = EntityID(serverId, Servers)
+                        it[Backups.nodeId] = nodeId
+                        it[Backups.trigger] = "MANUAL"
+                        it[Backups.status] = "COMPLETED"
+                        it[Backups.filePath] = "/data/backups/test.tar.gz"
+                        it[Backups.completedAt] = now
+                    }[Backups.id]
+                }
+
+                val res = client.delete("/api/servers/$serverId/backups/$backupId") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.BadGateway
+                transaction {
+                    Backups.selectAll()
+                        .where { Backups.id eq backupId }
+                        .count() shouldBe 1
+                }
             }
         }
     })

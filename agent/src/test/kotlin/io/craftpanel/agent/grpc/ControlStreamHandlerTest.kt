@@ -277,12 +277,27 @@ class ControlStreamHandlerTest :
             }
         }
 
+        test("handleDeleteBackup derives the archive path from the backup id when file_path is blank") {
+            runBlocking {
+                val expected = File(tempDir, "backups/bk-derived.tar.gz").apply {
+                    parentFile.mkdirs()
+                    writeText("backup data")
+                }
+
+                BackupHandler(config.copy(dataBasePath = tempDir.absolutePath)).handleDeleteBackup(
+                    deleteBackupCommand { backupId = "bk-derived" }
+                )
+
+                expected.exists() shouldBe false
+            }
+        }
+
         // handleTriggerBackup
         test("handleTriggerBackup emits failure when server data dir does not exist") {
             runBlocking {
                 val outbound = newOutbound()
 
-                backupHandler.handleTriggerBackup(
+                BackupHandler(config.copy(dataBasePath = tempDir.absolutePath)).handleTriggerBackup(
                     triggerBackupCommand {
                         backupId = "bk-1"
                         serverId = "srv-bk"
@@ -296,6 +311,8 @@ class ControlStreamHandlerTest :
                 complete.backupComplete.backupId shouldBe "bk-1"
                 complete.backupComplete.success shouldBe false
                 complete.backupComplete.errorMessage.isNotEmpty() shouldBe true
+                // A failed pipeline may leave a truncated archive — it must not survive.
+                File(tempDir, "backups/bk-1.tar.gz").exists() shouldBe false
             }
         }
 

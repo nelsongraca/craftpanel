@@ -68,24 +68,24 @@ class BackupService(
         val maxCount = serverRow.backupMaxCount
         val toRotate = backupRepository.findOldestCompletedBackups(serverId, maxCount)
         for (old in toRotate) {
-            if (!old.filePath.isNullOrEmpty()) {
-                val server = serverRepository.findById(old.serverId)
-                val sent = gateway.sendToNode(
-                    old.nodeId.toString(),
-                    masterMessage {
-                        deleteBackup = deleteBackupCommand {
-                            backupId = old.id.toString()
-                            this.filePath = old.filePath
-                            this.serverId = old.serverId.toString()
-                            this.serverName = server?.name ?: ""
-                            this.createdAtFormatted = formatSymlinkTimestamp(old.createdAt)
-                        }
+            val server = serverRepository.findById(old.serverId)
+            // Send the delete even when file_path is null: legacy rows (persisted before the path
+            // was recorded) still have an archive on the node, and the agent derives it from the id.
+            val sent = gateway.sendToNode(
+                old.nodeId.toString(),
+                masterMessage {
+                    deleteBackup = deleteBackupCommand {
+                        backupId = old.id.toString()
+                        this.filePath = old.filePath ?: ""
+                        this.serverId = old.serverId.toString()
+                        this.serverName = server?.name ?: ""
+                        this.createdAtFormatted = formatSymlinkTimestamp(old.createdAt)
                     }
-                )
-                if (!sent) {
-                    log.warn("Could not send deleteBackup to node ${old.nodeId} for backup ${old.id} — skipping row deletion")
-                    continue
                 }
+            )
+            if (!sent) {
+                log.warn("Could not send deleteBackup to node ${old.nodeId} for backup ${old.id} — skipping row deletion")
+                continue
             }
             transaction { Backup.findById(old.id)?.delete() }
         }
@@ -145,21 +145,22 @@ class BackupService(
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Backup not found")
         if (backup.status == "IN_PROGRESS") throw ConflictException("Cannot delete a backup that is in progress")
-        if (!backup.filePath.isNullOrEmpty()) {
-            val server = serverRepository.findById(backup.serverId)
-            gateway.sendToNode(
-                backup.nodeId.toString(),
-                masterMessage {
-                    deleteBackup = deleteBackupCommand {
-                        this.backupId = backupId.toString()
-                        this.filePath = backup.filePath
-                        this.serverId = backup.serverId.toString()
-                        this.serverName = server?.name ?: ""
-                        this.createdAtFormatted = formatSymlinkTimestamp(backup.createdAt)
-                    }
+        val server = serverRepository.findById(backup.serverId)
+        // Always ask the node to delete: a blank file_path (legacy row) is resolved agent-side from
+        // the backup id. Deleting the row without the file would orphan the archive forever.
+        val sent = gateway.sendToNode(
+            backup.nodeId.toString(),
+            masterMessage {
+                deleteBackup = deleteBackupCommand {
+                    this.backupId = backupId.toString()
+                    this.filePath = backup.filePath ?: ""
+                    this.serverId = backup.serverId.toString()
+                    this.serverName = server?.name ?: ""
+                    this.createdAtFormatted = formatSymlinkTimestamp(backup.createdAt)
                 }
-            )
-        }
+            }
+        )
+        if (!sent) throw BadGatewayException("Agent not connected")
         transaction { Backup.findById(backupId)?.delete() }
     }
 

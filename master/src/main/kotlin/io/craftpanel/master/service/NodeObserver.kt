@@ -165,6 +165,9 @@ class NodeObserver(
                     it.status = status.name
                     if (sizeBytes != null) it.sizeBytes = sizeBytes
                     if (errorMessage != null) it.errorMessage = errorMessage
+                    // Without this the row loses track of the archive and master can never ask the
+                    // agent to purge it — deletion and retention both key off file_path.
+                    if (event.filePath.isNotBlank()) it.filePath = event.filePath
                     it.completedAt = event.completedAt.toLocalDateTime(TimeZone.UTC)
                 }
         }

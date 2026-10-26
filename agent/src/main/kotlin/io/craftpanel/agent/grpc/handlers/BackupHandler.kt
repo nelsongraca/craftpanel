@@ -107,6 +107,10 @@ class BackupHandler(private val config: AgentConfig) {
         }
             .onFailure { ex ->
                 log.error("Backup ${cmd.backupId}: failed", ex)
+                // The pipeline may have written a truncated archive before failing — never keep it.
+                runCatching {
+                    withContext(Dispatchers.IO) { Files.deleteIfExists(Paths.get(destPath)) }
+                }.onFailure { log.warn("Backup ${cmd.backupId}: failed to remove partial file {}", destPath, it) }
                 out.send {
                     backupComplete = backupCompleteUpdate {
                         backupId = cmd.backupId
@@ -121,10 +125,19 @@ class BackupHandler(private val config: AgentConfig) {
     }
 
     suspend fun handleDeleteBackup(cmd: DeleteBackupCommand) {
-        log.info("Deleting backup file ${cmd.filePath}")
+        // file_path is blank for backups recorded before master persisted it — the archive path is
+        // deterministic, so fall back to the id instead of leaking the file forever.
+        val path = cmd.filePath.ifBlank { "${config.dataBasePath}/backups/${cmd.backupId}.tar.gz" }
+        log.info("Deleting backup file {}", path)
         runCatching {
-            withContext(Dispatchers.IO) { File(cmd.filePath).delete() }
-        }.onFailure { log.error("Failed to delete backup file ${cmd.filePath}", it) }
+            withContext(Dispatchers.IO) {
+                if (Files.deleteIfExists(Paths.get(path))) {
+                    log.info("Deleted backup file {}", path)
+                } else {
+                    log.info("Backup file {} was already absent", path)
+                }
+            }
+        }.onFailure { log.error("Failed to delete backup file {}", path, it) }
 
         if (cmd.serverName.isNotEmpty() && cmd.createdAtFormatted.isNotEmpty()) {
             runCatching {

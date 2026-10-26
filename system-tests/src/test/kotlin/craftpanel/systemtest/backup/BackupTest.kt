@@ -2,10 +2,14 @@ package craftpanel.systemtest.backup
 
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
+import craftpanel.systemtest.harness.SharedStack
 import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
+import kotlinx.coroutines.delay
+import java.io.File
 
 @Tags("BackupAlerts")
 class BackupTest : BaseSystemTest() {
@@ -64,7 +68,21 @@ class BackupTest : BaseSystemTest() {
                 val backup = api.triggerBackup(serverId)
                 helper.awaitBackupCompleted(serverId, backup.id)
 
+                val completed = api.listBackups(serverId)
+                    .getOrDefault("backups", emptyList())
+                    .single { it.id == backup.id }
+                completed.status shouldBe BackupStatus.COMPLETED
+                // The archive path must survive completion, otherwise master can never purge it.
+                completed.filePath.shouldNotBeNull()
+
+                val archive = File(SharedStack.agentDataDirs().first(), "backups/${backup.id}.tar.gz")
+                archive.exists() shouldBe true
+
                 api.deleteBackup(serverId, backup.id)
+
+                val deadline = System.currentTimeMillis() + 30_000
+                while (archive.exists() && System.currentTimeMillis() < deadline) delay(200)
+                archive.exists() shouldBe false
             }
         }
     }

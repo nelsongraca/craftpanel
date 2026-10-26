@@ -18,7 +18,16 @@ sealed class AgentEvent {
 
     data class BackupProgressEvent(val serverId: String, val backupId: String, val percentComplete: Int) : AgentEvent()
 
-    data class BackupCompleteEvent(val serverId: String, val backupId: String, val success: Boolean, val sizeBytes: Long, val errorMessage: String, val completedAt: Instant) : AgentEvent()
+    data class BackupCompleteEvent(
+        val serverId: String,
+        val backupId: String,
+        val success: Boolean,
+        val sizeBytes: Long,
+        val errorMessage: String,
+        val completedAt: Instant,
+        /** Absolute path of the archive on the node; empty for failed backups. Needed to purge the file later. */
+        val filePath: String = ""
+    ) : AgentEvent()
 
     data class AlertFiredEvent(
         val eventId: String,

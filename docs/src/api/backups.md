@@ -70,7 +70,8 @@ Deletes the backup record and removes the archive file from the node.
 
 **Response `204`.**
 
-**Errors:** `409` if the backup is currently `IN_PROGRESS`.
+**Errors:** `409` if the backup is currently `IN_PROGRESS`. `502` if the node is unreachable — the row is
+kept in that case so the archive is not orphaned; retry once the node reconnects.
 
 ---
 
