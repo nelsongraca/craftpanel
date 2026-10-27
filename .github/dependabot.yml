@@ -10,6 +10,9 @@ updates:
       time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 5
+      semver-major-days: 21
     assignees: ["nelsongraca"]
     commit-message:
       prefix: "build(deps)"
@@ -40,6 +43,9 @@ updates:
       timezone: "UTC"
     versioning-strategy: "increase"
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 5
+      semver-major-days: 21
     assignees: ["nelsongraca"]
     commit-message:
       prefix: "build(deps)"
@@ -67,6 +73,8 @@ updates:
       time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 5
     assignees: ["nelsongraca"]
     commit-message:
       prefix: "build(deps)"
@@ -93,6 +101,9 @@ updates:
       time: "06:00"
       timezone: "UTC"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     assignees: ["nelsongraca"]
     commit-message:
       prefix: "build(deps)"
