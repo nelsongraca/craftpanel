@@ -47,7 +47,7 @@ jobs:
             -o /tmp/craftpanel-images.tar
 
       - name: Upload image artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: craftpanel-docker-images
           path: /tmp/craftpanel-images.tar
@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload test reports
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: system-test-reports-${{ matrix.tag }}
           path: system-tests/build/reports/tests/test/
@@ -95,7 +95,7 @@ jobs:
       # so shard balance can be tuned from real timings.
       - name: Upload JUnit XML
         if: ${{ always() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: system-test-junit-${{ matrix.tag }}
           path: system-tests/build/test-results/test/
@@ -111,7 +111,7 @@ jobs:
           report_type: test_results
 
       - name: Upload raw coverage .ic files
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: system-tests-coverage-${{ matrix.tag }}
           path: system-tests/build/tmp/kover-coverage/
@@ -185,7 +185,7 @@ jobs:
 
       - name: Upload test reports
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-reports
           path: frontend/build/reports/playwright/
