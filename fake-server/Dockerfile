@@ -3,7 +3,7 @@ FROM itzg/mc-monitor:latest AS mc-monitor
 # mc-image-helper is only used by system tests to validate PatchSet JSON against the real
 # parser (see ProxySettingsTest). Fetched from its own GitHub release, not the full
 # itzg/mc-proxy image, and checksum-verified. Pin the version — do not use a moving tag.
-FROM alpine:3.22 AS mc-image-helper
+FROM alpine:3.24 AS mc-image-helper
 ARG MC_IMAGE_HELPER_VERSION=1.69.0
 ARG MC_IMAGE_HELPER_SHA256=45a6ec1aeb5a4b1d5bb288298f1aea44de019153e0fd1e623d7a9410943bdba0
 RUN apk add --no-cache curl && \
