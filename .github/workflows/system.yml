@@ -103,7 +103,7 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: system-tests/build/test-results/**/*.xml
@@ -143,7 +143,7 @@ jobs:
         run: ./gradlew :system-tests:koverSystemTestReport -PwithCoverage -PskipDockerBuild
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: system-tests/build/reports/kover/system-tests/report.xml
