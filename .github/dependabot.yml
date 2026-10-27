@@ -1,0 +1,106 @@
+version: 2
+
+updates:
+  # ── JVM: every version lives in gradle/libs.versions.toml (modules, plugins, buildSrc) ──
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    assignees: ["nelsongraca"]
+    commit-message:
+      prefix: "build(deps)"
+    labels: ["dependencies"]
+    groups:
+      kotlin: # must move together: kotlin, kotlinx-*, kotlin plugins
+        patterns: ["org.jetbrains.kotlin*", "org.jetbrains.kotlinx*"]
+      ktor:
+        patterns: ["io.ktor*"]
+      grpc-protobuf:
+        patterns: ["io.grpc*", "com.google.protobuf*"]
+      exposed: # Exposed 1.x bumps are coordinated
+        patterns: ["org.jetbrains.exposed*"]
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      gradle-security: # alert-driven, ignores cooldown/limit
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # ── Frontend: pnpm lockfile under /frontend ──
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    versioning-strategy: "increase"
+    open-pull-requests-limit: 10
+    assignees: ["nelsongraca"]
+    commit-message:
+      prefix: "build(deps)"
+    labels: ["dependencies", "javascript"]
+    groups:
+      next-react: # Next/React/types must land together
+        patterns: ["next", "eslint-config-next", "react", "react-dom", "@types/react*"]
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+    ignore:
+      # Runtime is Node 22 (Dockerfile + CI) — @types/node majors describe newer runtimes.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  # ── GitHub Actions: workflows at "/" + the composite actions that pin setup-java/setup-gradle ──
+  - package-ecosystem: "github-actions"
+    directories: ["/", "/.github/actions/setup-gradle", "/.github/actions/codecov-upload"]
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    assignees: ["nelsongraca"]
+    commit-message:
+      prefix: "build(deps)"
+    labels: ["dependencies"]
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # ── Base images (single-stage Dockerfiles, host-built artifacts) ──
+  - package-ecosystem: "docker"
+    directories:
+      - "/agent"
+      - "/master"
+      - "/frontend"
+      - "/fake-server"
+      - "/docker/smoke-runner"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    assignees: ["nelsongraca"]
+    commit-message:
+      prefix: "build(deps)"
+    labels: ["dependencies"]
+    groups:
+      docker-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      docker-security:
+        applies-to: security-updates
+        patterns: ["*"]
