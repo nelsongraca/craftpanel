@@ -18,8 +18,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Path gate: a change that cannot affect a suite must not pay for it. Kept as a job (not a
+  # workflow-level `paths` filter) so tag releases can still force both suites via publish.yml.
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.classify.outputs.backend }}
+      frontend: ${{ steps.classify.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: classify
+        name: Classify changed paths
+        run: |
+          set -euo pipefail
+
+          # PRs compare against the base tip, pushes against the previous tip. A brand-new ref
+          # reports an all-zero "before", so fall back to the root commit (i.e. diff everything).
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [[ -z "${base}" || "${base}" =~ ^0+$ ]]; then
+            base="$(git rev-list --max-parents=0 HEAD)"
+          fi
+
+          backend=false
+          frontend=false
+
+          while IFS= read -r path; do
+            case "${path}" in
+              "" | docs/* | plans/* | graft/* | supertool/* | system-tests/* | *.md | .github/workflows/system.yml | .github/workflows/docs.yml | .github/workflows/publish.yml | .github/workflows/codeql.yml)
+                # Not consumed by either suite.
+                ;;
+              frontend/*)
+                frontend=true
+                ;;
+              master/* | common/* | proto/* | buildSrc/* | gradle/* | gradlew | gradlew.bat | gradle.properties | *.gradle.kts | .github/workflows/ci.yml | .github/actions/*)
+                # Backend sources, shared modules, and the Gradle/CI scaffolding.
+                # :master:generateOpenApiSpec boots the real routes to emit the spec the frontend
+                # client is generated from, so backend surface changes also rebuild that client
+                # and re-run its typecheck/tests.
+                backend=true
+                frontend=true
+                ;;
+              agent/* | fake-server/*)
+                # JVM-only modules the frontend never consumes.
+                backend=true
+                ;;
+            esac
+          done <<< "$(git diff --name-only "${base}" "${GITHUB_SHA}")"
+
+          echo "backend=${backend}" >> "${GITHUB_OUTPUT}"
+          echo "frontend=${frontend}" >> "${GITHUB_OUTPUT}"
+
   backend:
     name: Backend Tests
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -41,6 +97,8 @@ jobs:
 
   frontend:
     name: Frontend Tests
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
