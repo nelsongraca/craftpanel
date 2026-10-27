@@ -29,7 +29,7 @@ schema-kenerator = "2.7.2"
 koin = "4.2.2"
 spotless = "8.8.0"
 ktlint = "1.8.0"
-tomlj = "1.1.1"
+tomlj = "2.2.0"
 samstevens-totp = "1.7.1"
 
 [libraries]
