@@ -1,0 +1,61 @@
+name: Dependency Submission
+
+# Replaces GitHub's automatic Gradle dependency submission.
+#
+# The automatic (dynamic) workflow resolves every configuration of every project —
+# Gradle plugin classpaths, `classpath` buildscript configurations, buildSrc and the
+# Kotlin compiler classpath included — and reports the union under a single manifest
+# rooted at `settings.gradle.kts`. That is why every Maven alert looked like it lived
+# in the settings file, and why build tooling (kotlin-gradle-plugin, jgit, handlebars,
+# log4j, freemarker, plexus-utils, Jackson 3.x) showed up next to shipped libraries.
+#
+# The Gradle dependency-graph plugin always emits exactly one manifest per build, whose
+# file is the root settings file — that cannot be changed without hand-rolling the
+# Dependency Submission API payload. What CAN be changed is what goes into it, via the
+# plugin's filtering/scope environment variables below:
+#
+#   * only application modules (no :docs, no buildSrc included build)
+#   * only JVM classpaths (no plugin/compiler/buildscript classpaths)
+#   * `runtime` scope reserved for what actually ships in the :master and :agent images
+#
+# Requires "Automatic dependency submission" to be disabled for Gradle in
+# Settings → Code security, otherwise the unfiltered snapshot keeps being submitted.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dependency-submission-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  submit:
+    name: Submit Gradle dependency graph
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Generate and submit dependency graph
+        uses: gradle/actions/dependency-submission@v6
+        env:
+          # Application modules only — :docs is a docs wrapper and buildSrc is build tooling.
+          DEPENDENCY_GRAPH_INCLUDE_PROJECTS: ":common|:master|:agent|:fake-server|:system-tests"
+          # JVM classpaths only. This is what removes the plugin and Kotlin compiler
+          # classpaths that accounted for ~257 of the ~605 reported components.
+          DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: "(runtimeClasspath|compileClasspath|testRuntimeClasspath|testCompileClasspath)"
+          # `runtime` = shipped in the master/agent images. Everything else is scoped
+          # `development`, so test-only and tooling dependencies can be triaged apart.
+          DEPENDENCY_GRAPH_RUNTIME_INCLUDE_PROJECTS: ":(master|agent)"
+          DEPENDENCY_GRAPH_RUNTIME_INCLUDE_CONFIGURATIONS: "runtimeClasspath"
