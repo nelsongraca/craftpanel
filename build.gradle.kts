@@ -205,6 +205,46 @@ subprojects {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Security pins for transitive dependencies
+// ---------------------------------------------------------------------------
+// These libraries only arrive transitively — Jackson 2 via docker-java and java-jwt,
+// Jackson 3 via ktor-openapi, Guava via jwks-rsa, httpclient5/httpcore5 via
+// docker-java, Rhino via the Swagger v2 parser, BouncyCastle via docker-java — so
+// declaring them as dependencies would misrepresent ownership. They are pinned to the
+// first patched version on the four JVM classpaths only, which leaves Gradle's plugin
+// and Kotlin compiler classpaths on the versions they ship with.
+val securityPinnedModules: Map<String, String> =
+    mapOf(
+        "com.fasterxml.jackson.core:jackson-core" to libs.versions.jackson.get(),
+        "com.fasterxml.jackson.core:jackson-databind" to libs.versions.jackson.get(),
+        "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml" to libs.versions.jackson.get(),
+        "com.fasterxml.jackson.datatype:jackson-datatype-jsr310" to libs.versions.jackson.get(),
+        "tools.jackson.core:jackson-core" to libs.versions.jackson3.get(),
+        "tools.jackson.core:jackson-databind" to libs.versions.jackson3.get(),
+        "tools.jackson.module:jackson-module-kotlin" to libs.versions.jackson3.get(),
+        "com.google.guava:guava" to libs.versions.guava.get(),
+        "org.apache.httpcomponents.core5:httpcore5" to libs.versions.httpcore5.get(),
+        "org.apache.httpcomponents.core5:httpcore5-h2" to libs.versions.httpcore5.get(),
+        "org.apache.httpcomponents.client5:httpclient5" to libs.versions.httpclient5.get(),
+        "org.mozilla:rhino" to libs.versions.rhino.get(),
+        "org.bouncycastle:bcprov-jdk18on" to libs.versions.bouncycastle.get(),
+        "org.bouncycastle:bcpkix-jdk18on" to libs.versions.bouncycastle.get(),
+        "org.bouncycastle:bcutil-jdk18on" to libs.versions.bouncycastle.get()
+    )
+
+val jvmClasspaths = setOf("compileClasspath", "runtimeClasspath", "testCompileClasspath", "testRuntimeClasspath")
+
+subprojects {
+    plugins.withId("java") {
+        configurations.configureEach {
+            if (name in jvmClasspaths) {
+                resolutionStrategy.force(securityPinnedModules.map { (module, version) -> "$module:$version" })
+            }
+        }
+    }
+}
+
 spotless {
     kotlinGradle {
         target("**/*.gradle.kts")
