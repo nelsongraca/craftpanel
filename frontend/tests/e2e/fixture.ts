@@ -23,7 +23,7 @@ export const test = base.extend<Fixtures>({
             const network = defineNetworkFixture({
                 context,
                 handlers: [...handlers, ...extraHandlers],
-                onUnhandledRequest: "bypass",
+                onUnhandledFrame: "bypass",
             });
             await network.enable();
             await use(network);
