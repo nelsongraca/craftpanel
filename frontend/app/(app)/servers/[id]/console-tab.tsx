@@ -7,6 +7,7 @@ import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
 import {FULLSCREEN_PANE_CLASS, useFullscreenPane} from "@/lib/hooks/useFullscreenPane";
 import {ticketWsUrl} from "@/lib/ws-url";
 import {loadConsoleHistory, saveConsoleHistory} from "@/lib/console-history";
+import {linkifyConsoleHtml} from "@/lib/console-links";
 import {attachXtermTouchScroll} from "@/lib/xterm-touch-scroll";
 import {useResolvedTheme} from "@/lib/hooks/useTheme";
 import {cn} from "@/lib/utils";
@@ -15,6 +16,16 @@ import Anser from "anser";
 interface Props {
     serverId: string;
     serverStatus: string;
+}
+
+/**
+ * Open a console link in a new tab. Console output is player-influenced, so the scheme is
+ * re-checked here (the addon already filters) and `noopener,noreferrer` keeps the opened
+ * page from touching this window.
+ */
+function openConsoleLink(_event: MouseEvent, uri: string): void {
+    if (!/^https?:\/\//i.test(uri)) return;
+    window.open(uri, "_blank", "noopener,noreferrer");
 }
 
 /**
@@ -49,7 +60,7 @@ function ServerLogView({serverId}: {serverId: string}) {
                 setHtml("");
                 return;
             }
-            setHtml(Anser.ansiToHtml(Anser.escapeForHtml(raw)));
+            setHtml(linkifyConsoleHtml(Anser.ansiToHtml(Anser.escapeForHtml(raw))));
         });
         return () => {
             cancelled = true;
@@ -145,6 +156,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
         async function init() {
             const {Terminal} = await import("@xterm/xterm");
             const {FitAddon} = await import("@xterm/addon-fit");
+            const {WebLinksAddon} = await import("@xterm/addon-web-links");
             await import("@xterm/xterm/css/xterm.css");
 
             if (disposedRef.current || !containerRef.current) return;
@@ -161,17 +173,22 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
             const fitAddon = new FitAddon();
             term.loadAddon(fitAddon);
+            term.loadAddon(new WebLinksAddon(openConsoleLink));
             term.open(containerRef.current!);
             fitAddon.fit();
 
             // xterm 6 wires no touch-scroll path; translate vertical drags into scrollback.
             detachTouchRef.current = attachXtermTouchScroll(containerRef.current!, term);
 
-            // Ctrl/Cmd+C copies the selection instead of emitting ETX. xterm preventDefaults
-            // every ctrl chord, so returning false both suppresses the signal and lets the
-            // native copy event through.
+            // Ctrl/Cmd+C copies the selection instead of emitting ETX, and Ctrl/Cmd+V lets the
+            // browser's native paste event through to xterm's hidden textarea. xterm only sees
+            // that event if the chord is not encoded as a control byte and preventDefault-ed,
+            // which is what returning false here does — no clipboard-read permission needed.
             term.attachCustomKeyEventHandler((e) => {
-                if (e.type === "keydown" && (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "c") {
+                if (e.type !== "keydown" || e.altKey || !(e.ctrlKey || e.metaKey)) return true;
+                const key = e.key.toLowerCase();
+                if (key === "v") return false;
+                if (key === "c") {
                     const selection = term.hasSelection() ? term.getSelection() : "";
                     if (selection && navigator.clipboard?.writeText) {
                         void navigator.clipboard.writeText(selection).catch(() => {});
@@ -203,7 +220,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
                     }
                 };
 
-                if (data === "\r" || data === "\n") {
+                const submitLine = () => {
                     const cmd = lineBufRef.current;
                     if (cmd) {
                         send(cmd + "\n");
@@ -216,6 +233,10 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
                     lineBufRef.current = "";
                     histPosRef.current = -1;
                     term.write("\r\n");
+                };
+
+                if (data === "\r" || data === "\n") {
+                    submitLine();
                 } else if (data === "\x7f" || data === "\x08") {
                     if (lineBufRef.current) {
                         lineBufRef.current = lineBufRef.current.slice(0, -1);
@@ -253,7 +274,11 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
                 } else {
                     for (let i = 0; i < data.length; i++) {
                         const ch = data[i];
-                        if (ch >= " ") {
+                        if (ch === "\r" || ch === "\n") {
+                            // Pasted text arrives as a single chunk with \r line breaks — submit
+                            // every pasted line as its own console command.
+                            submitLine();
+                        } else if (ch >= " ") {
                             lineBufRef.current += ch;
                             term.write(ch);
                         } else {

@@ -2,7 +2,8 @@ import {describe, it, expect, vi, beforeEach, afterEach} from "vitest";
 import {render, screen, act} from "@testing-library/react";
 import {ConsoleTab} from "../console-tab";
 
-const {mockTerminal} = vi.hoisted(() => ({
+const {mockTerminal, webLinksCtor} = vi.hoisted(() => ({
+    webLinksCtor: vi.fn(),
     mockTerminal: {
         loadAddon: vi.fn(),
         open: vi.fn(),
@@ -44,6 +45,14 @@ vi.mock("@xterm/addon-fit", () => ({
     FitAddon: class {
         fit = vi.fn();
         constructor() {}
+    },
+}));
+
+vi.mock("@xterm/addon-web-links", () => ({
+    WebLinksAddon: class {
+        constructor(...args: unknown[]) {
+            webLinksCtor(...args);
+        }
     },
 }));
 
@@ -158,6 +167,19 @@ describe("ConsoleTab", () => {
             await flushMicrotasks();
 
             expect(screen.getByText("forbidden")).toBeInTheDocument();
+        });
+
+        it("renders URLs in the crash log as links", async () => {
+            vi.mocked(fetchServerConsoleLogs).mockResolvedValue({
+                data: {lines: ["crash report: https://example.com/crash\n"]},
+            } as never);
+            render(<ConsoleTab serverId="s1" serverStatus="UNHEALTHY" />);
+            await flushMicrotasks();
+
+            const link = screen.getByRole("link", {name: "https://example.com/crash"});
+            expect(link).toHaveAttribute("href", "https://example.com/crash");
+            expect(link).toHaveAttribute("target", "_blank");
+            expect(link).toHaveAttribute("rel", "noopener noreferrer");
         });
     });
 
@@ -426,6 +448,33 @@ describe("ConsoleTab", () => {
             expect(mockTerminal.write).toHaveBeenCalledWith("\r\n");
             expect(getWs().send).not.toHaveBeenCalled();
         });
+
+        it("submits every line of a multi-line paste as its own command", async () => {
+            await renderConsoleTab();
+            const onDataCb = mockTerminal.onData.mock.calls[0][0];
+            act(() => {
+                onDataCb("say one\rsay two\r");
+            });
+
+            expect(vi.mocked(getWs().send).mock.calls.map((c) => JSON.parse(c[0] as string).data)).toEqual([
+                "say one\n",
+                "say two\n",
+            ]);
+            expect(JSON.parse(window.localStorage.getItem("craftpanel:console-history:s1")!)).toEqual([
+                "say one",
+                "say two",
+            ]);
+        });
+
+        it("ignores trailing line breaks in a paste", async () => {
+            await renderConsoleTab();
+            const onDataCb = mockTerminal.onData.mock.calls[0][0];
+            act(() => {
+                onDataCb("say one\r\r");
+            });
+
+            expect(getWs().send).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe("command history persistence", () => {
@@ -489,6 +538,53 @@ describe("ConsoleTab", () => {
             expect(
                 handler({type: "keydown", ctrlKey: false, metaKey: false, altKey: false, key: "a"} as KeyboardEvent),
             ).toBe(true);
+        });
+
+        it("lets Ctrl+V reach the browser so the native paste event fires", async () => {
+            await renderConsoleTab();
+            const handler = mockTerminal.attachCustomKeyEventHandler.mock.calls[0][0];
+
+            expect(
+                handler({type: "keydown", ctrlKey: true, metaKey: false, altKey: false, key: "v"} as KeyboardEvent),
+            ).toBe(false);
+        });
+
+        it("lets Cmd+V reach the browser too", async () => {
+            await renderConsoleTab();
+            const handler = mockTerminal.attachCustomKeyEventHandler.mock.calls[0][0];
+
+            expect(
+                handler({type: "keydown", ctrlKey: false, metaKey: true, altKey: false, key: "v"} as KeyboardEvent),
+            ).toBe(false);
+        });
+    });
+
+    describe("terminal links", () => {
+        it("loads the web links addon with an activate handler", async () => {
+            await renderConsoleTab();
+            expect(webLinksCtor).toHaveBeenCalledOnce();
+        });
+
+        it("opens links in a new tab without an opener", async () => {
+            await renderConsoleTab();
+            const activate = webLinksCtor.mock.calls[0][0] as (e: MouseEvent, uri: string) => void;
+            const open = vi.fn();
+            vi.stubGlobal("open", open);
+
+            activate({} as MouseEvent, "https://example.com/page");
+
+            expect(open).toHaveBeenCalledWith("https://example.com/page", "_blank", "noopener,noreferrer");
+        });
+
+        it("refuses non-http schemes", async () => {
+            await renderConsoleTab();
+            const activate = webLinksCtor.mock.calls[0][0] as (e: MouseEvent, uri: string) => void;
+            const open = vi.fn();
+            vi.stubGlobal("open", open);
+
+            activate({} as MouseEvent, "javascript:alert(1)");
+
+            expect(open).not.toHaveBeenCalled();
         });
     });
 
