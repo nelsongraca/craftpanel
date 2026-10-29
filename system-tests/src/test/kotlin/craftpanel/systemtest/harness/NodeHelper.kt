@@ -2,6 +2,7 @@ package craftpanel.systemtest.harness
 
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.*
+import java.io.File
 
 class NodeHelper(private val api: DefaultApi) {
 
@@ -46,6 +47,26 @@ class NodeHelper(private val api: DefaultApi) {
             "No PENDING node appeared within ${timeoutMs}ms. " +
                 "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
         )
+    }
+
+    /**
+     * Host-side `/data` bind mount of the agent that backs [nodeId].
+     *
+     * Resolves node → agent through the node's reported hostname (the agent container alias)
+     * rather than by list position: `listNodes()` has no defined order, so "the first node" is
+     * not necessarily the first agent container.
+     */
+    suspend fun agentDataDir(nodeId: String): File {
+        val node = api.getNode(nodeId)
+        return SharedStack.agentDataDirForHostname(node.hostname)
+            ?: error("No agent container registered for node $nodeId (hostname='${node.hostname}')")
+    }
+
+    /** Container id of the agent process that backs [nodeId]. */
+    suspend fun agentContainerId(nodeId: String): String {
+        val node = api.getNode(nodeId)
+        return SharedStack.agentContainerIdForHostname(node.hostname)
+            ?: error("No agent container registered for node $nodeId (hostname='${node.hostname}')")
     }
 
     suspend fun pollUntilActive(id: String, timeoutMs: Long = 30_000): NodeResponse {

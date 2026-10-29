@@ -2,7 +2,7 @@ package craftpanel.systemtest.backup
 
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.SharedStack
+import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -75,8 +75,15 @@ class BackupTest : BaseSystemTest() {
                 // The archive path must survive completion, otherwise master can never purge it.
                 completed.filePath.shouldNotBeNull()
 
-                val archive = File(SharedStack.agentDataDirs().first(), "backups/${backup.id}.tar.gz")
-                archive.exists() shouldBe true
+                // The archive lands in the /data mount of the node recorded on the backup row.
+                // Resolve that node's agent explicitly: listNodes() has no defined order, so
+                // "the first agent data dir" is not necessarily the node that ran the backup.
+                val archive = File(
+                    nodeHelper.agentDataDir(completed.nodeId),
+                    "backups/${backup.id}.tar.gz"
+                )
+                pollUntilNotNull(10_000) { archive.takeIf { it.exists() } }
+                    .shouldNotBeNull()
 
                 api.deleteBackup(serverId, backup.id)
 

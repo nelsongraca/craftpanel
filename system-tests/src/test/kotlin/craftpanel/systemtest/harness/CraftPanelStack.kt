@@ -91,6 +91,11 @@ class CraftPanelStack {
     // host /data directory is known when the container is built.
     private val agentDataDirs = mutableMapOf<AgentContainer, File>()
 
+    // Network alias == the alias the master knows as the node's hostname (NODE_HOSTNAME). Node →
+    // agent lookups must go through this map: listNodes() has no defined order, so the first
+    // pending node is not necessarily the first container.
+    private val agentHostnames = mutableMapOf<AgentContainer, String>()
+
     var nodeId: String = ""
         private set
 
@@ -106,11 +111,20 @@ class CraftPanelStack {
     val mcRouterHost: String get() = "localhost"
     val mcRouterPort: Int get() = 25565
 
-    val agentContainerId: String
-        get() = agents.first().containerId
-
     val agentContainerIds: List<String>
         get() = agents.map { it.containerId }
+
+    /**
+     * Host-side `/data` bind mount of the agent whose node hostname is [hostname] (the agent
+     * container alias, reported to master as `NODE_HOSTNAME`), or null when no such agent is
+     * registered.
+     */
+    fun agentDataDirForHostname(hostname: String): File? = agentForHostname(hostname)?.let { agentDataDirs[it] }
+
+    /** Container id of the agent whose node hostname is [hostname], or null when absent. */
+    fun agentContainerIdForHostname(hostname: String): String? = agentForHostname(hostname)?.containerId
+
+    private fun agentForHostname(hostname: String): AgentContainer? = agents.firstOrNull { agentHostnames[it] == hostname }
 
     /**
      * Host-side data directories of every agent's `/data` bind mount. Used by tests that need to
@@ -323,7 +337,10 @@ class CraftPanelStack {
                     withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$agentArgs")
                 }
             }
-            .also { agentDataDirs[it] = dataDir }
+            .also {
+                agentDataDirs[it] = dataDir
+                agentHostnames[it] = alias
+            }
     }
 
     private fun computeGatewayIp(): String {
@@ -356,6 +373,7 @@ class CraftPanelStack {
         container?.let { gracefulStop(it) }
         agents.removeAll { it.containerId == containerId }
         container?.let { c ->
+            agentHostnames.remove(c)
             agentDataDirs.remove(c)
                 ?.let { dir ->
                     runCatching { dir.deleteRecursively() }

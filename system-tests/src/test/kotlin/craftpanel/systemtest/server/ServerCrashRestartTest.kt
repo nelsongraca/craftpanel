@@ -2,7 +2,6 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.SharedStack
 import io.kotest.core.annotation.Isolate
 import io.kotest.core.annotation.Tags
 import kotlinx.coroutines.delay
@@ -21,9 +20,13 @@ class ServerCrashRestartTest : BaseSystemTest() {
 
     init {
         lateinit var serverId: String
+        lateinit var agentContainerId: String
 
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
+            // Resolve the agent that actually backs this server. listNodes() has no defined
+            // order, so a hardcoded first-agent id can bounce a process that does not own it.
+            agentContainerId = nodeHelper.agentContainerId(api.getServer(serverId).nodeId)
         }
         afterSpec {
             runCatching {
@@ -77,7 +80,7 @@ class ServerCrashRestartTest : BaseSystemTest() {
 
                 // Bounce the agent: its in-memory ownership set is emptied and rebuilt from the
                 // desired-state re-push on reconnect. A death after that must still be reported.
-                docker.restartContainerCmd(SharedStack.agentContainerId).exec()
+                docker.restartContainerCmd(agentContainerId).exec()
                 nodeHelper.pollUntilActive(nodeId)
                 delay(3_000.milliseconds)
 
@@ -92,20 +95,20 @@ class ServerCrashRestartTest : BaseSystemTest() {
 
                 // Take the agent down, kill the server while no watcher is listening (the death is
                 // lost), then bring the agent back. Reconnect + desired-state re-push must recover it.
-                docker.stopContainerCmd(SharedStack.agentContainerId)
+                docker.stopContainerCmd(agentContainerId)
                     .withTimeout(30)
                     .exec()
                 // Ensure the agent process is stopped before killing the server.
                 val stoppedDeadline = System.currentTimeMillis() + 30_000
                 while (System.currentTimeMillis() < stoppedDeadline &&
-                    runCatching { docker.inspectContainerCmd(SharedStack.agentContainerId).exec().state?.running == true }
+                    runCatching { docker.inspectContainerCmd(agentContainerId).exec().state?.running == true }
                         .getOrDefault(false)
                 ) {
                     delay(500.milliseconds)
                 }
                 docker.killContainerCmd(containerName(serverId)).exec()
 
-                docker.startContainerCmd(SharedStack.agentContainerId).exec()
+                docker.startContainerCmd(agentContainerId).exec()
                 nodeHelper.pollUntilActive(nodeId)
 
                 awaitContainerRunning()
