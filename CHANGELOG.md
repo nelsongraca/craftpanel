@@ -1,3 +1,14 @@
+## [1.4.1] - 2026-10-29
+
+### Features
+
+- clickable log links and Ctrl+V paste (9e48b11c3de7c48)
+
+### Bug Fixes
+
+- resolve node→agent deterministically (965eb38b9cd40bf)
+- purge backup archives from disk (106a4206100e984)
+
 ## [1.4.0] - 2026-10-24
 
 ### Features
