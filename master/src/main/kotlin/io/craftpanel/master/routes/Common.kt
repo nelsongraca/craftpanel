@@ -30,14 +30,14 @@ suspend fun ApplicationCall.respondBinaryFlow(flow: Flow<ByteArray>) {
 }
 
 /** OpenAPI doc-block response body for an endpoint whose handler calls [respondBinaryFlow]. */
-fun ResponseConfig.binaryFileBody() {
+fun ResponseConfig.binaryFileBody(mediaType: ContentType = ContentType.Application.OctetStream) {
     body(
         Schema<Any>().apply {
             type = "string"
             format = "binary"
         }
     ) {
-        mediaTypes = listOf(ContentType.Application.OctetStream)
+        mediaTypes = listOf(mediaType)
     }
 }
 

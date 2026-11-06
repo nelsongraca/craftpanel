@@ -5,6 +5,7 @@ export type {ServerStatus, ConfigMode, ServerType} from "./generated/types.gen";
 export type {ServerStatusEventPoint, ServerStatusHistoryResponse} from "./generated/types.gen";
 export type {BackupTrigger, BackupStatus} from "./generated/types.gen";
 export type {ModPinStrategy, MigrationStatus as MigrationStatusEnum, MigrationStepStatus} from "./generated/types.gen";
+export type {ClientPackPreview, ClientPackMod, ClientPackSkipped} from "./generated/types.gen";
 export type {ScopeType} from "./generated/types.gen";
 export type {NetworkResponse as Network} from "./generated/types.gen";
 export type {NodeMetricsResponse as NodeMetrics} from "./generated/types.gen";

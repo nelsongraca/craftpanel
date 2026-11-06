@@ -15,6 +15,8 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     updateMod: vi.fn(),
     searchMods: vi.fn(),
     checkModCompatibility: vi.fn(),
+    previewClientPack: vi.fn(),
+    downloadClientPack: vi.fn(),
 }));
 
 import {listMods, addMod, deleteMod, updateMod, checkModCompatibility} from "@/lib/generated/sdk.gen";
@@ -1368,5 +1370,31 @@ describe("Mod list sorting", () => {
 
         const names = screen.getAllByText(/^(Mango|Zebra|Apple)$/).map((el) => el.textContent);
         expect(names).toEqual(["Mango", "Zebra", "Apple"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Client pack export
+// ---------------------------------------------------------------------------
+
+describe("Client pack export", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("shows the Client Pack button for a mod-loader server with mods", async () => {
+        await renderModsTab();
+        await waitFor(() => expect(screen.getByRole("button", {name: "Client Pack"})).toBeInTheDocument());
+    });
+
+    it("hides the Client Pack button when the server has no mods", async () => {
+        await renderEmpty();
+        await waitFor(() => expect(screen.getByText("No mods installed")).toBeInTheDocument());
+        expect(screen.queryByRole("button", {name: "Client Pack"})).not.toBeInTheDocument();
+    });
+
+    it("hides the Client Pack button for non-mod-loader servers", async () => {
+        vi.mocked(listMods).mockResolvedValue({data: {mods: defaultMods()}} as never);
+        render(<ModsTab serverId="s1" serverType="PAPER" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.getByText("3 plugins")).toBeInTheDocument());
+        expect(screen.queryByRole("button", {name: "Client Pack"})).not.toBeInTheDocument();
     });
 });

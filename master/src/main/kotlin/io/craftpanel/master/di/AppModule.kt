@@ -185,6 +185,7 @@ val appModule = module {
     }
     single { AlertService(alertRepository = get(), nodeRepository = get(), serverRepository = get()) }
     single { ModService(modRepository = get(), serverRepository = get()) }
+    single { ClientPackService(serverRepository = get(), modRepository = get(), envVarsRepository = get()) }
 
     single {
         ServerHostnames(

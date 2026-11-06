@@ -4,6 +4,7 @@ import io.craftpanel.master.*
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.service.ClientPackService
 import io.craftpanel.master.service.ModService
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -61,7 +62,13 @@ class ModsRoutesTest :
         fun Route.configureModsTest() {
             modsRoutes(
                 ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository, client = modrinthClientWithCompatibleVersion()),
-                testServerSpecSync(repos)
+                testServerSpecSync(repos),
+                ClientPackService(
+                    serverRepository = repos.serverRepository,
+                    modRepository = repos.modRepository,
+                    envVarsRepository = repos.envVarsRepository,
+                    client = modrinthClientWithCompatibleVersion()
+                )
             )
         }
 

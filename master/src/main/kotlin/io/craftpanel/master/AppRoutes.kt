@@ -25,7 +25,7 @@ fun Route.registerAppRoutes() {
     backupsRoutes(get())
     scheduledJobsRoutes(get())
     configRoutes(get(), get(), get())
-    modsRoutes(get(), get())
+    modsRoutes(get(), get(), get())
     dashboardWsRoutes(get(), get())
     alertsRoutes(get())
     migrationsRoutes(get(), get())

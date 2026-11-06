@@ -1,13 +1,14 @@
 "use client";
 
 import {useCallback, useEffect, useMemo, useState} from "react";
-import {AlertTriangle, Check, GitCompare, Pin, Plus, RefreshCw, Search, Trash2, X} from "lucide-react";
+import {AlertTriangle, Check, Download, GitCompare, Pin, Plus, RefreshCw, Search, Trash2, X} from "lucide-react";
 import {addMod, checkModCompatibility, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
 import type {ModResponse as Mod} from "@/lib/generated/types.gen";
 import {SelectField} from "@/components/ui/form-elements";
 import {Switch} from "@/components/ui/switch";
 import {McVersionSelect} from "@/components/ui/mc-version";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
+import {ClientPackDialog} from "@/components/servers/client-pack-dialog";
 import {isModLoaderType, modrinthKind} from "@/lib/server-types";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
@@ -159,6 +160,9 @@ export function ModsTab({
     const [compatResults, setCompatResults] = useState<CompatibilityCheckResponse | null>(null);
     const [compatError, setCompatError] = useState<string | null>(null);
     const [compatApplying, setCompatApplying] = useState<string | null>(null);
+
+    // Client pack export state
+    const [showClientPack, setShowClientPack] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -408,6 +412,15 @@ export function ModsTab({
                         >
                             <GitCompare className="h-3 w-3" />
                             Check Version
+                        </button>
+                    )}
+                    {isMod && mods.length > 0 && (
+                        <button
+                            onClick={() => setShowClientPack(true)}
+                            className="flex shrink-0 items-center gap-1.5 rounded border border-border px-3 py-1.5 text-xs whitespace-nowrap text-text-dim transition-colors hover:text-text-primary"
+                        >
+                            <Download className="h-3 w-3" />
+                            Client Pack
                         </button>
                     )}
                     <button
@@ -850,6 +863,8 @@ export function ModsTab({
                     ))}
                 </div>
             )}
+
+            <ClientPackDialog open={showClientPack} onOpenChange={setShowClientPack} serverId={serverId} />
         </div>
     );
 }

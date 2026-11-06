@@ -15,9 +15,11 @@ import kotlin.uuid.Uuid
 @Serializable
 data class ModsListResponse(val mods: List<ModResponse>)
 
-fun Route.modsRoutes(modService: ModService, specSync: ServerSpecSync) = with(ModsRoutes(modService, specSync)) { register() }
+private val MODPACK_CONTENT_TYPE = ContentType("application", "x-modrinth-modpack+zip")
 
-class ModsRoutes(val modService: ModService, private val specSync: ServerSpecSync) {
+fun Route.modsRoutes(modService: ModService, specSync: ServerSpecSync, clientPackService: ClientPackService) = with(ModsRoutes(modService, specSync, clientPackService)) { register() }
+
+class ModsRoutes(val modService: ModService, private val specSync: ServerSpecSync, private val clientPackService: ClientPackService) {
 
     private val log = LoggerFactory.getLogger(ModsRoutes::class.java)
 
@@ -169,6 +171,47 @@ class ModsRoutes(val modService: ModService, private val specSync: ServerSpecSyn
                             ErrorResponse("target_version is required")
                         )
                     call.respond(modService.checkCompatibility(auth.serverId, targetVersion))
+                }
+
+                get("/client-pack/preview", {
+                    operationId = "previewClientPack"
+                    summary = "Preview the client modpack exported from this server's mods"
+                    request { pathParameter<String>("id") }
+                    response {
+                        code(HttpStatusCode.OK) { body<ClientPackPreview>() }
+                        code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                        code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                        code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    }
+                }) {
+                    val auth = call.requireServerPermission(Permission.SERVER_VIEW)
+                    call.respond(clientPackService.preview(auth.serverId))
+                }
+
+                get("/client-pack", {
+                    operationId = "downloadClientPack"
+                    summary = "Export a Prism-compatible client modpack (.mrpack)"
+                    request { pathParameter<String>("id") }
+                    response {
+                        code(HttpStatusCode.OK) { binaryFileBody(MODPACK_CONTENT_TYPE) }
+                        code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                        code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                        code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    }
+                }) {
+                    val auth = call.requireServerPermission(Permission.SERVER_VIEW)
+                    val bundle = clientPackService.build(auth.serverId)
+                    call.response.header(
+                        HttpHeaders.ContentDisposition,
+                        ContentDisposition.Attachment
+                            .withParameter(ContentDisposition.Parameters.FileName, bundle.fileName)
+                            .toString()
+                    )
+                    call.respondBytes(bundle.bytes, MODPACK_CONTENT_TYPE)
                 }
             }
         }
