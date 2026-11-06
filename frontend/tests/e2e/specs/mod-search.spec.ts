@@ -94,7 +94,8 @@ test("clicking Add then confirming adds plugin to installed list", async ({page,
     await expect(confirmAddBtn).toBeVisible({timeout: 3000});
     await confirmAddBtn.click({force: true});
 
-    // After add + reload, search panel closes and plugin list shows Dynmap
+    // Search panel stays open after the add, so further results can be added in place.
+    await expect(page.getByPlaceholder("Search Modrinth…")).toHaveValue("dynmap");
     await expect(page.getByText("No plugins installed")).not.toBeVisible({
         timeout: 5000,
     });

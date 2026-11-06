@@ -209,6 +209,13 @@ export function ModsTab({
         setSearching(false);
     }
 
+    function clearSearch() {
+        setSearchQuery("");
+        setSearchResults([]);
+        setAdding(null);
+        setAddError(null);
+    }
+
     function startAdd(hit: ModrinthHit) {
         setAddProjectId(hit.project_id);
         setAddDisplayName(hit.title);
@@ -249,11 +256,10 @@ export function ModsTab({
         if (res.error) {
             setAddError((res.error as {message?: string})?.message ?? "Failed to add mod");
         } else {
+            // Keep the search panel, query and results open — lets the user add several
+            // mods from one search (the added row flips to "Added" after the reload).
             setAdding(null);
             setAddError(null);
-            setShowSearch(false);
-            setSearchResults([]);
-            setSearchQuery("");
             await load();
             onModsChanged?.();
         }
@@ -549,13 +555,26 @@ export function ModsTab({
             {showSearch && (
                 <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
                     <div className="flex gap-2">
-                        <input
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                            placeholder="Search Modrinth…"
-                            className="flex-1 rounded border border-border bg-bg px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                        />
+                        <div className="relative flex-1">
+                            <input
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                                placeholder="Search Modrinth…"
+                                className="w-full rounded border border-border bg-bg px-3 py-1.5 pr-8 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                            />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={clearSearch}
+                                    aria-label="Clear search"
+                                    title="Clear search"
+                                    className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-text-muted transition-colors hover:text-text-primary"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </div>
                         <button
                             onClick={handleSearch}
                             disabled={searching}

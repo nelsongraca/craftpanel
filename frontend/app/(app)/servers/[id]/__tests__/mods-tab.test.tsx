@@ -214,7 +214,7 @@ describe("Error Handling", () => {
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         const searchInput = screen.getByPlaceholderText("Search Modrinth…");
         await user.type(searchInput, "worldedit");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
         await waitFor(() => expect(screen.getByText("Err Mod")).toBeInTheDocument());
         await user.click(screen.getByText("Add"));
         const confirmBtn = screen.getByRole("button", {name: /^add$/i});
@@ -269,7 +269,7 @@ describe("Add Mod", () => {
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         const searchInput = screen.getByPlaceholderText("Search Modrinth…");
         await user.type(searchInput, "worldedit");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
 
         await waitFor(() =>
             expect(searchMods).toHaveBeenCalledWith(
@@ -304,7 +304,7 @@ describe("Add Mod", () => {
 
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         await user.type(screen.getByPlaceholderText("Search Modrinth…"), "cool");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
 
         await waitFor(() => expect(screen.getByText("Cool Mod")).toBeInTheDocument());
         const addButtons = screen.getAllByText("Add");
@@ -333,7 +333,7 @@ describe("Add Mod", () => {
         const user = userEvent.setup();
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         await user.type(screen.getByPlaceholderText("Search Modrinth…"), "worldedit");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
 
         await waitFor(() => expect(screen.getByText("Added")).toBeInTheDocument());
     });
@@ -354,7 +354,7 @@ describe("Add Mod", () => {
         const user = userEvent.setup();
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
 
         await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
         await user.click(screen.getByText("Add"));
@@ -393,7 +393,7 @@ describe("Add Mod", () => {
         const user = userEvent.setup();
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
 
         await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
         await user.click(screen.getByText("Add"));
@@ -402,6 +402,95 @@ describe("Add Mod", () => {
         await user.click(confirmAddBtn);
 
         await waitFor(() => expect(onModsChanged).toHaveBeenCalled());
+    });
+
+    it("keeps the search panel and results open after adding, so several mods can be added", async () => {
+        vi.mocked(listMods)
+            .mockResolvedValueOnce({data: {mods: []}} as never)
+            .mockResolvedValueOnce({
+                data: {
+                    mods: [
+                        makeMod({
+                            id: "mod-new",
+                            display_name: "Macaw's Bridges",
+                            modrinth_project_id: "newproj",
+                        }),
+                    ],
+                },
+            } as never);
+        vi.mocked(addMod).mockResolvedValue({data: {}} as never);
+
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
+        vi.mocked(searchMods).mockResolvedValue({
+            data: {
+                hits: [
+                    {
+                        project_id: "newproj",
+                        slug: "macaws-bridges",
+                        title: "Macaw's Bridges",
+                        description: "desc",
+                        author: "dev",
+                        downloads: 100,
+                    },
+                ],
+            },
+        } as never);
+
+        const user = userEvent.setup();
+        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        await user.type(screen.getByPlaceholderText("Search Modrinth…"), "macaw");
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
+        await waitFor(() => expect(screen.getByText("Macaw's Bridges")).toBeInTheDocument());
+
+        await user.click(screen.getByRole("button", {name: "Add", exact: true}));
+        await user.click(screen.getByRole("button", {name: /^add$/i}));
+
+        await waitFor(() => expect(screen.getByText("Added")).toBeInTheDocument());
+        // Panel, query and results survive the add — the result stays listable for a second add.
+        expect(screen.getByPlaceholderText("Search Modrinth…")).toHaveValue("macaw");
+        expect(screen.getAllByText("Macaw's Bridges")).toHaveLength(2); // search result + installed list
+    });
+
+    it("clear button empties the search box and results but keeps the panel open", async () => {
+        vi.mocked(listMods).mockResolvedValue({data: {mods: []}} as never);
+        const {searchMods} = await import("@/lib/generated/sdk.gen");
+        vi.mocked(searchMods).mockResolvedValue({
+            data: {
+                hits: [
+                    {
+                        project_id: "proj1",
+                        slug: "cool",
+                        title: "Cool Mod",
+                        description: "A cool mod",
+                        author: "dev1",
+                        downloads: 5000,
+                    },
+                ],
+            },
+        } as never);
+
+        const user = userEvent.setup();
+        render(<ModsTab serverId="s1" serverType="FABRIC" mcVersion="1.21" onModsChanged={vi.fn()} />);
+        await waitFor(() => expect(screen.queryByText("Loading mods…")).not.toBeInTheDocument());
+
+        await user.click(screen.getByRole("button", {name: /add mod/i}));
+        // Nothing to clear while the box is empty.
+        expect(screen.queryByRole("button", {name: /clear search/i})).not.toBeInTheDocument();
+
+        const input = screen.getByPlaceholderText("Search Modrinth…");
+        await user.type(input, "cool");
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
+        await waitFor(() => expect(screen.getByText("Cool Mod")).toBeInTheDocument());
+
+        await user.click(screen.getByRole("button", {name: /clear search/i}));
+
+        expect(input).toHaveValue("");
+        expect(screen.queryByText("Cool Mod")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", {name: /clear search/i})).not.toBeInTheDocument();
+        expect(screen.getByPlaceholderText("Search Modrinth…")).toBeInTheDocument();
     });
 
     it("pinned strategy shows version selector", async () => {
@@ -418,7 +507,7 @@ describe("Add Mod", () => {
         const user = userEvent.setup();
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
         await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
 
         await user.click(screen.getByText("Add"));
@@ -447,7 +536,7 @@ describe("Add Mod", () => {
         const user = userEvent.setup();
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
         await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
         await user.click(screen.getByText("Add"));
 
@@ -486,7 +575,7 @@ describe("Add Mod", () => {
         const user = userEvent.setup();
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         await user.type(screen.getByPlaceholderText("Search Modrinth…"), "new");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
         await waitFor(() => expect(screen.getByText("New Mod")).toBeInTheDocument());
         await user.click(screen.getByText("Add"));
 
@@ -1245,7 +1334,7 @@ describe("Add channel hint", () => {
         const user = userEvent.setup();
         await user.click(screen.getByRole("button", {name: /add mod/i}));
         await user.type(screen.getByPlaceholderText("Search Modrinth…"), "async");
-        await user.click(screen.getByRole("button", {name: /search/i}));
+        await user.click(screen.getByRole("button", {name: /^search$/i}));
         await waitFor(() => expect(screen.getByText("Async")).toBeInTheDocument());
         await user.click(screen.getByText("Add"));
 
