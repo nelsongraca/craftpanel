@@ -61,7 +61,9 @@ data class ProxyBackendExportItem(
     @SerialName("backend_server_id") val backendServerId: String? = null,
     @SerialName("backend_server_name") val backendServerName: String? = null,
     @SerialName("backend_name") val backendName: String,
-    val order: Int
+    val order: Int,
+    // Older exports omit the field: preserve the previous behaviour (every backend is joinable).
+    @SerialName("in_join_list") val inJoinList: Boolean = true
 )
 
 @Serializable

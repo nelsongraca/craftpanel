@@ -258,6 +258,7 @@ Records which backend game servers a proxy server connects to, used in managed (
 | `backend_server_id` | UUID        | FK → `servers` (must be a game server type), CASCADE DELETE                   |
 | `backend_name`      | VARCHAR(64) | Internal name used in the generated proxy config, e.g. `survival`, `creative` |
 | `order`             | INT         | Ordering for display and config generation                                    |
+| `in_join_list`      | BOOLEAN     | Whether this backend is written to the proxy's join order (default `true`)     |
 
 **Unique constraint:** `(proxy_server_id, backend_name)`
 

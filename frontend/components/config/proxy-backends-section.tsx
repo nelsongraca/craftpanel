@@ -114,6 +114,7 @@ type EditableBackend = {
     backendServerId: string;
     backendName: string;
     order: number;
+    inJoinList: boolean;
     displayName: string;
     serverType: string;
     status: string;
@@ -148,6 +149,7 @@ export function ProxyBackendsSection({
                     backendServerId: b.backend_server_id,
                     backendName: b.backend_name,
                     order: b.order,
+                    inJoinList: b.in_join_list,
                     displayName: match?.display_name ?? b.backend_server_id,
                     serverType: match?.server_type ?? "UNKNOWN",
                     status: match?.status ?? "UNKNOWN",
@@ -173,11 +175,15 @@ export function ProxyBackendsSection({
             if (new Set(names).size !== names.length) {
                 return Promise.resolve({error: {message: "Backend names must be unique"}});
             }
+            if (draft.length > 0 && !draft.some((b) => b.inJoinList)) {
+                return Promise.resolve({error: {message: "At least one backend must be in the join list"}});
+            }
             const body: PutProxyBackendsRequest = {
                 backends: draft.map((b) => ({
                     backend_server_id: b.backendServerId,
                     backend_name: b.backendName.trim(),
                     order: b.order,
+                    in_join_list: b.inJoinList,
                 })),
             };
             return replaceProxyBackends({path: {id: serverId}, body});
@@ -210,6 +216,10 @@ export function ProxyBackendsSection({
         setBackends((prev) => prev.map((b, i) => (i === index ? {...b, backendName: name} : b)));
     }
 
+    function toggleJoinList(index: number, checked: boolean) {
+        setBackends((prev) => prev.map((b, i) => (i === index ? {...b, inJoinList: checked} : b)));
+    }
+
     function addBackend(server: ServerResponse, backendName: string) {
         setBackends((prev) => [
             ...prev,
@@ -217,6 +227,7 @@ export function ProxyBackendsSection({
                 backendServerId: server.id,
                 backendName,
                 order: prev.length + 1,
+                inJoinList: true,
                 displayName: server.display_name,
                 serverType: server.server_type,
                 status: server.status,
@@ -256,7 +267,11 @@ export function ProxyBackendsSection({
                 </button>
             </div>
             <div className="space-y-4 px-4 py-3">
-                <p className="text-xs text-text-dim">Backend servers routed by this proxy in managed mode.</p>
+                <p className="text-xs text-text-dim">
+                    Backend servers routed by this proxy in managed mode. Checked servers form the join order (Velocity{" "}
+                    <span className="font-mono">try</span>, BungeeCord/Waterfall{" "}
+                    <span className="font-mono">priorities</span>); at least one is required.
+                </p>
 
                 {error && (
                     <div className="rounded border border-error/30 bg-error/10 px-3 py-2 text-xs text-error">
@@ -304,6 +319,9 @@ export function ProxyBackendsSection({
                                     <th className="px-4 py-2.5 text-left font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                         Backend Name
                                     </th>
+                                    <th className="px-4 py-2.5 text-center font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
+                                        Join
+                                    </th>
                                     <th className="px-4 py-2.5 text-left font-heading text-xs font-bold tracking-widest text-text-muted uppercase">
                                         Status
                                     </th>
@@ -328,6 +346,15 @@ export function ProxyBackendsSection({
                                                 value={b.backendName}
                                                 onChange={(e) => renameBackend(i, e.target.value)}
                                                 className="w-36 rounded border border-border bg-surface-higher px-2 py-1 font-mono text-xs text-text-primary focus:border-accent/50 focus:outline-none"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={b.inJoinList}
+                                                onChange={(e) => toggleJoinList(i, e.target.checked)}
+                                                className="accent-accent"
+                                                aria-label={`Include ${b.displayName} in the join list`}
                                             />
                                         </td>
                                         <td className="px-4 py-3">

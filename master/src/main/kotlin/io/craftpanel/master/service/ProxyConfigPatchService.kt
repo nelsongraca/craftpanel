@@ -71,16 +71,19 @@ class ProxyConfigPatchService(
             .sortedBy { it.order }
             .map { it to serverRepository.findById(it.backendServerId) }
 
+        // Only the selected subset forms the join order; every backend still gets a server entry.
+        val joinBackends = backends.map { it.first }.filter { it.inJoinList }
+
         val ops = mutableListOf<JsonObject>()
 
-        ops.add(serversOp(dialect, backends))
+        ops.add(serversOp(dialect, backends, joinBackends))
         // The proxy's stock default config ships active example forced-hosts (Velocity:
         // lobby/factions/minigames.example.com; Bungee: pvp.md-5.net). We own routing, so clear
         // them — otherwise they dangle against servers we replaced in $.servers and the proxy logs
         // "Server 'X' for forced host 'Y' does not exist" on every boot.
         ops.add(ProxyPatch.set(dialect.forcedHostsPath, JsonObject(emptyMap())))
-        if (serverRow.serverType != ServerType.VELOCITY && backends.isNotEmpty()) {
-            ops.add(prioritiesOp(backends.map { it.first }))
+        if (!dialect.isVelocity && joinBackends.isNotEmpty()) {
+            ops.add(prioritiesOp(joinBackends))
         }
         if (serverRow.proxyMotd != null) {
             ops.add(motdOp(dialect, serverRow.proxyMotd))
@@ -112,7 +115,7 @@ class ProxyConfigPatchService(
         return "${backendServerView?.name ?: "unknown"}:$port"
     }
 
-    private fun serversOp(dialect: ProxyDialect, backends: List<Pair<ProxyBackendRow, ServerView?>>): JsonObject {
+    private fun serversOp(dialect: ProxyDialect, backends: List<Pair<ProxyBackendRow, ServerView?>>, joinBackends: List<ProxyBackendRow>): JsonObject {
         val servers = buildMap<String, JsonElement> {
             backends.forEach { (b, backendRow) ->
                 put(
@@ -130,7 +133,7 @@ class ProxyConfigPatchService(
                 )
             }
             if (dialect.isVelocity) {
-                put("try", JsonArray(backends.map { JsonPrimitive(it.first.backendName) }))
+                put("try", JsonArray(joinBackends.map { JsonPrimitive(it.backendName) }))
             }
         }
         return ProxyPatch.set("$.servers", JsonObject(servers))

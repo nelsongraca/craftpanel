@@ -356,6 +356,7 @@ export const fakeProxyBackends: ProxyBackendItem[] = [
         backend_server_id: "srv-2",
         backend_name: "creative",
         order: 0,
+        in_join_list: true,
     },
 ];
 

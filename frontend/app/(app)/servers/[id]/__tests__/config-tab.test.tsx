@@ -119,6 +119,7 @@ async function renderProxyServer(
         backend_server_id: string;
         backend_name: string;
         order: number;
+        in_join_list: boolean;
     }>[] = [],
     servers: Partial<ServerResponse>[] = [],
     props: Partial<React.ComponentProps<typeof ConfigTab>> = {},
@@ -978,8 +979,8 @@ describe("Proxy Server Config Tab", () => {
     it("reorder backends: move second up → Save → replaceProxyBackends with new order", async () => {
         const user = userEvent.setup();
         const backends = [
-            {id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1},
-            {id: "b2", backend_server_id: "s2", backend_name: "beta", order: 2},
+            {id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1, in_join_list: true},
+            {id: "b2", backend_server_id: "s2", backend_name: "beta", order: 2, in_join_list: true},
         ];
         const servers: Partial<ServerResponse>[] = [
             {id: "s1", display_name: "Alpha", server_type: "PAPER", status: "HEALTHY", network_id: "n1"},
@@ -1008,7 +1009,7 @@ describe("Proxy Server Config Tab", () => {
 
     it("removing backend → Save → backend absent in replaceProxyBackends", async () => {
         const user = userEvent.setup();
-        const backends = [{id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1}];
+        const backends = [{id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1, in_join_list: true}];
         const servers: Partial<ServerResponse>[] = [
             {id: "s1", display_name: "Alpha", server_type: "PAPER", status: "HEALTHY", network_id: "n1"},
         ];
@@ -1027,7 +1028,7 @@ describe("Proxy Server Config Tab", () => {
 
     it("invalid backend name shows validation error; Save blocked", async () => {
         const user = userEvent.setup();
-        const backends = [{id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1}];
+        const backends = [{id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1, in_join_list: true}];
         const servers: Partial<ServerResponse>[] = [
             {id: "s1", display_name: "Alpha", server_type: "PAPER", status: "HEALTHY", network_id: "n1"},
         ];
@@ -1050,8 +1051,8 @@ describe("Proxy Server Config Tab", () => {
     it("duplicate backend names → Save blocked with error", async () => {
         const user = userEvent.setup();
         const backends = [
-            {id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1},
-            {id: "b2", backend_server_id: "s2", backend_name: "beta", order: 2},
+            {id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1, in_join_list: true},
+            {id: "b2", backend_server_id: "s2", backend_name: "beta", order: 2, in_join_list: true},
         ];
         const servers: Partial<ServerResponse>[] = [
             {id: "s1", display_name: "Alpha", server_type: "PAPER", status: "HEALTHY", network_id: "n1"},
@@ -1079,7 +1080,7 @@ describe("Backend forwarding warnings", () => {
 
     it("replaceProxyBackends warn-skip surfaces in Proxy Backends section", async () => {
         const user = userEvent.setup();
-        const backends = [{id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1}];
+        const backends = [{id: "b1", backend_server_id: "s1", backend_name: "alpha", order: 1, in_join_list: true}];
         const servers: Partial<ServerResponse>[] = [
             {id: "s1", display_name: "Alpha", server_type: "VANILLA", status: "HEALTHY", network_id: "n1"},
         ];

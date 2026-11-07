@@ -2,9 +2,9 @@ package io.craftpanel.master.service.repo
 
 import kotlin.uuid.Uuid
 
-data class ProxyBackendRow(val id: Uuid, val proxyServerId: Uuid, val backendServerId: Uuid, val backendName: String, val order: Int)
+data class ProxyBackendRow(val id: Uuid, val proxyServerId: Uuid, val backendServerId: Uuid, val backendName: String, val order: Int, val inJoinList: Boolean)
 
-data class ProxyBackendInput(val backendServerId: Uuid, val backendName: String, val order: Int)
+data class ProxyBackendInput(val backendServerId: Uuid, val backendName: String, val order: Int, val inJoinList: Boolean)
 
 interface ProxyBackendRepository {
 

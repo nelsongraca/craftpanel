@@ -5,7 +5,9 @@ import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.ServerEnvVars
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
@@ -15,6 +17,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -193,6 +196,44 @@ class ExportServiceTest :
                 export.envVars.shouldNotBeNull()
                 export.envVars!!.map { it.key } shouldContain "DIFFICULTY"
                 export.envVars!!.first { it.key == "DIFFICULTY" }.value shouldBe "hard"
+            }
+
+            test("round-trips the proxy backend join list flag") {
+                val proxy = createServer(
+                    name = "proxy-export",
+                    displayName = "Proxy Export",
+                    description = null,
+                    nodeId = nodeId.toString(),
+                    networkId = null,
+                    serverType = ServerType.VELOCITY,
+                    memoryMb = 512,
+                    cpuLimitMillicores = 0
+                )
+                val backend = createServer(
+                    name = "backend-export",
+                    displayName = "Backend Export",
+                    description = null,
+                    nodeId = nodeId.toString(),
+                    networkId = null,
+                    serverType = ServerType.PAPER,
+                    memoryMb = 512,
+                    cpuLimitMillicores = 0
+                )
+                transaction {
+                    ProxyBackends.insert {
+                        it[ProxyBackends.proxyServerId] = EntityID(proxy.id, Servers)
+                        it[ProxyBackends.backendServerId] = EntityID(backend.id, Servers)
+                        it[ProxyBackends.backendName] = "survival"
+                        it[ProxyBackends.order] = 0
+                        it[ProxyBackends.inJoinList] = false
+                    }
+                }
+
+                val exportedProxy = exportService.exportServer(proxy.id)
+                exportedProxy.proxyBackends!!.single().inJoinList shouldBe false
+
+                val imported = exportService.importServer(exportedProxy.copy(name = "proxy-import"), nodeId, null)
+                repos.proxyBackendRepository.listProxyBackends(imported.id).single().inJoinList shouldBe false
             }
 
             test("exports proxy fields as null for non-proxy server") {

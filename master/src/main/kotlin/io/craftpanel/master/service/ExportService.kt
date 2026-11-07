@@ -53,7 +53,8 @@ class ExportService(
                         backendServerId = it.backendServerId.toString(),
                         backendServerName = serverRepository.findById(it.backendServerId)?.name,
                         backendName = it.backendName,
-                        order = it.order
+                        order = it.order,
+                        inJoinList = it.inJoinList
                     )
                 }
         } else {
@@ -227,6 +228,7 @@ class ExportService(
                     this.backendServerId = EntityID(backendId, Servers)
                     this.backendName = backend.backendName
                     this.order = backend.order
+                    this.inJoinList = backend.inJoinList
                 }
             }
         }

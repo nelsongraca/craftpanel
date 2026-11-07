@@ -29,5 +29,6 @@ private fun ResultRow.toProxyBackendRow() = ProxyBackendRow(
     proxyServerId = this[ProxyBackends.proxyServerId].value,
     backendServerId = this[ProxyBackends.backendServerId].value,
     backendName = this[ProxyBackends.backendName],
-    order = this[ProxyBackends.order]
+    order = this[ProxyBackends.order],
+    inJoinList = this[ProxyBackends.inJoinList]
 )

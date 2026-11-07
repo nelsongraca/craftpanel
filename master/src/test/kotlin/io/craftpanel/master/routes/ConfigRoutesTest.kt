@@ -9,16 +9,19 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.BackendForwardingService
+import io.craftpanel.master.service.BackendInput
 import io.craftpanel.master.service.BadRequestException
 import io.craftpanel.master.service.ConflictException
 import io.craftpanel.master.service.EnvVarsService
 import io.craftpanel.master.service.ForbiddenException
 import io.craftpanel.master.service.NotFoundException
+import io.craftpanel.master.service.ProxyBackendListResponse
 import io.craftpanel.master.service.ProxyBackendService
 import io.craftpanel.master.service.ProxyConfigPatchService
 import io.craftpanel.master.service.ProxyPatchWriter
 import io.craftpanel.master.service.ProxySettingsResponse
 import io.craftpanel.master.service.ProxySettingsService
+import io.craftpanel.master.service.PutProxyBackendsRequest
 import io.craftpanel.master.service.UnprocessableException
 import io.craftpanel.master.service.UpdateProxySettingsRequest
 import io.craftpanel.master.testServerSpecSync
@@ -134,11 +137,12 @@ class ConfigRoutesTest :
         }
 
         fun createServer(nodeId: Uuid, type: String): Uuid = transaction {
+            val serverName = "srv-${Uuid.random()}"
             Servers.insert {
                 it[Servers.nodeId] = nodeId
                 it[Servers.networkId] = null
-                it[Servers.name] = "srv"
-                it[Servers.displayName] = "srv"
+                it[Servers.name] = serverName
+                it[Servers.displayName] = serverName
                 it[Servers.serverType] = type
                 it[Servers.mcVersion] = "1.21.4"
                 it[Servers.hostPort] = 25565
@@ -251,6 +255,75 @@ class ConfigRoutesTest :
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
                     setBody("""{"config_mode":"MANAGED"}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+        test("replaceProxyBackends round-trips the join list flag") {
+            testApplication {
+                application { configureTest() }
+                val userId = createUser()
+                assignAdmin(userId)
+                val nodeId = createNode()
+                val proxyId = createServer(nodeId, "VELOCITY")
+                val survivalId = createServer(nodeId, "PAPER")
+                val creativeId = createServer(nodeId, "PAPER")
+
+                val body = PutProxyBackendsRequest(
+                    listOf(
+                        BackendInput(
+                            backendServerId = survivalId.toString(),
+                            backendName = "survival",
+                            order = 0,
+                            inJoinList = false
+                        ),
+                        BackendInput(
+                            backendServerId = creativeId.toString(),
+                            backendName = "creative",
+                            order = 1,
+                            inJoinList = true
+                        )
+                    )
+                )
+
+                val putResp = jsonClient().put("/api/servers/$proxyId/config/proxy") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody(body)
+                }
+                putResp.status shouldBe HttpStatusCode.OK
+
+                val getResp = jsonClient().get("/api/servers/$proxyId/config/proxy") { bearerAuth(tokenFor(userId)) }
+                getResp.status shouldBe HttpStatusCode.OK
+                getResp.body<ProxyBackendListResponse>().backends.map { it.backendName to it.inJoinList } shouldBe
+                    listOf("survival" to false, "creative" to true)
+            }
+        }
+
+        test("replaceProxyBackends rejects a backend list with no join backend") {
+            testApplication {
+                application { configureTest() }
+                val userId = createUser()
+                assignAdmin(userId)
+                val nodeId = createNode()
+                val proxyId = createServer(nodeId, "VELOCITY")
+                val survivalId = createServer(nodeId, "PAPER")
+
+                val resp = jsonClient().put("/api/servers/$proxyId/config/proxy") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        PutProxyBackendsRequest(
+                            listOf(
+                                BackendInput(
+                                    backendServerId = survivalId.toString(),
+                                    backendName = "survival",
+                                    order = 0,
+                                    inJoinList = false
+                                )
+                            )
+                        )
+                    )
                 }
                 resp.status shouldBe HttpStatusCode.UnprocessableEntity
             }

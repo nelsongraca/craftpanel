@@ -304,4 +304,79 @@ class ProxyConfigPatchServiceTest :
             proxyProtocolOp["value"] shouldBe JsonPrimitive(false)
             proxyProtocolOp["value-type"] shouldBe JsonPrimitive("bool")
         }
+        test("Velocity try lists only join-list backends in row order") {
+            val nodeId = createNode()
+            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
+            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
+            val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
+            val gammaId = createServer(nodeId, "gamma-${Uuid.random()}", ServerType.PAPER)
+            transaction {
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers)
+                    it[ProxyBackends.backendName] = "alpha"
+                    it[ProxyBackends.order] = 0
+                    it[ProxyBackends.inJoinList] = false
+                }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(betaId, Servers)
+                    it[ProxyBackends.backendName] = "beta"
+                    it[ProxyBackends.order] = 1
+                    it[ProxyBackends.inJoinList] = true
+                }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(gammaId, Servers)
+                    it[ProxyBackends.backendName] = "gamma"
+                    it[ProxyBackends.order] = 2
+                    it[ProxyBackends.inJoinList] = true
+                }
+            }
+
+            val servers = opsOf(service.generatePatch(proxyId)!!)[0]["\$set"]!!.jsonObject["value"]!!.jsonObject
+
+            // Every backend still gets a registry entry; only the checked subset forms `try`.
+            servers.keys shouldBe setOf("alpha", "beta", "gamma", "try")
+            servers["try"] shouldBe JsonArray(listOf(JsonPrimitive("beta"), JsonPrimitive("gamma")))
+        }
+
+        test("BungeeCord priorities list only join-list backends in row order") {
+            val nodeId = createNode()
+            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.BUNGEECORD)
+            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
+            val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
+            val gammaId = createServer(nodeId, "gamma-${Uuid.random()}", ServerType.PAPER)
+            transaction {
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers)
+                    it[ProxyBackends.backendName] = "alpha"
+                    it[ProxyBackends.order] = 0
+                    it[ProxyBackends.inJoinList] = true
+                }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(betaId, Servers)
+                    it[ProxyBackends.backendName] = "beta"
+                    it[ProxyBackends.order] = 1
+                    it[ProxyBackends.inJoinList] = false
+                }
+                ProxyBackends.insert {
+                    it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers)
+                    it[ProxyBackends.backendServerId] = EntityID(gammaId, Servers)
+                    it[ProxyBackends.backendName] = "gamma"
+                    it[ProxyBackends.order] = 2
+                    it[ProxyBackends.inJoinList] = true
+                }
+            }
+
+            val ops = opsOf(service.generatePatch(proxyId)!!)
+            val servers = ops[0]["\$set"]!!.jsonObject["value"]!!.jsonObject
+            servers.keys shouldBe setOf("alpha", "beta", "gamma")
+
+            val prioritiesOp = ops[2]["\$set"]!!.jsonObject
+            prioritiesOp["path"] shouldBe JsonPrimitive("$.listeners[0].priorities")
+            prioritiesOp["value"] shouldBe JsonArray(listOf(JsonPrimitive("alpha"), JsonPrimitive("gamma")))
+        }
     })

@@ -11,6 +11,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.openapitools.client.infrastructure.ClientException
 import org.tomlj.Toml
 import java.io.File
@@ -21,6 +22,7 @@ class ProxySettingsTest : BaseSystemTest() {
     private lateinit var proxyServerId: String
     private lateinit var bungeeProxyId: String
     private lateinit var gameServerId: String
+    private lateinit var secondGameServerId: String
 
     init {
         beforeSpec {
@@ -47,12 +49,14 @@ class ProxySettingsTest : BaseSystemTest() {
                 )
             ).id
             gameServerId = ServerHelper(api).createTestServer(nodeId)
+            secondGameServerId = ServerHelper(api).createTestServer(nodeId)
         }
 
         afterSpec {
             runCatching { api.deleteServer(proxyServerId) }
             runCatching { api.deleteServer(bungeeProxyId) }
             runCatching { api.deleteServer(gameServerId) }
+            runCatching { api.deleteServer(secondGameServerId) }
         }
 
         context("Proxy settings management") {
@@ -168,7 +172,14 @@ class ProxySettingsTest : BaseSystemTest() {
                             BackendInput(
                                 backendServerId = gameServerId,
                                 backendName = "game-server-1",
-                                order = 1
+                                order = 1,
+                                inJoinList = true
+                            ),
+                            BackendInput(
+                                backendServerId = secondGameServerId,
+                                backendName = "game-server-2",
+                                order = 2,
+                                inJoinList = false
                             )
                         )
                     )
@@ -213,8 +224,10 @@ class ProxySettingsTest : BaseSystemTest() {
                 toml.hasErrors() shouldBe false
 
                 val servers = toml.getTable("servers")!!
-                servers.keySet() shouldContainExactly setOf("game-server-1", "try")
+                servers.keySet() shouldContainExactly setOf("game-server-1", "game-server-2", "try")
                 servers.getString("game-server-1") shouldBe "${api.getServer(gameServerId).name}:25565"
+                servers.getString("game-server-2") shouldBe "${api.getServer(secondGameServerId).name}:25565"
+                // Only the join-list backend is tried; the excluded one stays in the registry above.
                 servers.getArray("try")!!.toList() shouldContainExactly listOf("game-server-1")
 
                 // The stock forced-hosts entries must be cleared — they reference servers that
@@ -277,7 +290,14 @@ class ProxySettingsTest : BaseSystemTest() {
                             BackendInput(
                                 backendServerId = gameServerId,
                                 backendName = "game-server-1",
-                                order = 1
+                                order = 1,
+                                inJoinList = true
+                            ),
+                            BackendInput(
+                                backendServerId = secondGameServerId,
+                                backendName = "game-server-2",
+                                order = 2,
+                                inJoinList = false
                             )
                         )
                     )
@@ -328,6 +348,15 @@ class ProxySettingsTest : BaseSystemTest() {
                     "grep -E '^[[:space:]]*proxy_protocol:' /server/config.yml"
                 )
                 proxyProtocolLine.trim() shouldBe "proxy_protocol: true"
+
+                val prioritiesBlock = execInContainer(
+                    proxyContainer,
+                    "sh",
+                    "-c",
+                    "grep -A 2 'priorities:' /server/config.yml"
+                )
+                prioritiesBlock shouldContain "game-server-1"
+                prioritiesBlock shouldNotContain "game-server-2"
             }
         }
     }

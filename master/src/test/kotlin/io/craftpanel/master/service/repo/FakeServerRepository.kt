@@ -57,7 +57,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         var completedAt: String? = null
     )
 
-    data class MutableProxyBackend(val id: Uuid, val proxyServerId: Uuid, val backendServerId: Uuid, val backendName: String, val order: Int)
+    data class MutableProxyBackend(val id: Uuid, val proxyServerId: Uuid, val backendServerId: Uuid, val backendName: String, val order: Int, var inJoinList: Boolean = true)
 
     data class MutableContainerMetrics(
         val serverId: Uuid,

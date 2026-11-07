@@ -14,12 +14,14 @@ class ProxyBackend(id: EntityID<Uuid>) : UuidEntity(id) {
     var backendServerId by ProxyBackends.backendServerId
     var backendName by ProxyBackends.backendName
     var order by ProxyBackends.order
+    var inJoinList by ProxyBackends.inJoinList
 
     fun toProxyBackendRow() = ProxyBackendRow(
         id = id.value,
         proxyServerId = proxyServerId.value,
         backendServerId = backendServerId.value,
         backendName = backendName,
-        order = order
+        order = order,
+        inJoinList = inJoinList
     )
 }

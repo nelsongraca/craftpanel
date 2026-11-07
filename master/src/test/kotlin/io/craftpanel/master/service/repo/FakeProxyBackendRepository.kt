@@ -11,5 +11,5 @@ class FakeProxyBackendRepository(private val state: FakeRepositories) : ProxyBac
         .filter { it.backendServerId == backendServerId }
         .map { it.proxyServerId }
 
-    private fun FakeServerRepository.MutableProxyBackend.toRow() = ProxyBackendRow(id, proxyServerId, backendServerId, backendName, order)
+    private fun FakeServerRepository.MutableProxyBackend.toRow() = ProxyBackendRow(id, proxyServerId, backendServerId, backendName, order, inJoinList)
 }

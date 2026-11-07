@@ -15,13 +15,26 @@ import kotlin.uuid.Uuid
 private val BACKEND_NAME_PATTERN = Regex("^[A-Za-z0-9_-]+$")
 
 @Serializable
-data class ProxyBackendItem(val id: String, @SerialName("backend_server_id") val backendServerId: String, @SerialName("backend_name") val backendName: String, val order: Int)
+data class ProxyBackendItem(
+    val id: String,
+    @SerialName("backend_server_id") val backendServerId: String,
+    @SerialName("backend_name") val backendName: String,
+    val order: Int,
+    @SerialName("in_join_list") val inJoinList: Boolean
+)
 
 @Serializable
 data class ProxyBackendListResponse(val backends: List<ProxyBackendItem>, @SerialName("forwarding_warnings") val forwardingWarnings: List<String> = emptyList())
 
 @Serializable
-data class BackendInput(@SerialName("backend_server_id") val backendServerId: String, @SerialName("backend_name") val backendName: String, val order: Int)
+data class BackendInput(
+    @SerialName("backend_server_id") val backendServerId: String,
+    @SerialName("backend_name") val backendName: String,
+    val order: Int,
+    // Absent in older clients, or explicitly null from generated clients that do not omit
+    // unset optional fields: default to the previous behaviour (every backend is joinable).
+    @SerialName("in_join_list") val inJoinList: Boolean? = null
+)
 
 @Serializable
 data class PutProxyBackendsRequest(val backends: List<BackendInput>)
@@ -60,7 +73,13 @@ class ProxyBackendService(
             if (backendRow.serverType.isProxy) {
                 throw UnprocessableException("Backend server cannot be a proxy type: ${b.backendServerId}")
             }
-            ProxyBackendInput(backendServerId = backendId, backendName = name, order = b.order)
+            ProxyBackendInput(backendServerId = backendId, backendName = name, order = b.order, inJoinList = b.inJoinList ?: true)
+        }
+
+        // Managed mode clears forced-hosts, so an empty join list would leave the proxy with no
+        // server to send players to on login.
+        if (inputs.isNotEmpty() && inputs.none { it.inJoinList }) {
+            throw UnprocessableException("At least one backend must be in the join list")
         }
 
         transaction {
@@ -72,6 +91,7 @@ class ProxyBackendService(
                     this.backendServerId = EntityID(b.backendServerId, Servers)
                     this.backendName = b.backendName
                     this.order = b.order
+                    this.inJoinList = b.inJoinList
                 }
             }
         }
@@ -93,5 +113,6 @@ private fun ProxyBackendRow.toItem() = ProxyBackendItem(
     id = id.toString(),
     backendServerId = backendServerId.toString(),
     backendName = backendName,
-    order = order
+    order = order,
+    inJoinList = inJoinList
 )

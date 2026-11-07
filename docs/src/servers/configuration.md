@@ -315,6 +315,10 @@ Proxy server configuration follows the same two-mode pattern.
 The UI presents a list of backend servers available in the same Server Network. The user selects which servers the proxy connects to and assigns internal names. Master generates the correct
 `velocity.toml` or `config.yml` from this data.
 
+Every configured backend is added to the proxy's server registry (Velocity `[servers]`, BungeeCord/Waterfall `servers`). A separate **Join** checkbox per backend controls which of them are
+also listed in the initial join order — Velocity `servers.try`, BungeeCord/Waterfall `listeners[0].priorities`. Row order (the up/down arrows) sets that join order. At least one backend must
+remain in the join list; the API rejects a backend list where every entry is excluded with `422`.
+
 Backend address resolution is automatic:
 
 - **Same node as proxy** — Docker container hostname is used (bridge network, no port exposure needed)

@@ -48,7 +48,9 @@ test("toggles the PROXY protocol setting", async ({page}) => {
 });
 
 test("adds a backend through the modal", async ({page, network}) => {
-    let backends = [{id: "backend-1", backend_server_id: "srv-2", backend_name: "creative", order: 0}];
+    let backends = [
+        {id: "backend-1", backend_server_id: "srv-2", backend_name: "creative", order: 0, in_join_list: true},
+    ];
     network.use(
         http.get("/api/servers/srv-proxy/config/proxy", () => HttpResponse.json({backends, forwarding_warnings: []})),
         http.put("/api/servers/srv-proxy/config/proxy", async ({request}) => {
@@ -78,8 +80,20 @@ test("duplicate backend names surface a client-side error", async ({page, networ
         http.get("/api/servers/srv-proxy/config/proxy", () =>
             HttpResponse.json({
                 backends: [
-                    {id: "backend-1", backend_server_id: "srv-2", backend_name: "creative", order: 0},
-                    {id: "backend-2", backend_server_id: "srv-3", backend_name: "survival", order: 1},
+                    {
+                        id: "backend-1",
+                        backend_server_id: "srv-2",
+                        backend_name: "creative",
+                        order: 0,
+                        in_join_list: true,
+                    },
+                    {
+                        id: "backend-2",
+                        backend_server_id: "srv-3",
+                        backend_name: "survival",
+                        order: 1,
+                        in_join_list: true,
+                    },
                 ],
                 forwarding_warnings: [],
             }),
@@ -90,17 +104,73 @@ test("duplicate backend names surface a client-side error", async ({page, networ
     await page.getByRole("tab", {name: "Configuration"}).click();
 
     // Rename the second backend to collide with the first, marking the section dirty.
-    await page.locator("table", {hasText: "Backend Name"}).locator("input").nth(1).fill("creative");
+    await page
+        .locator("table", {hasText: "Backend Name"})
+        .locator("input:not([type='checkbox'])")
+        .nth(1)
+        .fill("creative");
     await page.getByRole("button", {name: "Save", exact: true}).click();
 
     await expect(page.getByText("Backend names must be unique")).toBeVisible();
+});
+
+test("removes a backend from the join list and saves the flag", async ({page, network}) => {
+    let saved: Array<{backend_server_id: string; in_join_list: boolean}> = [];
+    network.use(
+        http.get("/api/servers/srv-proxy/config/proxy", () =>
+            HttpResponse.json({
+                backends: [
+                    {
+                        id: "backend-1",
+                        backend_server_id: "srv-2",
+                        backend_name: "creative",
+                        order: 0,
+                        in_join_list: true,
+                    },
+                    {
+                        id: "backend-2",
+                        backend_server_id: "srv-3",
+                        backend_name: "survival",
+                        order: 1,
+                        in_join_list: true,
+                    },
+                ],
+                forwarding_warnings: [],
+            }),
+        ),
+        http.put("/api/servers/srv-proxy/config/proxy", async ({request}) => {
+            const body = (await request.json()) as {backends: typeof saved};
+            saved = body.backends;
+            return HttpResponse.json({backends: body.backends, forwarding_warnings: []});
+        }),
+    );
+
+    await page.goto("/servers/srv-proxy");
+    await page.getByRole("tab", {name: "Configuration"}).click();
+
+    const join = page.getByRole("checkbox", {name: "Include Creative World in the join list"});
+    await expect(join).toBeChecked();
+    await join.click();
+    await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+    await page.getByRole("button", {name: "Save", exact: true}).click();
+    await expect(page.getByText("Unsaved changes")).not.toBeVisible();
+    expect(saved.map((b) => b.in_join_list)).toEqual([false, true]);
 });
 
 test("removing a backend updates the table", async ({page, network}) => {
     network.use(
         http.get("/api/servers/srv-proxy/config/proxy", () =>
             HttpResponse.json({
-                backends: [{id: "backend-1", backend_server_id: "srv-2", backend_name: "creative", order: 0}],
+                backends: [
+                    {
+                        id: "backend-1",
+                        backend_server_id: "srv-2",
+                        backend_name: "creative",
+                        order: 0,
+                        in_join_list: true,
+                    },
+                ],
                 forwarding_warnings: [],
             }),
         ),

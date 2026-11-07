@@ -148,13 +148,15 @@ Only applicable to proxy server types (`VELOCITY`, `BUNGEECORD`, `WATERFALL`).
       "id": "<uuid>",
       "backend_server_id": "<uuid>",
       "backend_name": "survival",
-      "order": 1
+      "order": 1,
+      "in_join_list": true
     },
     {
       "id": "<uuid>",
       "backend_server_id": "<uuid>",
       "backend_name": "creative",
-      "order": 2
+      "order": 2,
+      "in_join_list": true
     }
   ]
 }
@@ -176,12 +178,14 @@ Full replacement of the backend list. Backends not included are removed.
     {
       "backend_server_id": "<uuid>",
       "backend_name": "survival",
-      "order": 1
+      "order": 1,
+      "in_join_list": true
     },
     {
       "backend_server_id": "<uuid>",
       "backend_name": "creative",
-      "order": 2
+      "order": 2,
+      "in_join_list": false
     }
   ]
 }
@@ -189,4 +193,4 @@ Full replacement of the backend list. Backends not included are removed.
 
 **Response `200`:** updated backend list.
 
-**Errors:** `409` if the server is not a proxy type. `422` if `backend_name` values are not unique within the list. `422` if any `backend_server_id` refers to a proxy type server.
+**Errors:** `409` if the server is not a proxy type. `422` if `backend_name` values are not unique within the list. `422` if any `backend_server_id` refers to a proxy type server. `422` if backends are supplied but `in_join_list` is `false` for every one of them (`in_join_list` defaults to `true` when omitted or `null`).

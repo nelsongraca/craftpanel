@@ -69,6 +69,49 @@ class ProxyBackendTest : BaseSystemTest() {
                 backends.backends.first().backendServerId shouldBe gameServerId
             }
 
+            should("round-trip the join list flag") {
+                val secondGame = ServerHelper(api).createTestServer(nodeId)
+                try {
+                    val result = api.replaceProxyBackends(
+                        proxyServerId,
+                        PutProxyBackendsRequest(
+                            backends = listOf(
+                                BackendInput(gameServerId, "Game1", 1, inJoinList = false),
+                                BackendInput(secondGame, "Game2", 2, inJoinList = true)
+                            )
+                        )
+                    )
+                    result.backends.map { it.backendName to it.inJoinList } shouldBe
+                        listOf("Game1" to false, "Game2" to true)
+
+                    val readBack = api.getProxyBackends(proxyServerId).backends
+                    readBack.map { it.backendName to it.inJoinList } shouldBe
+                        listOf("Game1" to false, "Game2" to true)
+                } finally {
+                    runCatching { api.deleteServer(secondGame) }
+                }
+            }
+
+            should("reject a backend list with no join backend") {
+                val secondGame = ServerHelper(api).createTestServer(nodeId)
+                try {
+                    val ex = shouldThrow<ClientException> {
+                        api.replaceProxyBackends(
+                            proxyServerId,
+                            PutProxyBackendsRequest(
+                                backends = listOf(
+                                    BackendInput(gameServerId, "Game1", 1, inJoinList = false),
+                                    BackendInput(secondGame, "Game2", 2, inJoinList = false)
+                                )
+                            )
+                        )
+                    }
+                    ex.statusCode shouldBe 422
+                } finally {
+                    runCatching { api.deleteServer(secondGame) }
+                }
+            }
+
             should("replace backends with multiple servers and maintain order") {
                 val secondGame = ServerHelper(api).createTestServer(nodeId)
                 try {
