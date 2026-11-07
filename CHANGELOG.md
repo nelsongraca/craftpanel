@@ -1,3 +1,11 @@
+## [1.5.0] - 2026-11-07
+
+### Features
+
+- add join-list toggle for proxy backends (d052ab268cdb302)
+- keep search open after adding and add clear button (6d5b0e73650b8c4)
+- client modpack export (.mrpack) (5f32e802bd218ad)
+
 ## [1.4.1] - 2026-10-29
 
 ### Features
